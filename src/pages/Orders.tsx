@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Download, PackageSearch, Plus, Receipt, ShoppingCart, Truck, Wallet } from 'lucide-react'
 import {
@@ -47,6 +47,7 @@ export default function Orders() {
   const loaded = useLoaded()
   const orders = useStore((s) => s.orders)
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
 
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
   // Re-sync the search box when navigated here again (e.g. from global search)
@@ -76,9 +77,16 @@ export default function Orders() {
   const filtered = useMemo(() => {
     const days = RANGE_DAYS[range]
     const cutoff = days ? startOfDay(addDays(new Date(), -(days - 1))).getTime() : 0
+    const endOfToday = addDays(startOfDay(new Date()), 1).getTime()
     return orders.filter((o) => {
       if (cutoff && new Date(o.placedAt).getTime() < cutoff) return false
-      if (status && o.status !== status) return false
+      // '__open' / '__due' are the pseudo-filters behind the clickable stat tiles
+      if (status === '__open') {
+        if (!OPEN_STATUSES.includes(o.status)) return false
+      } else if (status === '__due') {
+        if (!OPEN_STATUSES.includes(o.status)) return false
+        if (!o.shipBy || new Date(o.shipBy).getTime() >= endOfToday) return false
+      } else if (status && o.status !== status) return false
       if (channel && o.channel !== channel) return false
       if (q) {
         const hay = `${o.number} ${o.customerName} ${o.email}`.toLowerCase()
@@ -120,6 +128,14 @@ export default function Orders() {
       ]),
     )
     downloadFile(`orders-${dayKey(new Date())}.csv`, csv, 'text/csv')
+  }
+
+  /** Clicking a stat tile resets other filters so the table count matches the tile */
+  const showTileFilter = (pseudoStatus: '__open' | '__due') => {
+    setQuery('')
+    setChannel('')
+    setRange('all')
+    setStatus(pseudoStatus)
   }
 
   const hasFilters = Boolean(q || status || channel || range !== 'all')
@@ -235,7 +251,13 @@ export default function Orders() {
           transition={{ duration: 0.2, ease: 'easeOut' }}
         >
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Stat label="Open orders" value={num(stats.open)} icon={<ShoppingCart />} />
+            <Stat
+              label="Open orders"
+              value={num(stats.open)}
+              icon={<ShoppingCart />}
+              clickHint="Filter the table to open orders"
+              onClick={() => showTileFilter('__open')}
+            />
             <Stat
               label="Due to ship"
               value={
@@ -247,9 +269,23 @@ export default function Orders() {
                 </span>
               }
               icon={<Truck />}
+              clickHint="Filter the table to orders due to ship"
+              onClick={() => showTileFilter('__due')}
             />
-            <Stat label="Revenue this month" value={moneyCompact(stats.monthRevenue)} icon={<Wallet />} />
-            <Stat label="Average order value" value={money(stats.aov)} icon={<Receipt />} />
+            <Stat
+              label="Revenue this month"
+              value={moneyCompact(stats.monthRevenue)}
+              icon={<Wallet />}
+              clickHint="Open accounting for the monthly P&L"
+              onClick={() => navigate('/accounting')}
+            />
+            <Stat
+              label="Average order value"
+              value={money(stats.aov)}
+              icon={<Receipt />}
+              clickHint="Open analytics for order trends"
+              onClick={() => navigate('/analytics')}
+            />
           </div>
 
           <div>
@@ -264,10 +300,14 @@ export default function Orders() {
               <Select
                 aria-label="Filter by status"
                 placeholder="All statuses"
-                options={[...ORDER_STATUSES]}
+                options={[
+                  { value: '__open', label: 'Open (any active)' },
+                  { value: '__due', label: 'Due to ship' },
+                  ...ORDER_STATUSES.map((s) => ({ value: s, label: s })),
+                ]}
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                className="w-40"
+                className="w-44"
               />
               <Select
                 aria-label="Filter by channel"

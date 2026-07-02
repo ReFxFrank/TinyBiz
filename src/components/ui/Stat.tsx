@@ -10,6 +10,10 @@ export interface StatProps {
   /** 12-point sparkline series (raw values) */
   trend?: number[]
   icon?: ReactNode
+  /** Makes the tile a button — filter the view below or jump to a detail page */
+  onClick?: () => void
+  /** Accessible hint for what clicking does, e.g. "Filter to open orders" */
+  clickHint?: string
   className?: string
 }
 
@@ -17,13 +21,14 @@ export interface StatProps {
  * Stat tile per the dataviz contract: sentence-case label, semibold value in
  * proportional figures, optional signed delta colored by direction × goodness,
  * optional 12-point sparkline (muted, current period accented).
+ * With `onClick` it renders as a real button with hover lift.
  */
-export function Stat({ label, value, delta, trend, icon, className }: StatProps) {
+export function Stat({ label, value, delta, trend, icon, onClick, clickHint, className }: StatProps) {
   const up = delta ? delta.pct >= 0 : true
   const good = delta ? (delta.upIsGood ?? true) === up : true
-  return (
-    <div className={cn('card p-5', className)}>
-      <div className="flex items-start justify-between gap-3">
+
+  const inner = (
+    <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[13px] font-medium text-ink-3">{label}</div>
           <div className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight text-ink">{value}</div>
@@ -49,9 +54,27 @@ export function Stat({ label, value, delta, trend, icon, className }: StatProps)
             {icon}
           </div>
         ) : null}
-      </div>
     </div>
   )
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        title={clickHint}
+        aria-label={clickHint ?? label}
+        className={cn(
+          'card p-5 text-left transition-all duration-200 cursor-pointer',
+          'hover:-translate-y-0.5 hover:shadow-lifted',
+          className,
+        )}
+      >
+        {inner}
+      </button>
+    )
+  }
+  return <div className={cn('card p-5', className)}>{inner}</div>
 }
 
 /** Tiny inline sparkline: muted line with the final point accented */

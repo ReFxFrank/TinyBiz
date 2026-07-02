@@ -4,6 +4,24 @@ import { uid } from '@/lib/utils'
 
 export type Theme = 'light' | 'dark' | 'system'
 
+/** Accent color themes the user can pick in Settings → Appearance */
+export const ACCENTS = ['nova', 'violet', 'emerald', 'rose', 'amber', 'teal'] as const
+export type Accent = (typeof ACCENTS)[number]
+
+export const ACCENT_META: Record<Accent, { label: string; swatch: string }> = {
+  nova: { label: 'Nova Blue', swatch: '#2a78d6' },
+  violet: { label: 'Violet', swatch: '#7c3aed' },
+  emerald: { label: 'Emerald', swatch: '#047857' },
+  rose: { label: 'Rose', swatch: '#e11d48' },
+  amber: { label: 'Amber', swatch: '#b45309' },
+  teal: { label: 'Teal', swatch: '#0f766e' },
+}
+
+/** Corner rounding character */
+export type Radius = 'sharp' | 'soft' | 'round'
+/** Global interface scale */
+export type UIScale = 'compact' | 'cozy' | 'large'
+
 export interface Toast {
   id: string
   title: string
@@ -13,12 +31,20 @@ export interface Toast {
 
 interface UIState {
   theme: Theme
+  accent: Accent
+  radius: Radius
+  scale: UIScale
+  reduceMotion: boolean
   sidebarCollapsed: boolean
   /** Mobile slide-over nav */
   mobileNavOpen: boolean
   paletteOpen: boolean
   toasts: Toast[]
   setTheme: (t: Theme) => void
+  setAccent: (a: Accent) => void
+  setRadius: (r: Radius) => void
+  setScale: (s: UIScale) => void
+  setReduceMotion: (v: boolean) => void
   toggleSidebar: () => void
   setMobileNav: (open: boolean) => void
   setPalette: (open: boolean) => void
@@ -30,11 +56,19 @@ export const useUI = create<UIState>()(
   persist(
     (set) => ({
       theme: 'light',
+      accent: 'nova',
+      radius: 'soft',
+      scale: 'cozy',
+      reduceMotion: false,
       sidebarCollapsed: false,
       mobileNavOpen: false,
       paletteOpen: false,
       toasts: [],
       setTheme: (theme) => set({ theme }),
+      setAccent: (accent) => set({ accent }),
+      setRadius: (radius) => set({ radius }),
+      setScale: (scale) => set({ scale }),
+      setReduceMotion: (reduceMotion) => set({ reduceMotion }),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setMobileNav: (mobileNavOpen) => set({ mobileNavOpen }),
       setPalette: (paletteOpen) => set({ paletteOpen }),
@@ -43,7 +77,15 @@ export const useUI = create<UIState>()(
     }),
     {
       name: 'tinybiz-ui',
-      partialize: (s) => ({ theme: s.theme, sidebarCollapsed: s.sidebarCollapsed }) as UIState,
+      partialize: (s) =>
+        ({
+          theme: s.theme,
+          accent: s.accent,
+          radius: s.radius,
+          scale: s.scale,
+          reduceMotion: s.reduceMotion,
+          sidebarCollapsed: s.sidebarCollapsed,
+        }) as UIState,
     },
   ),
 )

@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { RotateCcw, Save } from 'lucide-react'
+import { Check, RotateCcw, Save } from 'lucide-react'
 import type { CurrencyCode, Settings as SettingsType } from '@/data/types'
 import { useStore } from '@/store/useStore'
-import { useUI, toast, type Theme } from '@/store/useUI'
+import { useUI, toast, ACCENTS, ACCENT_META, type Accent, type Radius, type Theme, type UIScale } from '@/store/useUI'
 import {
   Badge,
   Button,
@@ -19,7 +19,7 @@ import {
   Skeleton,
   Toggle,
 } from '@/components/ui'
-import { useLoaded } from '@/lib/utils'
+import { cn, useLoaded } from '@/lib/utils'
 
 // ── Business profile ─────────────────────────────────────────────────────────
 
@@ -214,25 +214,104 @@ function PreferencesCard() {
 
 // ── Appearance ───────────────────────────────────────────────────────────────
 
+function AppearanceRow({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-2 border-b border-hairline py-4 first:pt-0 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+      <div className="min-w-0">
+        <div className="text-sm font-medium text-ink">{label}</div>
+        {hint && <div className="mt-0.5 text-[13px] text-ink-3">{hint}</div>}
+      </div>
+      <div className="shrink-0">{children}</div>
+    </div>
+  )
+}
+
 function AppearanceCard() {
   const theme = useUI((s) => s.theme)
   const setTheme = useUI((s) => s.setTheme)
+  const accent = useUI((s) => s.accent)
+  const setAccent = useUI((s) => s.setAccent)
+  const radius = useUI((s) => s.radius)
+  const setRadius = useUI((s) => s.setRadius)
+  const scale = useUI((s) => s.scale)
+  const setScale = useUI((s) => s.setScale)
+  const reduceMotion = useUI((s) => s.reduceMotion)
+  const setReduceMotion = useUI((s) => s.setReduceMotion)
 
   return (
     <Card>
-      <CardHeader title="Appearance" subtitle="Theme changes apply instantly — no save needed." />
-      <div className="flex flex-wrap items-center gap-4">
-        <Segmented<Theme>
-          size="md"
-          value={theme}
-          onChange={setTheme}
-          options={[
-            { value: 'light', label: 'Light' },
-            { value: 'dark', label: 'Dark' },
-            { value: 'system', label: 'System' },
-          ]}
-        />
-        <p className="text-[13px] text-ink-3">System follows your device's light/dark preference automatically.</p>
+      <CardHeader
+        title="Appearance"
+        subtitle="Make TinyBiz yours — every change applies instantly and only affects this browser."
+      />
+      <div>
+        <AppearanceRow label="Theme" hint="System follows your device's light/dark preference automatically.">
+          <Segmented<Theme>
+            size="md"
+            value={theme}
+            onChange={setTheme}
+            options={[
+              { value: 'light', label: 'Light' },
+              { value: 'dark', label: 'Dark' },
+              { value: 'system', label: 'System' },
+            ]}
+          />
+        </AppearanceRow>
+
+        <AppearanceRow label="Accent color" hint="Colors buttons, links, and highlights. Charts keep their colorblind-safe palette.">
+          <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Accent color">
+            {ACCENTS.map((a) => {
+              const active = a === accent
+              return (
+                <button
+                  key={a}
+                  role="radio"
+                  aria-checked={active}
+                  aria-label={ACCENT_META[a].label}
+                  title={ACCENT_META[a].label}
+                  onClick={() => setAccent(a)}
+                  className={cn(
+                    'flex h-8 w-8 items-center justify-center rounded-full transition-transform duration-150 hover:scale-110',
+                    active && 'ring-2 ring-offset-2 ring-offset-surface',
+                  )}
+                  style={{ background: ACCENT_META[a].swatch, ...(active ? { ['--tw-ring-color' as never]: ACCENT_META[a].swatch } : {}) }}
+                >
+                  {active && <Check className="h-4 w-4 text-white" aria-hidden />}
+                </button>
+              )
+            })}
+          </div>
+        </AppearanceRow>
+
+        <AppearanceRow label="Corner style" hint="From crisp and technical to soft and friendly.">
+          <Segmented<Radius>
+            size="md"
+            value={radius}
+            onChange={setRadius}
+            options={[
+              { value: 'sharp', label: 'Sharp' },
+              { value: 'soft', label: 'Soft' },
+              { value: 'round', label: 'Round' },
+            ]}
+          />
+        </AppearanceRow>
+
+        <AppearanceRow label="Interface scale" hint="Resizes text and spacing across the whole app.">
+          <Segmented<UIScale>
+            size="md"
+            value={scale}
+            onChange={setScale}
+            options={[
+              { value: 'compact', label: 'Compact' },
+              { value: 'cozy', label: 'Cozy' },
+              { value: 'large', label: 'Large' },
+            ]}
+          />
+        </AppearanceRow>
+
+        <AppearanceRow label="Reduce motion" hint="Minimizes page transitions and micro-animations.">
+          <Toggle checked={reduceMotion} onChange={setReduceMotion} label="Reduce motion" className="[&>span:first-child]:sr-only" />
+        </AppearanceRow>
       </div>
     </Card>
   )

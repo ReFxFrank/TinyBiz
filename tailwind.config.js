@@ -42,8 +42,13 @@ export default {
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       borderRadius: {
-        xl2: '1rem',
-        xl3: '1.25rem',
+        // Var-driven so the user's corner-style setting reshapes every component
+        lg: 'var(--r-lg)',
+        xl: 'var(--r-xl)',
+        '2xl': 'var(--r-2xl)',
+        '3xl': 'var(--r-3xl)',
+        xl2: 'var(--r-2xl)',
+        xl3: 'var(--r-3xl)',
       },
       boxShadow: {
         soft: '0 1px 2px rgba(11,11,11,0.04), 0 4px 16px rgba(11,11,11,0.05)',

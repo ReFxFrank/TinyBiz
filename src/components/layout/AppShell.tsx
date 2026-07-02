@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useState, Component, type ReactNode } from 'react'
 import { useLocation, useNavigate, useOutlet } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { CommandPalette } from './CommandPalette'
@@ -12,9 +12,12 @@ import { ErrorState } from '@/components/ui/EmptyState'
 import { SkeletonStats, SkeletonChart } from '@/components/ui/Skeleton'
 import { cn } from '@/lib/utils'
 
-/** Applies the theme class to <html>, following system preference when set */
+/** Applies the theme class + appearance attributes to <html>, following system preference when set */
 function useApplyTheme() {
   const theme = useUI((s) => s.theme)
+  const accent = useUI((s) => s.accent)
+  const radius = useUI((s) => s.radius)
+  const scale = useUI((s) => s.scale)
   useEffect(() => {
     const apply = () => document.documentElement.classList.toggle('dark', isDark(theme))
     apply()
@@ -23,6 +26,12 @@ function useApplyTheme() {
     mq.addEventListener('change', apply)
     return () => mq.removeEventListener('change', apply)
   }, [theme])
+  useEffect(() => {
+    const el = document.documentElement
+    el.setAttribute('data-accent', accent)
+    el.setAttribute('data-radius', radius)
+    el.setAttribute('data-scale', scale)
+  }, [accent, radius, scale])
 }
 
 /** ⌘K palette + `g <letter>` page-jump chords */
@@ -113,9 +122,11 @@ export function AppShell() {
   useApplyTheme()
   useGlobalShortcuts()
   const collapsed = useUI((s) => s.sidebarCollapsed)
+  const reduceMotion = useUI((s) => s.reduceMotion)
   const location = useLocation()
 
   return (
+    <MotionConfig reducedMotion={reduceMotion ? 'always' : 'user'}>
     <TooltipProvider>
       <div className="min-h-full">
         <Sidebar />
@@ -143,5 +154,6 @@ export function AppShell() {
         <Toaster />
       </div>
     </TooltipProvider>
+    </MotionConfig>
   )
 }

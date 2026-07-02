@@ -7,12 +7,17 @@
     <meta name="description" content="TinyBiz — the all-in-one workspace for makers and small shops" />
     <title>TinyBiz — Small Business Manager</title>
     <script>
-      // Apply persisted theme before first paint to avoid a flash
+      // Apply persisted theme + appearance before first paint to avoid a flash
       try {
         var raw = localStorage.getItem('tinybiz-ui');
-        var theme = raw ? JSON.parse(raw).state.theme : 'light';
+        var state = raw ? JSON.parse(raw).state : {};
+        var theme = state.theme || 'light';
         var dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        if (dark) document.documentElement.classList.add('dark');
+        var el = document.documentElement;
+        if (dark) el.classList.add('dark');
+        if (state.accent) el.setAttribute('data-accent', state.accent);
+        if (state.radius) el.setAttribute('data-radius', state.radius);
+        if (state.scale) el.setAttribute('data-scale', state.scale);
       } catch (e) {}
     </script>
   </head>

@@ -103,7 +103,10 @@ export default function Shipping() {
     const q = query.trim().toLowerCase()
     return shipments.filter((s) => {
       if (carrierFilter && s.carrier !== carrierFilter) return false
-      if (statusFilter && s.status !== statusFilter) return false
+      // '__moving' is the pseudo-filter behind the "In transit" stat tile
+      if (statusFilter === '__moving') {
+        if (s.status !== 'In transit' && s.status !== 'Out for delivery') return false
+      } else if (statusFilter && s.status !== statusFilter) return false
       if (q) {
         const haystack = `${s.orderNumber} ${s.customerName} ${s.trackingNumber}`.toLowerCase()
         if (!haystack.includes(q) && !s.trackingNumber.replace(/\s/g, '').includes(q.replace(/\s/g, ''))) return false
@@ -111,6 +114,13 @@ export default function Shipping() {
       return true
     })
   }, [shipments, query, carrierFilter, statusFilter])
+
+  /** Clicking a stat tile resets other filters so the table count matches the tile */
+  const showTileFilter = (status: string) => {
+    setQuery('')
+    setCarrierFilter('')
+    setStatusFilter(status)
+  }
 
   const hasFilters = Boolean(query || carrierFilter || statusFilter)
 
@@ -216,15 +226,35 @@ export default function Shipping() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Stat label="In transit" value={num(stats.inTransit)} icon={<Truck />} />
-            <Stat label="Delivered (30d)" value={num(stats.delivered30)} icon={<PackageCheck />} />
-            <Stat label="Avg label cost (30d)" value={money(stats.avgCost)} icon={<Tag />} />
+            <Stat
+              label="In transit"
+              value={num(stats.inTransit)}
+              icon={<Truck />}
+              clickHint="Filter the table to shipments on the move"
+              onClick={() => showTileFilter('__moving')}
+            />
+            <Stat
+              label="Delivered (30d)"
+              value={num(stats.delivered30)}
+              icon={<PackageCheck />}
+              clickHint="Show delivered shipments"
+              onClick={() => showTileFilter('Delivered')}
+            />
+            <Stat
+              label="Avg label cost (30d)"
+              value={money(stats.avgCost)}
+              icon={<Tag />}
+              clickHint="View all shipments"
+              onClick={() => showTileFilter('')}
+            />
             <Stat
               label="Exceptions"
               value={
                 <span className={cn(stats.exceptions > 0 && 'text-critical')}>{num(stats.exceptions)}</span>
               }
               icon={<AlertTriangle />}
+              clickHint="Filter the table to delivery exceptions"
+              onClick={() => showTileFilter('Exception')}
             />
           </div>
 
@@ -250,7 +280,10 @@ export default function Shipping() {
                 placeholder="All statuses"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                options={SHIPMENT_STATUSES}
+                options={[
+                  { value: '__moving', label: 'In transit (any)' },
+                  ...SHIPMENT_STATUSES.map((s) => ({ value: s, label: s })),
+                ]}
                 className="w-44"
               />
             </FilterBar>

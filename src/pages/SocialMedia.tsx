@@ -116,6 +116,11 @@ export default function SocialMedia() {
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
+  /** Stat tiles jump to the section they summarize (offset for the sticky topbar via scroll-mt) */
+  const scrollToSection = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   const openCompose = () => {
     setEditingPost(null)
     setComposeOpen(true)
@@ -169,18 +174,36 @@ export default function SocialMedia() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat label="Total followers" value={numCompact(totalFollowers)} />
+        <Stat
+          label="Total followers"
+          value={numCompact(totalFollowers)}
+          clickHint="Jump to your accounts"
+          onClick={() => scrollToSection('social-accounts')}
+        />
         <Stat
           label="Follower growth this month"
           value={`${followerGrowth >= 0 ? '+' : ''}${num(followerGrowth)}`}
           delta={{ pct: growthPct, vs: 'last month' }}
+          clickHint="Jump to the followers by platform chart"
+          onClick={() => scrollToSection('followers-chart')}
         />
-        <Stat label="Posts scheduled" value={num(scheduledCount)} icon={<CalendarClock />} />
-        <Stat label="Avg engagement per post" value={numCompact(Math.round(avgEngagement))} />
+        <Stat
+          label="Posts scheduled"
+          value={num(scheduledCount)}
+          icon={<CalendarClock />}
+          clickHint="Jump to scheduled posts and drafts"
+          onClick={() => scrollToSection('scheduled-posts')}
+        />
+        <Stat
+          label="Avg engagement per post"
+          value={numCompact(Math.round(avgEngagement))}
+          clickHint="Jump to recent posts and their engagement"
+          onClick={() => scrollToSection('recent-posts')}
+        />
       </div>
 
       {/* Accounts */}
-      <section className="space-y-3">
+      <section id="social-accounts" className="scroll-mt-20 space-y-3">
         <h2 className="text-sm font-semibold text-ink">Accounts</h2>
         {accounts.length === 0 ? (
           <Card>
@@ -210,32 +233,34 @@ export default function SocialMedia() {
       </section>
 
       {/* Followers by platform */}
-      <ChartCard
-        title="Followers by platform"
-        subtitle="This month vs last month"
-        table={{
-          headers: ['Platform', 'Last month', 'Now'],
-          rows: chartData.map((d) => [d.platform, num(d.lastMonth), num(d.now)]),
-        }}
-      >
-        <BarsChart
-          data={chartData}
-          xKey="platform"
-          series={[
-            { key: 'lastMonth', name: 'Last month', color: 2 },
-            { key: 'now', name: 'Now', color: 0 },
-          ]}
-          valueFormatter={(v) => numCompact(v)}
-          height={240}
-        />
-      </ChartCard>
+      <div id="followers-chart" className="scroll-mt-20">
+        <ChartCard
+          title="Followers by platform"
+          subtitle="This month vs last month"
+          table={{
+            headers: ['Platform', 'Last month', 'Now'],
+            rows: chartData.map((d) => [d.platform, num(d.lastMonth), num(d.now)]),
+          }}
+        >
+          <BarsChart
+            data={chartData}
+            xKey="platform"
+            series={[
+              { key: 'lastMonth', name: 'Last month', color: 2 },
+              { key: 'now', name: 'Now', color: 0 },
+            ]}
+            valueFormatter={(v) => numCompact(v)}
+            height={240}
+          />
+        </ChartCard>
+      </div>
 
       {/* Content calendar */}
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-ink">Content calendar</h2>
         <div className="grid gap-4 lg:grid-cols-2">
           {/* Scheduled & drafts */}
-          <Card padding="none" className="overflow-hidden">
+          <Card id="scheduled-posts" padding="none" className="scroll-mt-20 overflow-hidden">
             <div className="border-b border-hairline px-5 py-3.5">
               <h3 className="text-[13px] font-semibold text-ink">Scheduled &amp; drafts</h3>
             </div>
@@ -290,7 +315,7 @@ export default function SocialMedia() {
           </Card>
 
           {/* Recent posts */}
-          <Card padding="none" className="overflow-hidden">
+          <Card id="recent-posts" padding="none" className="scroll-mt-20 overflow-hidden">
             <div className="border-b border-hairline px-5 py-3.5">
               <h3 className="text-[13px] font-semibold text-ink">Recent posts</h3>
             </div>

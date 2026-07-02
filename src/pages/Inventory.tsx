@@ -29,6 +29,9 @@ export default function Inventory() {
     return t === 'materials' || t === 'adjustments' ? t : 'products'
   })
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
+  // Products-tab filters live here so the stat tiles can drive them
+  const [productCategory, setProductCategory] = useState('')
+  const [lowOnly, setLowOnly] = useState(false)
 
   // Keep tab + search in sync when navigated to via global search / notifications
   useEffect(() => {
@@ -74,6 +77,14 @@ export default function Inventory() {
   const openAdjust = (type: 'product' | 'material') => (item: Product | Material, damaged?: boolean) =>
     setAdjustTarget({ type, id: item.id, presetReason: damaged ? 'Damaged' : undefined })
 
+  /** Clicking a stat tile lands on the Products tab with predictable filters */
+  const showProducts = (low: boolean) => {
+    setQuery('')
+    setProductCategory('')
+    setLowOnly(low)
+    setTab('products')
+  }
+
   return (
     <div>
       <PageHeader
@@ -117,27 +128,52 @@ export default function Inventory() {
           transition={{ duration: 0.2, ease: 'easeOut' }}
         >
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Stat label="Inventory value" value={moneyCompact(stats.value)} icon={<Warehouse />} />
+            <Stat
+              label="Inventory value"
+              value={moneyCompact(stats.value)}
+              icon={<Warehouse />}
+              clickHint="Browse all products with filters cleared"
+              onClick={() => showProducts(false)}
+            />
             <Stat
               label="Low stock items"
               value={
                 <span className={stats.low > 0 ? 'text-[#b4491f] dark:text-serious' : undefined}>{num(stats.low)}</span>
               }
               icon={<AlertTriangle />}
+              clickHint="Filter products to low stock only"
+              onClick={() => showProducts(true)}
             />
             <Stat
               label="Out of stock"
               value={<span className={stats.out > 0 ? 'text-critical' : undefined}>{num(stats.out)}</span>}
               icon={<PackageX />}
+              clickHint="Out-of-stock items show in the low-stock product view"
+              onClick={() => showProducts(true)}
             />
-            <Stat label="Finished units on hand" value={num(stats.units)} icon={<Package />} />
+            <Stat
+              label="Finished units on hand"
+              value={num(stats.units)}
+              icon={<Package />}
+              clickHint="View finished products and their stock"
+              onClick={() => showProducts(false)}
+            />
           </div>
 
           <div>
             <Tabs items={tabs} value={tab} onChange={setTab} className="mb-4" />
 
             {tab === 'products' && (
-              <ProductsTab products={products} query={query} onQueryChange={setQuery} onAdjust={openAdjust('product')} />
+              <ProductsTab
+                products={products}
+                query={query}
+                onQueryChange={setQuery}
+                category={productCategory}
+                onCategoryChange={setProductCategory}
+                lowOnly={lowOnly}
+                onLowOnlyChange={setLowOnly}
+                onAdjust={openAdjust('product')}
+              />
             )}
             {tab === 'materials' && (
               <MaterialsTab

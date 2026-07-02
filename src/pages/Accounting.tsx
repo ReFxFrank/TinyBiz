@@ -3,6 +3,7 @@
 // derives live from the store via monthlySeries slices.
 
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ChevronDown, Download, FileSpreadsheet, Receipt } from 'lucide-react'
 import { useStore } from '@/store/useStore'
@@ -78,6 +79,11 @@ function pctDelta(current: number, previous: number): number {
   return current > 0 ? 100 : 0
 }
 
+/** Smooth-scroll to a section of this page by id */
+function jumpTo(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 function marginPct(part: number, revenue: number): number {
   return revenue > 0 ? (part / revenue) * 100 : 0
 }
@@ -95,15 +101,41 @@ const fadeUp = {
   transition: { duration: 0.2, ease: 'easeOut' as const },
 }
 
-/** Stat-style tile with a small note line under the value */
-function NoteStat({ label, value, note }: { label: string; value: string; note: string }) {
-  return (
-    <div className="card p-5">
+/** Stat-style tile with a small note line under the value; with `onClick` it renders as a button like Stat */
+function NoteStat({
+  label,
+  value,
+  note,
+  onClick,
+  clickHint,
+}: {
+  label: string
+  value: string
+  note: string
+  onClick?: () => void
+  clickHint?: string
+}) {
+  const inner = (
+    <>
       <div className="text-[13px] font-medium text-ink-3">{label}</div>
       <div className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight text-ink">{value}</div>
       <div className="mt-2 text-xs text-ink-3">{note}</div>
-    </div>
+    </>
   )
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        title={clickHint}
+        aria-label={clickHint ?? label}
+        className="card p-5 text-left transition-all duration-200 cursor-pointer hover:-translate-y-0.5 hover:shadow-lifted"
+      >
+        {inner}
+      </button>
+    )
+  }
+  return <div className="card p-5">{inner}</div>
 }
 
 /** Right-aligned money cell for the P&L table; negatives go critical */
@@ -114,6 +146,7 @@ function MoneyCell({ v }: { v: number }) {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Accounting() {
+  const navigate = useNavigate()
   const loaded = useLoaded()
   const orders = useStore((s) => s.orders)
   const expenses = useStore((s) => s.expenses)
@@ -282,77 +315,105 @@ export default function Accounting() {
           label="Revenue"
           value={money0(t.revenue)}
           delta={{ pct: pctDelta(t.revenue, prev.revenue), vs }}
+          clickHint="Open income to see every revenue entry"
+          onClick={() => navigate('/income')}
         />
         <Stat
           label={`Gross profit · ${pct(grossMargin, 0)} margin`}
           value={money0(t.gross)}
           delta={{ pct: pctDelta(t.gross, prev.gross), vs }}
+          clickHint="Jump to the margins chart"
+          onClick={() => jumpTo('margins-chart')}
         />
         <Stat
           label={`Net profit · ${pct(netMargin, 0)} margin`}
           value={money0(t.net)}
           delta={{ pct: pctDelta(t.net, prev.net), vs }}
+          clickHint="Jump to the cash flow chart"
+          onClick={() => jumpTo('cash-flow-chart')}
         />
-        <Stat label="Net cash flow" value={money0(t.net)} trend={months12.map((p) => p.net)} />
+        <Stat
+          label="Net cash flow"
+          value={money0(t.net)}
+          trend={months12.map((p) => p.net)}
+          clickHint="Jump to the cash flow chart"
+          onClick={() => jumpTo('cash-flow-chart')}
+        />
       </div>
 
       {/* Stat row 2 — taxes & spend */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <NoteStat label="Sales tax collected" value={money(taxCollected)} note={`Sales tax rate: ${pct(settings.taxRate, 2)}`} />
+        <NoteStat
+          label="Sales tax collected"
+          value={money(taxCollected)}
+          note={`Sales tax rate: ${pct(settings.taxRate, 2)}`}
+          clickHint="Download the sales tax summary CSV"
+          onClick={downloadTaxSummary}
+        />
         <NoteStat
           label="Estimated income tax"
           value={money0(incomeTaxSetAside)}
           note="25% set-aside of net profit for the period"
+          clickHint="Jump to the monthly P&L"
+          onClick={() => jumpTo('monthly-pnl')}
         />
         <NoteStat
           label="Expenses"
           value={money0(t.expenses)}
           note={`${pct(marginPct(t.expenses, t.revenue), 0)} of revenue this period`}
+          clickHint="Open expenses to see where the money went"
+          onClick={() => navigate('/expenses')}
         />
       </div>
 
       {/* Charts — trailing 12 months */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard
-          title="Cash flow"
-          subtitle="Revenue − COGS − expenses + other income"
-          table={{
-            headers: ['Month', 'Net cash flow'],
-            rows: months12.map((p) => [fmtMonth(p.date.toISOString()), money(p.net)]),
-          }}
-        >
-          <BarsChart
-            data={cashFlowData}
-            xKey="month"
-            series={[{ key: 'net', name: 'Net cash flow', color: 0 }]}
-            valueFormatter={(v) => moneyCompact(v)}
-            height={240}
-          />
-        </ChartCard>
+        <div id="cash-flow-chart">
+          <ChartCard
+            className="h-full"
+            title="Cash flow"
+            subtitle="Revenue − COGS − expenses + other income"
+            table={{
+              headers: ['Month', 'Net cash flow'],
+              rows: months12.map((p) => [fmtMonth(p.date.toISOString()), money(p.net)]),
+            }}
+          >
+            <BarsChart
+              data={cashFlowData}
+              xKey="month"
+              series={[{ key: 'net', name: 'Net cash flow', color: 0 }]}
+              valueFormatter={(v) => moneyCompact(v)}
+              height={240}
+            />
+          </ChartCard>
+        </div>
 
-        <ChartCard
-          title="Margins"
-          subtitle="Gross and net margin, trailing 12 months"
-          table={{
-            headers: ['Month', 'Gross margin', 'Net margin'],
-            rows: marginData.map((d) => [d.month, pct(d.gross, 1), pct(d.net, 1)]),
-          }}
-        >
-          <TrendChart
-            data={marginData}
-            xKey="month"
-            series={[
-              { key: 'gross', name: 'Gross margin', color: 0 },
-              { key: 'net', name: 'Net margin', color: 1 },
-            ]}
-            valueFormatter={(v) => `${v.toFixed(0)}%`}
-            height={240}
-          />
-        </ChartCard>
+        <div id="margins-chart">
+          <ChartCard
+            className="h-full"
+            title="Margins"
+            subtitle="Gross and net margin, trailing 12 months"
+            table={{
+              headers: ['Month', 'Gross margin', 'Net margin'],
+              rows: marginData.map((d) => [d.month, pct(d.gross, 1), pct(d.net, 1)]),
+            }}
+          >
+            <TrendChart
+              data={marginData}
+              xKey="month"
+              series={[
+                { key: 'gross', name: 'Gross margin', color: 0 },
+                { key: 'net', name: 'Net margin', color: 1 },
+              ]}
+              valueFormatter={(v) => `${v.toFixed(0)}%`}
+              height={240}
+            />
+          </ChartCard>
+        </div>
       </div>
 
       {/* Monthly P&L */}
-      <Card padding="none" className="overflow-hidden">
+      <Card id="monthly-pnl" padding="none" className="overflow-hidden">
         <div className="p-5 pb-0">
           <CardHeader
             title="Monthly P&L"

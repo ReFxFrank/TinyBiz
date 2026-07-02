@@ -279,6 +279,13 @@ export default function Documents() {
   const invoiceCount = documents.filter((d) => d.category === 'Invoice').length
   const taxCount = documents.filter((d) => d.category === 'Tax').length
 
+  /** Clicking a stat tile resets the other filters so the table count matches the tile */
+  const showTileFilter = (cat: DocCategory | '') => {
+    setQuery('')
+    setFileType('')
+    setCategory(cat)
+  }
+
   const download = (doc: DocumentItem) => {
     downloadFile(
       `${doc.name}.${doc.fileType}`,
@@ -380,10 +387,34 @@ export default function Documents() {
         <SkeletonStats />
       ) : (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <Stat label="Total documents" value={num(documents.length)} icon={<FolderOpen />} />
-          <Stat label="Storage used" value={`${(totalKB / 1024).toFixed(1)} MB`} icon={<HardDrive />} />
-          <Stat label="Invoices" value={num(invoiceCount)} icon={<Receipt />} />
-          <Stat label="Tax documents" value={num(taxCount)} icon={<FileText />} />
+          <Stat
+            label="Total documents"
+            value={num(documents.length)}
+            icon={<FolderOpen />}
+            clickHint="Show every document"
+            onClick={() => showTileFilter('')}
+          />
+          <Stat
+            label="Storage used"
+            value={`${(totalKB / 1024).toFixed(1)} MB`}
+            icon={<HardDrive />}
+            clickHint="View all documents"
+            onClick={() => showTileFilter('')}
+          />
+          <Stat
+            label="Invoices"
+            value={num(invoiceCount)}
+            icon={<Receipt />}
+            clickHint="Filter the table to invoices"
+            onClick={() => showTileFilter('Invoice')}
+          />
+          <Stat
+            label="Tax documents"
+            value={num(taxCount)}
+            icon={<FileText />}
+            clickHint="Filter the table to tax documents"
+            onClick={() => showTileFilter('Tax')}
+          />
         </div>
       )}
 

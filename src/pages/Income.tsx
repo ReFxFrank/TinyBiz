@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { MoreHorizontal, Pencil, Plus, Trash2, Wallet } from 'lucide-react'
 import { motion } from 'framer-motion'
 import type { IncomeCategory, IncomeEntry } from '@/data/types'
@@ -63,8 +63,14 @@ function dateInputToIso(value: string): string {
   return new Date(`${value}T12:00:00`).toISOString()
 }
 
+/** Smooth-scroll a stat tile's detail section into view (offset for the sticky topbar via scroll-mt) */
+function scrollToSection(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 export default function Income() {
   const loaded = useLoaded()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
   const orders = useStore((s) => s.orders)
@@ -301,42 +307,68 @@ export default function Income() {
           transition={{ duration: 0.2, ease: 'easeOut' }}
         >
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Stat label="Total income this month" value={money0(month.revenue + month.otherIncome)} />
-            <Stat label="Sales revenue this month" value={money0(month.revenue)} />
-            <Stat label="Other income this month" value={money0(month.otherIncome)} />
-            <Stat label="Year to date" value={money0(ytd.revenue + ytd.otherIncome)} />
+            <Stat
+              label="Total income this month"
+              value={money0(month.revenue + month.otherIncome)}
+              clickHint="Jump to the income-over-time chart"
+              onClick={() => scrollToSection('income-trend')}
+            />
+            <Stat
+              label="Sales revenue this month"
+              value={money0(month.revenue)}
+              clickHint="Open orders — the source of sales revenue"
+              onClick={() => navigate('/orders')}
+            />
+            <Stat
+              label="Other income this month"
+              value={money0(month.otherIncome)}
+              clickHint="Jump to the manual income entries"
+              onClick={() => scrollToSection('manual-entries')}
+            />
+            <Stat
+              label="Year to date"
+              value={money0(ytd.revenue + ytd.otherIncome)}
+              clickHint="Show the last 12 months on the income chart"
+              onClick={() => {
+                setRange('12m')
+                scrollToSection('income-trend')
+              }}
+            />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-5">
-            <ChartCard
-              title="Income over time"
-              subtitle={`Sales vs. other income, last ${trendMonths} months`}
-              className="lg:col-span-3"
-              actions={
-                <Segmented
-                  options={[
-                    { value: '6m', label: '6m' },
-                    { value: '12m', label: '12m' },
+            {/* Anchor div: ChartCard has no id prop, and the stat tiles scroll here */}
+            <div id="income-trend" className="scroll-mt-20 lg:col-span-3">
+              <ChartCard
+                title="Income over time"
+                subtitle={`Sales vs. other income, last ${trendMonths} months`}
+                className="h-full"
+                actions={
+                  <Segmented
+                    options={[
+                      { value: '6m', label: '6m' },
+                      { value: '12m', label: '12m' },
+                    ]}
+                    value={range}
+                    onChange={setRange}
+                  />
+                }
+                table={{
+                  headers: ['Month', 'Sales', 'Other income'],
+                  rows: trendData.map((p) => [p.label, money(p.sales), money(p.other)]),
+                }}
+              >
+                <TrendChart
+                  data={trendData}
+                  xKey="label"
+                  series={[
+                    { key: 'sales', name: 'Sales', color: 0 },
+                    { key: 'other', name: 'Other income', color: 1 },
                   ]}
-                  value={range}
-                  onChange={setRange}
+                  valueFormatter={moneyCompact}
                 />
-              }
-              table={{
-                headers: ['Month', 'Sales', 'Other income'],
-                rows: trendData.map((p) => [p.label, money(p.sales), money(p.other)]),
-              }}
-            >
-              <TrendChart
-                data={trendData}
-                xKey="label"
-                series={[
-                  { key: 'sales', name: 'Sales', color: 0 },
-                  { key: 'other', name: 'Other income', color: 1 },
-                ]}
-                valueFormatter={moneyCompact}
-              />
-            </ChartCard>
+              </ChartCard>
+            </div>
 
             <ChartCard
               title="By channel"
@@ -359,7 +391,7 @@ export default function Income() {
             </ChartCard>
           </div>
 
-          <section className="space-y-0">
+          <section id="manual-entries" className="scroll-mt-20 space-y-0">
             <h2 className="mb-3 text-[15px] font-semibold text-ink">Manual entries</h2>
             <FilterBar>
               <SearchInput

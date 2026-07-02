@@ -236,6 +236,7 @@ export default function Expenses() {
 
   const [category, setCategory] = useState('')
   const [range, setRange] = useState<RangeKey>('90d')
+  const [recurringOnly, setRecurringOnly] = useState(false)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Expense | null>(null)
@@ -310,10 +311,19 @@ export default function Expenses() {
     return expenses.filter((e) => {
       if (cutoff && new Date(e.date).getTime() < cutoff) return false
       if (category && e.category !== category) return false
+      if (recurringOnly && !e.recurring) return false
       if (q && !e.vendor.toLowerCase().includes(q) && !(e.notes ?? '').toLowerCase().includes(q)) return false
       return true
     })
-  }, [expenses, query, category, range])
+  }, [expenses, query, category, range, recurringOnly])
+
+  /** Clicking a stat tile resets conflicting filters so the ledger matches the tile */
+  const showTileFilter = (next: { range: RangeKey; category?: ExpenseCategory; recurringOnly?: boolean }) => {
+    setQuery('')
+    setCategory(next.category ?? '')
+    setRecurringOnly(next.recurringOnly ?? false)
+    setRange(next.range)
+  }
 
   const exportCsv = () => {
     const csv = toCsv(
@@ -400,7 +410,7 @@ export default function Expenses() {
     },
   ]
 
-  const hasFilters = query.trim() !== '' || category !== '' || range !== 'all'
+  const hasFilters = query.trim() !== '' || category !== '' || range !== 'all' || recurringOnly
 
   return (
     <div>
@@ -441,8 +451,16 @@ export default function Expenses() {
               label="This month"
               value={money0(thisMonth)}
               delta={{ pct: pctDelta(thisMonth, lastMonth), vs: 'last month', upIsGood: false }}
+              clickHint="Show the last 30 days in the ledger"
+              onClick={() => showTileFilter({ range: '30d' })}
             />
-            <Stat label="Recurring / month" value={money0(recurringMonthly)} icon={<RefreshCw />} />
+            <Stat
+              label="Recurring / month"
+              value={money0(recurringMonthly)}
+              icon={<RefreshCw />}
+              clickHint="Filter the ledger to recurring expenses"
+              onClick={() => showTileFilter({ range: 'all', recurringOnly: true })}
+            />
             <Stat
               label="Largest category this month"
               value={
@@ -455,8 +473,16 @@ export default function Expenses() {
                   '—'
                 )
               }
+              clickHint={largestCategory ? `Filter the ledger to ${largestCategory.name} spend` : undefined}
+              onClick={largestCategory ? () => showTileFilter({ range: '30d', category: largestCategory.name }) : undefined}
             />
-            <Stat label="Year to date" value={money0(yearToDate)} trend={months.map((p) => p.expenses)} />
+            <Stat
+              label="Year to date"
+              value={money0(yearToDate)}
+              trend={months.map((p) => p.expenses)}
+              clickHint="Show year-to-date expenses in the ledger"
+              onClick={() => showTileFilter({ range: 'ytd' })}
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -512,6 +538,15 @@ export default function Expenses() {
                 options={[...EXPENSE_CATEGORIES]}
                 className="w-44"
               />
+              <Button
+                variant="outline"
+                icon={<RefreshCw />}
+                aria-pressed={recurringOnly}
+                onClick={() => setRecurringOnly((v) => !v)}
+                className={recurringOnly ? 'border-accent bg-accent-wash text-accent hover:bg-accent-wash' : undefined}
+              >
+                Recurring only
+              </Button>
               <Segmented options={RANGE_OPTIONS} value={range} onChange={setRange} className="ml-auto" />
             </FilterBar>
 
@@ -536,6 +571,7 @@ export default function Expenses() {
                         onClick={() => {
                           setQuery('')
                           setCategory('')
+                          setRecurringOnly(false)
                           setRange('all')
                         }}
                       >

@@ -399,6 +399,7 @@ export default function Customers() {
   const orders = useStore((s) => s.orders)
   const removeItem = useStore((s) => s.removeItem)
   const loaded = useLoaded()
+  const navigate = useNavigate()
 
   const [searchParams, setSearchParams] = useSearchParams()
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
@@ -468,6 +469,12 @@ export default function Customers() {
   }, [customers, query, tagFilter])
 
   const selected = selectedId ? customers.find((c) => c.id === selectedId) : undefined
+
+  /** Clicking a stat tile clears the filters so the table count matches the tile */
+  const showAll = () => {
+    setQuery('')
+    setTagFilter('')
+  }
 
   const columns: Array<Column<Customer>> = [
     {
@@ -546,10 +553,30 @@ export default function Customers() {
         ) : (
           <>
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <Stat label="Total customers" value={num(customers.length)} />
-              <Stat label="New this month" value={num(newThisMonth)} />
-              <Stat label="Repeat rate" value={pct(repeatRate)} />
-              <Stat label="Average lifetime value" value={moneyCompact(avgLtv)} />
+              <Stat
+                label="Total customers"
+                value={num(customers.length)}
+                clickHint="Show every customer"
+                onClick={showAll}
+              />
+              <Stat
+                label="New this month"
+                value={num(newThisMonth)}
+                clickHint="View all customers, newest joins visible via the Since column"
+                onClick={showAll}
+              />
+              <Stat
+                label="Repeat rate"
+                value={pct(repeatRate)}
+                clickHint="Open analytics for repeat purchase trends"
+                onClick={() => navigate('/analytics')}
+              />
+              <Stat
+                label="Average lifetime value"
+                value={moneyCompact(avgLtv)}
+                clickHint="View all customers, sorted by lifetime value"
+                onClick={showAll}
+              />
             </div>
 
             <div>

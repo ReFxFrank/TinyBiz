@@ -336,6 +336,7 @@ function TaskCard({
 // ── Board column ─────────────────────────────────────────────────────────────
 
 function BoardColumn({
+  id,
   label,
   dot,
   tasks,
@@ -350,6 +351,8 @@ function BoardColumn({
   onDrop,
   extraHeaderAction,
 }: {
+  /** Anchor for the clickable stat tiles, e.g. "column-in-progress" */
+  id?: string
   label: string
   dot: string
   tasks: TaskItem[]
@@ -365,7 +368,7 @@ function BoardColumn({
   extraHeaderAction?: ReactNode
 }) {
   return (
-    <section aria-label={`${label} column`} className="flex min-w-0 flex-col">
+    <section id={id} aria-label={`${label} column`} className="flex min-w-0 scroll-mt-20 flex-col">
       <div className="mb-2 flex items-center gap-2 px-1">
         <span className={cn('h-2 w-2 shrink-0 rounded-full', dot)} aria-hidden />
         <h2 className="truncate text-sm font-semibold text-ink">{label}</h2>
@@ -424,6 +427,7 @@ export default function Tasks() {
 
   const debouncedQuery = useDebounced(query)
   const [priority, setPriority] = useState('')
+  const [overdueOnly, setOverdueOnly] = useState(false)
 
   // Modal state: create (with a preset column) or edit an existing task
   const [modal, setModal] = useState<{ open: boolean; task?: TaskItem; presetStatus?: TaskStatus }>({ open: false })
@@ -446,11 +450,12 @@ export default function Tasks() {
   const filtered = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase()
     return tasks.filter((t) => {
+      if (overdueOnly && (t.status === 'done' || !t.dueDate || !dueIn(t.dueDate).overdue)) return false
       if (priority && t.priority !== priority) return false
       if (!q) return true
       return t.title.toLowerCase().includes(q) || t.tags.some((tag) => tag.toLowerCase().includes(q))
     })
-  }, [tasks, debouncedQuery, priority])
+  }, [tasks, debouncedQuery, priority, overdueOnly])
 
   const byColumn = useMemo(() => {
     const map = new Map<TaskStatus, TaskItem[]>()
@@ -470,6 +475,16 @@ export default function Tasks() {
   const overdue = open.filter((t) => t.dueDate && dueIn(t.dueDate).overdue)
   const inProgress = tasks.filter((t) => t.status === 'in-progress')
   const doneTasks = tasks.filter((t) => t.status === 'done')
+
+  /** Clicking a stat tile resets the filters so the board matches the tile, optionally jumping to a column */
+  function showTileView(opts: { overdue?: boolean; scrollTo?: TaskStatus } = {}) {
+    setQuery('')
+    setPriority('')
+    setOverdueOnly(opts.overdue ?? false)
+    if (opts.scrollTo) {
+      document.getElementById(`column-${opts.scrollTo}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
 
   function handleDragStart(e: DragEvent<HTMLDivElement>, task: TaskItem) {
     e.dataTransfer.setData('text/plain', task.id)
@@ -539,10 +554,34 @@ export default function Tasks() {
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat label="Open tasks" value={num(open.length)} icon={<ClipboardList />} />
-        <Stat label="In progress" value={num(inProgress.length)} icon={<Loader />} />
-        <Stat label="Overdue" value={num(overdue.length)} icon={<AlertTriangle />} />
-        <Stat label="Done" value={num(doneTasks.length)} icon={<CheckCircle2 />} />
+        <Stat
+          label="Open tasks"
+          value={num(open.length)}
+          icon={<ClipboardList />}
+          clickHint="Show every open task"
+          onClick={() => showTileView()}
+        />
+        <Stat
+          label="In progress"
+          value={num(inProgress.length)}
+          icon={<Loader />}
+          clickHint="Clear filters and jump to the In Progress column"
+          onClick={() => showTileView({ scrollTo: 'in-progress' })}
+        />
+        <Stat
+          label="Overdue"
+          value={num(overdue.length)}
+          icon={<AlertTriangle />}
+          clickHint="Filter the board to overdue tasks"
+          onClick={() => showTileView({ overdue: true })}
+        />
+        <Stat
+          label="Done"
+          value={num(doneTasks.length)}
+          icon={<CheckCircle2 />}
+          clickHint="Clear filters and jump to the Done column"
+          onClick={() => showTileView({ scrollTo: 'done' })}
+        />
       </div>
 
       <div>
@@ -562,12 +601,24 @@ export default function Tasks() {
             value={priority}
             onChange={(e) => setPriority(e.target.value)}
           />
+          <Button
+            variant="outline"
+            icon={<AlertTriangle />}
+            aria-pressed={overdueOnly}
+            onClick={() => setOverdueOnly((v) => !v)}
+            className={cn(
+              overdueOnly && 'border-critical/40 bg-critical-wash text-critical hover:bg-critical-wash',
+            )}
+          >
+            Overdue only
+          </Button>
         </FilterBar>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {COLUMNS.map((col) => (
             <BoardColumn
               key={col.status}
+              id={`column-${col.status}`}
               label={col.label}
               dot={col.dot}
               tasks={byColumn.get(col.status) ?? []}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   AlertTriangle,
@@ -334,6 +334,7 @@ export default function Suppliers() {
 
   const loaded = useLoaded()
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
 
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
   // Re-sync the search box when navigated here again (e.g. from global search)
@@ -344,6 +345,7 @@ export default function Suppliers() {
 
   const debouncedQuery = useDebounced(query)
   const [category, setCategory] = useState('')
+  const [topRatedOnly, setTopRatedOnly] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Supplier | null>(null)
@@ -369,6 +371,7 @@ export default function Suppliers() {
     const q = debouncedQuery.trim().toLowerCase()
     return suppliers
       .filter((s) => !category || s.category === category)
+      .filter((s) => !topRatedOnly || s.rating === 5)
       .filter(
         (s) =>
           !q ||
@@ -378,7 +381,7 @@ export default function Suppliers() {
             .includes(q),
       )
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [suppliers, debouncedQuery, category])
+  }, [suppliers, debouncedQuery, category, topRatedOnly])
 
   const avgLead = suppliers.length
     ? suppliers.reduce((a, s) => a + s.leadTimeDays, 0) / suppliers.length
@@ -416,7 +419,14 @@ export default function Suppliers() {
     toast('Supplier deleted', { tone: 'success' })
   }
 
-  const hasFilters = Boolean(debouncedQuery.trim() || category)
+  /** Clicking a stat tile resets other filters so the card grid matches the tile */
+  const showTileFilter = (topRated: boolean) => {
+    setQuery('')
+    setCategory('')
+    setTopRatedOnly(topRated)
+  }
+
+  const hasFilters = Boolean(debouncedQuery.trim() || category || topRatedOnly)
 
   return (
     <div>
@@ -444,10 +454,34 @@ export default function Suppliers() {
       ) : (
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Stat label="Suppliers" value={num(suppliers.length)} icon={<Factory />} />
-            <Stat label="Avg lead time" value={`${avgLead.toFixed(1)}d`} icon={<Clock />} />
-            <Stat label="Materials sourced" value={num(sourced)} icon={<Package />} />
-            <Stat label="Top rated" value={num(topRated)} icon={<Star />} />
+            <Stat
+              label="Suppliers"
+              value={num(suppliers.length)}
+              icon={<Factory />}
+              clickHint="Show all suppliers — clear filters"
+              onClick={() => showTileFilter(false)}
+            />
+            <Stat
+              label="Avg lead time"
+              value={`${avgLead.toFixed(1)}d`}
+              icon={<Clock />}
+              clickHint="View all suppliers"
+              onClick={() => showTileFilter(false)}
+            />
+            <Stat
+              label="Materials sourced"
+              value={num(sourced)}
+              icon={<Package />}
+              clickHint="Open the materials inventory"
+              onClick={() => navigate('/inventory?tab=materials')}
+            />
+            <Stat
+              label="Top rated"
+              value={num(topRated)}
+              icon={<Star />}
+              clickHint="Filter to 5-star suppliers"
+              onClick={() => showTileFilter(true)}
+            />
           </div>
 
           <section>
@@ -467,6 +501,16 @@ export default function Suppliers() {
                 aria-label="Filter by category"
                 className="w-44"
               />
+              <Button
+                variant="outline"
+                size="sm"
+                icon={<Star />}
+                aria-pressed={topRatedOnly}
+                onClick={() => setTopRatedOnly((v) => !v)}
+                className={cn(topRatedOnly && 'border-warn/40 bg-warn-wash text-ink')}
+              >
+                Top rated only
+              </Button>
             </FilterBar>
 
             {filtered.length === 0 ? (
@@ -476,7 +520,7 @@ export default function Suppliers() {
                   title={hasFilters ? 'No suppliers match' : 'No suppliers yet'}
                   description={
                     hasFilters
-                      ? 'Try a different search or clear the category filter.'
+                      ? 'Try a different search or clear the category and rating filters.'
                       : 'Add the vendors you buy filament, packaging, and components from.'
                   }
                   action={
@@ -486,6 +530,7 @@ export default function Suppliers() {
                         onClick={() => {
                           setQuery('')
                           setCategory('')
+                          setTopRatedOnly(false)
                         }}
                       >
                         Clear filters

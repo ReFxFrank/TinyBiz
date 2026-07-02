@@ -423,6 +423,7 @@ export default function Marketing() {
   }, [searchParams])
 
   const debouncedQuery = useDebounced(query)
+  const [statusFilter, setStatusFilter] = useState('')
 
   const [campaignModalOpen, setCampaignModalOpen] = useState(false)
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null)
@@ -455,9 +456,17 @@ export default function Marketing() {
 
   const filteredCampaigns = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase()
-    if (!q) return campaigns
-    return campaigns.filter((c) => c.name.toLowerCase().includes(q) || c.channel.toLowerCase().includes(q))
-  }, [campaigns, debouncedQuery])
+    return campaigns.filter((c) => {
+      if (statusFilter && c.status !== statusFilter) return false
+      if (q && !c.name.toLowerCase().includes(q) && !c.channel.toLowerCase().includes(q)) return false
+      return true
+    })
+  }, [campaigns, debouncedQuery, statusFilter])
+
+  /** Smooth-scroll to the campaigns grid (offset for the sticky topbar via scroll-mt) */
+  const scrollToCampaigns = () => {
+    document.getElementById('campaigns')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   const copyCode = (code: string) => {
     void navigator.clipboard.writeText(code)
@@ -588,33 +597,67 @@ export default function Marketing() {
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat label="Active campaigns" value={num(stats.active)} icon={<Megaphone />} />
-        <Stat label="Ad spend" value={money(stats.spent)} />
-        <Stat label="Attributed revenue" value={money0(stats.revenue)} />
-        <Stat label="Blended ROAS" value={stats.roas} />
+        <Stat
+          label="Active campaigns"
+          value={num(stats.active)}
+          icon={<Megaphone />}
+          clickHint="Filter the grid to active campaigns"
+          onClick={() => {
+            setQuery('')
+            setStatusFilter('Active')
+          }}
+        />
+        <Stat
+          label="Ad spend"
+          value={money(stats.spent)}
+          clickHint="See spend per campaign below"
+          onClick={scrollToCampaigns}
+        />
+        <Stat
+          label="Attributed revenue"
+          value={money0(stats.revenue)}
+          clickHint="See revenue per campaign below"
+          onClick={scrollToCampaigns}
+        />
+        <Stat
+          label="Blended ROAS"
+          value={stats.roas}
+          clickHint="See ROAS per campaign below"
+          onClick={scrollToCampaigns}
+        />
       </div>
 
-      <section className="space-y-4">
+      <section id="campaigns" className="scroll-mt-20 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-[15px] font-semibold text-ink">Campaigns</h2>
-          <SearchInput
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search campaigns…"
-            aria-label="Search campaigns"
-            containerClassName="w-full sm:w-64"
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchInput
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search campaigns…"
+              aria-label="Search campaigns"
+              containerClassName="w-full sm:w-64"
+            />
+            <Select
+              aria-label="Filter campaigns by status"
+              placeholder="All statuses"
+              options={STATUSES}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-36"
+            />
+          </div>
         </div>
 
         {filteredCampaigns.length === 0 ? (
           <Card padding="none">
             <EmptyState
               icon={<Megaphone />}
-              title={campaigns.length === 0 ? 'No campaigns yet' : 'No campaigns match your search'}
+              title={campaigns.length === 0 ? 'No campaigns yet' : 'No campaigns match your filters'}
               description={
                 campaigns.length === 0
                   ? 'Create your first campaign to start tracking spend and attributed revenue.'
-                  : 'Try a different name or channel.'
+                  : 'Try a different name, channel, or status.'
               }
               action={
                 campaigns.length === 0 ? (
@@ -628,8 +671,14 @@ export default function Marketing() {
                     New campaign
                   </Button>
                 ) : (
-                  <Button variant="outline" onClick={() => setQuery('')}>
-                    Clear search
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setQuery('')
+                      setStatusFilter('')
+                    }}
+                  >
+                    Clear filters
                   </Button>
                 )
               }

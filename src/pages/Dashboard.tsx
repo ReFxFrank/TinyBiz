@@ -309,24 +309,32 @@ export default function Dashboard() {
             value={money0(todayPoint?.revenue ?? 0)}
             delta={{ pct: pctDelta(todayPoint?.revenue ?? 0, yesterdayPoint?.revenue ?? 0), vs: 'yesterday' }}
             trend={daily12.map((p) => p.revenue)}
+            clickHint="Open orders to see today's sales"
+            onClick={() => navigate('/orders')}
           />
           <Stat
             label="Revenue this month"
             value={moneyCompact(thisMonth?.revenue ?? 0)}
             delta={{ pct: pctDelta(thisMonth?.revenue ?? 0, lastMonth?.revenue ?? 0), vs: 'last month' }}
             trend={months12.map((p) => p.revenue)}
+            clickHint="Open income for the full revenue picture"
+            onClick={() => navigate('/income')}
           />
           <Stat
             label="Net profit this month"
             value={moneyCompact(thisMonth?.net ?? 0)}
             delta={{ pct: pctDelta(thisMonth?.net ?? 0, lastMonth?.net ?? 0), vs: 'last month', upIsGood: true }}
             trend={months12.map((p) => p.net)}
+            clickHint="Open accounting for the monthly P&L"
+            onClick={() => navigate('/accounting')}
           />
           <Stat
             label="Expenses this month"
             value={moneyCompact(thisMonth?.expenses ?? 0)}
             delta={{ pct: pctDelta(thisMonth?.expenses ?? 0, lastMonth?.expenses ?? 0), vs: 'last month', upIsGood: false }}
             trend={months12.map((p) => p.expenses)}
+            clickHint="Open expenses to see where the money went"
+            onClick={() => navigate('/expenses')}
           />
         </motion.div>
       )}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { AlertTriangle, Box, PackageSearch, Percent, Plus, Wallet } from 'lucide-react'
 import {
@@ -95,6 +95,7 @@ export default function Products() {
   const loaded = useLoaded()
   const products = useStore((s) => s.products)
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
 
   const [view, setView] = useState<View>('grid')
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
@@ -302,15 +303,41 @@ export default function Products() {
           transition={{ duration: 0.2, ease: 'easeOut' }}
         >
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Stat label="Active products" value={num(stats.active)} icon={<Box />} />
-            <Stat label="Total retail value" value={moneyCompact(stats.retailValue)} icon={<Wallet />} />
-            <Stat label="Average margin" value={pct(stats.avgMargin, 1)} icon={<Percent />} />
+            <Stat
+              label="Active products"
+              value={num(stats.active)}
+              icon={<Box />}
+              clickHint="Show the full catalog — clear search and category"
+              onClick={() => {
+                setQuery('')
+                setCategory('')
+              }}
+            />
+            <Stat
+              label="Total retail value"
+              value={moneyCompact(stats.retailValue)}
+              icon={<Wallet />}
+              clickHint="Switch to the table for per-product pricing"
+              onClick={() => setView('table')}
+            />
+            <Stat
+              label="Average margin"
+              value={pct(stats.avgMargin, 1)}
+              icon={<Percent />}
+              clickHint="Sort the grid by margin, high to low"
+              onClick={() => {
+                setView('grid')
+                setSortKey('margin')
+              }}
+            />
             <Stat
               label="Low stock products"
               value={
                 <span className={cn(stats.lowStock > 0 && 'text-critical')}>{num(stats.lowStock)}</span>
               }
               icon={<AlertTriangle />}
+              clickHint="Open inventory to review stock levels"
+              onClick={() => navigate('/inventory')}
             />
           </div>
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, Box, ExternalLink, MoreHorizontal, PackageMinus, SlidersHorizontal } from 'lucide-react'
 import {
@@ -26,13 +26,25 @@ export interface ProductsTabProps {
   products: Product[]
   query: string
   onQueryChange: (q: string) => void
+  /** Category + low-stock filters live in Inventory so its stat tiles can drive them */
+  category: string
+  onCategoryChange: (category: string) => void
+  lowOnly: boolean
+  onLowOnlyChange: (low: boolean) => void
   onAdjust: (product: Product, damaged?: boolean) => void
 }
 
-export default function ProductsTab({ products, query, onQueryChange, onAdjust }: ProductsTabProps) {
+export default function ProductsTab({
+  products,
+  query,
+  onQueryChange,
+  category,
+  onCategoryChange,
+  lowOnly,
+  onLowOnlyChange,
+  onAdjust,
+}: ProductsTabProps) {
   const navigate = useNavigate()
-  const [category, setCategory] = useState('')
-  const [lowOnly, setLowOnly] = useState(false)
 
   const q = useDebounced(query.trim().toLowerCase(), 200)
 
@@ -145,7 +157,7 @@ export default function ProductsTab({ products, query, onQueryChange, onAdjust }
           placeholder="All categories"
           options={CATEGORIES}
           value={category}
-          onChange={(e) => setCategory(e.target.value)}
+          onChange={(e) => onCategoryChange(e.target.value)}
           className="w-44"
         />
         <Button
@@ -153,7 +165,7 @@ export default function ProductsTab({ products, query, onQueryChange, onAdjust }
           size="sm"
           icon={<AlertTriangle />}
           aria-pressed={lowOnly}
-          onClick={() => setLowOnly((v) => !v)}
+          onClick={() => onLowOnlyChange(!lowOnly)}
           className={cn(lowOnly && 'border-serious/40 bg-serious-wash text-ink')}
         >
           Low stock only
@@ -180,8 +192,8 @@ export default function ProductsTab({ products, query, onQueryChange, onAdjust }
                   variant="secondary"
                   onClick={() => {
                     onQueryChange('')
-                    setCategory('')
-                    setLowOnly(false)
+                    onCategoryChange('')
+                    onLowOnlyChange(false)
                   }}
                 >
                   Clear filters

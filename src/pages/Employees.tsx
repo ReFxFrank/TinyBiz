@@ -13,6 +13,7 @@ import {
   ConfirmDialog,
   EmptyState,
   Field,
+  FilterBar,
   IconButton,
   Input,
   Menu,
@@ -20,6 +21,7 @@ import {
   MenuSeparator,
   Modal,
   PageHeader,
+  Segmented,
   Select,
   Skeleton,
   SkeletonStats,
@@ -29,6 +31,8 @@ import { fmtDate, money } from '@/lib/format'
 import { uid, useLoaded } from '@/lib/utils'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+type StatusFilter = 'all' | 'Active' | 'Inactive'
 
 function monthlyPay(e: Employee): number {
   if (!e.payRate) return 0
@@ -237,6 +241,7 @@ export default function Employees() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Employee | null>(null)
   const [removing, setRemoving] = useState<Employee | null>(null)
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
   useEffect(() => {
     if (searchParams.get('new') === '1') {
@@ -262,6 +267,11 @@ export default function Employees() {
         a.status === b.status ? a.name.localeCompare(b.name) : a.status === 'Active' ? -1 : 1,
       ),
     [employees],
+  )
+
+  const visible = useMemo(
+    () => (statusFilter === 'all' ? sorted : sorted.filter((e) => e.status === statusFilter)),
+    [sorted, statusFilter],
   )
 
   const openCreate = () => {
@@ -293,10 +303,31 @@ export default function Employees() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Stat label="Active teammates" value={String(active.length)} icon={<Users />} />
-            <Stat label="Monthly payroll (est.)" value={money(payroll)} />
-            <Stat label="Avg tenure" value={`${avgTenure} mo`} />
-            <Stat label="Inactive" value={String(inactiveCount)} />
+            <Stat
+              label="Active teammates"
+              value={String(active.length)}
+              icon={<Users />}
+              clickHint="Filter the grid to active teammates"
+              onClick={() => setStatusFilter('Active')}
+            />
+            <Stat
+              label="Monthly payroll (est.)"
+              value={money(payroll)}
+              clickHint="Show every teammate"
+              onClick={() => setStatusFilter('all')}
+            />
+            <Stat
+              label="Avg tenure"
+              value={`${avgTenure} mo`}
+              clickHint="Show the whole team"
+              onClick={() => setStatusFilter('all')}
+            />
+            <Stat
+              label="Inactive"
+              value={String(inactiveCount)}
+              clickHint="Filter the grid to inactive teammates"
+              onClick={() => setStatusFilter('Inactive')}
+            />
           </div>
 
           {sorted.length === 0 ? (
@@ -313,80 +344,108 @@ export default function Employees() {
               />
             </Card>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {sorted.map((e, i) => (
-                <motion.div
-                  key={e.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2, delay: Math.min(i * 0.04, 0.25) }}
-                >
-                  <Card className={e.status === 'Inactive' ? 'opacity-70' : undefined}>
-                    <div className="flex items-start gap-3">
-                      <Avatar name={e.name} hue={e.avatarHue} size="lg" />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate font-semibold text-ink">{e.name}</div>
-                        <div className="truncate text-[13px] text-ink-3">{e.role}</div>
-                        <div className="mt-1.5">
-                          <Badge tone={e.status === 'Active' ? 'green' : 'neutral'} dot>
-                            {e.status}
-                          </Badge>
+            <div>
+              <FilterBar>
+                <Segmented<StatusFilter>
+                  options={[
+                    { value: 'all', label: 'All' },
+                    { value: 'Active', label: 'Active' },
+                    { value: 'Inactive', label: 'Inactive' },
+                  ]}
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                />
+              </FilterBar>
+              {visible.length === 0 ? (
+                <Card>
+                  <EmptyState
+                    icon={<Users />}
+                    title={`No ${statusFilter.toLowerCase()} teammates`}
+                    description="Switch the status filter to see the rest of the team."
+                    action={
+                      <Button variant="secondary" onClick={() => setStatusFilter('all')}>
+                        Show all
+                      </Button>
+                    }
+                  />
+                </Card>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {visible.map((e, i) => (
+                    <motion.div
+                      key={e.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2, delay: Math.min(i * 0.04, 0.25) }}
+                    >
+                      <Card className={e.status === 'Inactive' ? 'opacity-70' : undefined}>
+                        <div className="flex items-start gap-3">
+                          <Avatar name={e.name} hue={e.avatarHue} size="lg" />
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate font-semibold text-ink">{e.name}</div>
+                            <div className="truncate text-[13px] text-ink-3">{e.role}</div>
+                            <div className="mt-1.5">
+                              <Badge tone={e.status === 'Active' ? 'green' : 'neutral'} dot>
+                                {e.status}
+                              </Badge>
+                            </div>
+                          </div>
+                          <Menu
+                            trigger={
+                              <IconButton label={`Actions for ${e.name}`} size="sm">
+                                <MoreHorizontal />
+                              </IconButton>
+                            }
+                          >
+                            <MenuItem
+                              icon={<Pencil />}
+                              onSelect={() => {
+                                setEditing(e)
+                                setModalOpen(true)
+                              }}
+                            >
+                              Edit
+                            </MenuItem>
+                            <MenuItem
+                              icon={e.status === 'Active' ? <UserX /> : <UserCheck />}
+                              onSelect={() => {
+                                const next = e.status === 'Active' ? 'Inactive' : 'Active'
+                                updateItem('employees', e.id, { status: next })
+                                toast(`${e.name} marked ${next.toLowerCase()}`, { tone: 'success' })
+                              }}
+                            >
+                              {e.status === 'Active' ? 'Deactivate' : 'Activate'}
+                            </MenuItem>
+                            <MenuSeparator />
+                            <MenuItem icon={<Trash2 />} danger onSelect={() => setRemoving(e)}>
+                              Remove
+                            </MenuItem>
+                          </Menu>
                         </div>
-                      </div>
-                      <Menu
-                        trigger={
-                          <IconButton label={`Actions for ${e.name}`} size="sm">
-                            <MoreHorizontal />
-                          </IconButton>
-                        }
-                      >
-                        <MenuItem
-                          icon={<Pencil />}
-                          onSelect={() => {
-                            setEditing(e)
-                            setModalOpen(true)
-                          }}
-                        >
-                          Edit
-                        </MenuItem>
-                        <MenuItem
-                          icon={e.status === 'Active' ? <UserX /> : <UserCheck />}
-                          onSelect={() => {
-                            const next = e.status === 'Active' ? 'Inactive' : 'Active'
-                            updateItem('employees', e.id, { status: next })
-                            toast(`${e.name} marked ${next.toLowerCase()}`, { tone: 'success' })
-                          }}
-                        >
-                          {e.status === 'Active' ? 'Deactivate' : 'Activate'}
-                        </MenuItem>
-                        <MenuSeparator />
-                        <MenuItem icon={<Trash2 />} danger onSelect={() => setRemoving(e)}>
-                          Remove
-                        </MenuItem>
-                      </Menu>
-                    </div>
 
-                    <div className="mt-4 space-y-2 border-t border-hairline pt-3 text-[13px]">
-                      <div className="flex items-center gap-2 text-ink-2">
-                        <Mail className="h-3.5 w-3.5 shrink-0 text-ink-3" />
-                        <span className="truncate">{e.email}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-ink-2">
-                        <Phone className="h-3.5 w-3.5 shrink-0 text-ink-3" />
-                        <span>{e.phone || '—'}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="flex items-center gap-2 text-ink-2">
-                          <CalendarDays className="h-3.5 w-3.5 shrink-0 text-ink-3" />
-                          {fmtDate(e.startDate)}
-                          <span className="text-ink-3">· {tenureLabel(e.startDate)}</span>
-                        </span>
-                        <span className="tnum font-medium text-ink">{payLabel(e)}</span>
-                      </div>
-                    </div>
-                  </Card>
-                </motion.div>
-              ))}
+                        <div className="mt-4 space-y-2 border-t border-hairline pt-3 text-[13px]">
+                          <div className="flex items-center gap-2 text-ink-2">
+                            <Mail className="h-3.5 w-3.5 shrink-0 text-ink-3" />
+                            <span className="truncate">{e.email}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-ink-2">
+                            <Phone className="h-3.5 w-3.5 shrink-0 text-ink-3" />
+                            <span>{e.phone || '—'}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-2 text-ink-2">
+                              <CalendarDays className="h-3.5 w-3.5 shrink-0 text-ink-3" />
+                              {fmtDate(e.startDate)}
+                              <span className="text-ink-3">· {tenureLabel(e.startDate)}</span>
+                            </span>
+                            <span className="tnum font-medium text-ink">{payLabel(e)}</span>
+                          </div>
+                        </div>
+                      </Card>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </>

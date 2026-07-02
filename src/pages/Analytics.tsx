@@ -64,6 +64,11 @@ function deltaPct(cur: number, prev: number): number {
   return ((cur - prev) / prev) * 100
 }
 
+/** Smooth-scroll to a section of this page by id */
+function jumpTo(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 const fadeIn = {
   initial: { opacity: 0, y: 8 },
   animate: { opacity: 1, y: 0 },
@@ -309,47 +314,65 @@ export default function Analytics() {
           value={money0(totals.revenue)}
           delta={{ pct: deltaPct(totals.revenue, prevTotals.revenue), vs }}
           trend={buckets.map((b) => b.revenue)}
+          clickHint="Jump to the revenue chart"
+          onClick={() => jumpTo('revenue-chart')}
         />
         <Stat
           label="Orders"
           value={num(totals.orders)}
           delta={{ pct: deltaPct(totals.orders, prevTotals.orders), vs }}
           trend={buckets.map((b) => b.orders)}
+          clickHint="Jump to the orders chart"
+          onClick={() => jumpTo('orders-chart')}
         />
-        <Stat label="Average order value" value={money(view.aov)} delta={{ pct: deltaPct(view.aov, view.prevAov), vs }} />
+        <Stat
+          label="Average order value"
+          value={money(view.aov)}
+          delta={{ pct: deltaPct(view.aov, view.prevAov), vs }}
+          clickHint="Jump to the product performance table"
+          onClick={() => jumpTo('product-performance')}
+        />
         <Stat
           label="Repeat customer rate"
           value={pct(view.repeatRate)}
           delta={{ pct: view.repeatRate - view.prevRepeatRate, vs }}
+          clickHint="Jump to the repeat vs new breakdown"
+          onClick={() => jumpTo('repeat-vs-new')}
         />
       </motion.div>
 
       <motion.div {...fadeIn} transition={{ ...fadeIn.transition, delay: 0.05 }} className="grid gap-4 lg:grid-cols-2">
-        <ChartCard
-          title="Revenue"
-          subtitle={`Sales revenue, ${def.label}`}
-          table={{ headers: [bucketName, 'Revenue'], rows: buckets.map((b) => [b.label, money(b.revenue)]) }}
-        >
-          <TrendChart
-            data={buckets}
-            xKey="label"
-            series={[{ key: 'revenue', name: 'Revenue', color: 0 }]}
-            valueFormatter={moneyCompact}
-          />
-        </ChartCard>
+        <div id="revenue-chart">
+          <ChartCard
+            className="h-full"
+            title="Revenue"
+            subtitle={`Sales revenue, ${def.label}`}
+            table={{ headers: [bucketName, 'Revenue'], rows: buckets.map((b) => [b.label, money(b.revenue)]) }}
+          >
+            <TrendChart
+              data={buckets}
+              xKey="label"
+              series={[{ key: 'revenue', name: 'Revenue', color: 0 }]}
+              valueFormatter={moneyCompact}
+            />
+          </ChartCard>
+        </div>
 
-        <ChartCard
-          title="Orders"
-          subtitle={`Orders placed, ${def.label}`}
-          table={{ headers: [bucketName, 'Orders'], rows: buckets.map((b) => [b.label, num(b.orders)]) }}
-        >
-          <BarsChart
-            data={buckets}
-            xKey="label"
-            series={[{ key: 'orders', name: 'Orders', color: 0 }]}
-            valueFormatter={num}
-          />
-        </ChartCard>
+        <div id="orders-chart">
+          <ChartCard
+            className="h-full"
+            title="Orders"
+            subtitle={`Orders placed, ${def.label}`}
+            table={{ headers: [bucketName, 'Orders'], rows: buckets.map((b) => [b.label, num(b.orders)]) }}
+          >
+            <BarsChart
+              data={buckets}
+              xKey="label"
+              series={[{ key: 'orders', name: 'Orders', color: 0 }]}
+              valueFormatter={num}
+            />
+          </ChartCard>
+        </div>
 
         <ChartCard
           title="Profit"
@@ -441,27 +464,30 @@ export default function Analytics() {
           )}
         </Card>
 
-        <ChartCard
-          title="Repeat vs new"
-          subtitle={`Orders from returning customers, ${def.label}`}
-          table={{
-            headers: ['Segment', 'Orders'],
-            rows: repeatSlices.map((s) => [s.name, num(s.value)]),
-          }}
-        >
-          {view.hasSales ? (
-            <DonutChart data={repeatSlices} valueFormatter={num} centerLabel="orders" size={190} />
-          ) : (
-            <EmptyState
-              icon={<ShoppingCart />}
-              title="No orders in this range"
-              description="Repeat vs first-time split appears once orders land in the selected period."
-            />
-          )}
-        </ChartCard>
+        <div id="repeat-vs-new">
+          <ChartCard
+            className="h-full"
+            title="Repeat vs new"
+            subtitle={`Orders from returning customers, ${def.label}`}
+            table={{
+              headers: ['Segment', 'Orders'],
+              rows: repeatSlices.map((s) => [s.name, num(s.value)]),
+            }}
+          >
+            {view.hasSales ? (
+              <DonutChart data={repeatSlices} valueFormatter={num} centerLabel="orders" size={190} />
+            ) : (
+              <EmptyState
+                icon={<ShoppingCart />}
+                title="No orders in this range"
+                description="Repeat vs first-time split appears once orders land in the selected period."
+              />
+            )}
+          </ChartCard>
+        </div>
       </motion.div>
 
-      <motion.div {...fadeIn} transition={{ ...fadeIn.transition, delay: 0.15 }} className="space-y-3">
+      <motion.div id="product-performance" {...fadeIn} transition={{ ...fadeIn.transition, delay: 0.15 }} className="space-y-3">
         <h2 className="text-[15px] font-semibold text-ink">
           Product performance
           <span className="ml-2 text-[13px] font-normal text-ink-3">

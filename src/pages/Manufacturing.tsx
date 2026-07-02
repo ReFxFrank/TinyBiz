@@ -237,6 +237,14 @@ export default function Manufacturing() {
     toast(`Batch started on ${batch.machineName}`, { tone: 'success' })
   }
 
+  /** Stat tiles jump to the batch list the 30-day numbers are built from */
+  const showBatches = () => {
+    setTab('batches')
+    window.setTimeout(() => {
+      document.getElementById('production-batches')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 60)
+  }
+
   const viewRecipe = (recipeId: string) => {
     setTab('recipes')
     setHighlightRecipeId(recipeId)
@@ -400,10 +408,34 @@ export default function Manufacturing() {
       ) : (
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Stat label="Units produced (30d)" value={num(unitsProduced)} icon={<Boxes />} />
-            <Stat label={`Failed prints · ${pct(failRate)} rate`} value={num(failedPrints)} icon={<AlertTriangle />} />
-            <Stat label="Print time (30d)" value={minutesToHours(printMinutes)} icon={<Clock />} />
-            <Stat label="Material waste (30d)" value={grams(wasteGrams)} icon={<Recycle />} />
+            <Stat
+              label="Units produced (30d)"
+              value={num(unitsProduced)}
+              icon={<Boxes />}
+              clickHint="See production batches"
+              onClick={showBatches}
+            />
+            <Stat
+              label={`Failed prints · ${pct(failRate)} rate`}
+              value={num(failedPrints)}
+              icon={<AlertTriangle />}
+              clickHint="Review failures in the batch list"
+              onClick={showBatches}
+            />
+            <Stat
+              label="Print time (30d)"
+              value={minutesToHours(printMinutes)}
+              icon={<Clock />}
+              clickHint="See print time per batch"
+              onClick={showBatches}
+            />
+            <Stat
+              label="Material waste (30d)"
+              value={grams(wasteGrams)}
+              icon={<Recycle />}
+              clickHint="See waste recorded per batch"
+              onClick={showBatches}
+            />
           </div>
 
           <section aria-label="Machines">
@@ -415,7 +447,7 @@ export default function Manufacturing() {
             </div>
           </section>
 
-          <section>
+          <section id="production-batches" className="scroll-mt-6">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <Tabs<Tab>
                 items={[

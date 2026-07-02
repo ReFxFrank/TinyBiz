@@ -29,6 +29,8 @@
   --accent-strong: #1c5cab;
   --accent-soft: #cde2fb;
   --accent-wash: #eaf2fc;
+  /* Text ON the accent (buttons); custom accents may swap this to dark ink */
+  --accent-fg: #ffffff;
 
   --pop: #7c6ce0;
   --pop-soft: #ece9fb;

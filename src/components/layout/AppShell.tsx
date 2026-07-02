@@ -6,6 +6,7 @@ import { Topbar } from './Topbar'
 import { CommandPalette } from './CommandPalette'
 import { ALL_NAV_ITEMS } from './nav'
 import { useUI, isDark } from '@/store/useUI'
+import { applyCustomAccentStyle } from '@/lib/color'
 import { TooltipProvider } from '@/components/ui/Tooltip'
 import { Toaster } from '@/components/ui/Toaster'
 import { ErrorState } from '@/components/ui/EmptyState'
@@ -26,12 +27,14 @@ function useApplyTheme() {
     mq.addEventListener('change', apply)
     return () => mq.removeEventListener('change', apply)
   }, [theme])
+  const customAccent = useUI((s) => s.customAccent)
   useEffect(() => {
     const el = document.documentElement
     el.setAttribute('data-accent', accent)
     el.setAttribute('data-radius', radius)
     el.setAttribute('data-scale', scale)
-  }, [accent, radius, scale])
+    applyCustomAccentStyle(accent === 'custom' ? customAccent : null)
+  }, [accent, radius, scale, customAccent])
 }
 
 /** ⌘K palette + `g <letter>` page-jump chords */

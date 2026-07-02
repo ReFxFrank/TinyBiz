@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Check, RotateCcw, Save } from 'lucide-react'
+import { Check, Pipette, RotateCcw, Save } from 'lucide-react'
 import type { CurrencyCode, Settings as SettingsType } from '@/data/types'
 import { useStore } from '@/store/useStore'
 import { useUI, toast, ACCENTS, ACCENT_META, type Accent, type Radius, type Theme, type UIScale } from '@/store/useUI'
@@ -20,6 +20,7 @@ import {
   Toggle,
 } from '@/components/ui'
 import { cn, useLoaded } from '@/lib/utils'
+import { bestTextOn, contrastRatio, isValidHex, normalizeHex, type AccentTokens } from '@/lib/color'
 
 // ── Business profile ─────────────────────────────────────────────────────────
 
@@ -226,6 +227,143 @@ function AppearanceRow({ label, hint, children }: { label: string; hint?: string
   )
 }
 
+/** Preset swatches + a fully custom brand color with generated, contrast-checked shades */
+function AccentSection() {
+  const accent = useUI((s) => s.accent)
+  const setAccent = useUI((s) => s.setAccent)
+  const customAccent = useUI((s) => s.customAccent)
+  const setCustomAccent = useUI((s) => s.setCustomAccent)
+
+  const [hexDraft, setHexDraft] = useState(() => customAccent?.base ?? '#ff5ba6')
+
+  const pickCustom = (hex: string) => {
+    setHexDraft(hex)
+    if (isValidHex(hex)) setCustomAccent(normalizeHex(hex))
+  }
+
+  const customActive = accent === 'custom'
+  const whiteContrast = customAccent ? contrastRatio(customAccent.light.accent, '#ffffff') : 0
+
+  return (
+    <div className="border-b border-hairline py-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-ink">Accent color</div>
+          <div className="mt-0.5 text-[13px] text-ink-3">
+            Colors buttons, links, and highlights. Charts keep their colorblind-safe palette.
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2" role="radiogroup" aria-label="Accent color">
+          {ACCENTS.map((a) => {
+            const active = a === accent
+            return (
+              <button
+                key={a}
+                role="radio"
+                aria-checked={active}
+                aria-label={ACCENT_META[a].label}
+                title={ACCENT_META[a].label}
+                onClick={() => setAccent(a)}
+                className={cn(
+                  'flex h-8 w-8 items-center justify-center rounded-full transition-transform duration-150 hover:scale-110',
+                  active && 'ring-2 ring-offset-2 ring-offset-surface',
+                )}
+                style={{ background: ACCENT_META[a].swatch, ...(active ? { ['--tw-ring-color' as never]: ACCENT_META[a].swatch } : {}) }}
+              >
+                {active && <Check className="h-4 w-4 text-white" aria-hidden />}
+              </button>
+            )
+          })}
+          <button
+            role="radio"
+            aria-checked={customActive}
+            aria-label="Custom color"
+            title="Custom color"
+            onClick={() => pickCustom(hexDraft)}
+            className={cn(
+              'flex h-8 w-8 items-center justify-center rounded-full transition-transform duration-150 hover:scale-110',
+              customActive && 'ring-2 ring-offset-2 ring-offset-surface',
+            )}
+            style={{
+              background: customActive && customAccent
+                ? customAccent.base
+                : 'conic-gradient(#e34948, #eda100, #1baf7a, #2a78d6, #7c6ce0, #e87ba4, #e34948)',
+              ...(customActive && customAccent ? { ['--tw-ring-color' as never]: customAccent.base } : {}),
+            }}
+          >
+            {customActive && customAccent ? (
+              <Check className="h-4 w-4" style={{ color: bestTextOn(customAccent.base) }} aria-hidden />
+            ) : (
+              <Pipette className="h-3.5 w-3.5 text-white drop-shadow" aria-hidden />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {customActive && customAccent && (
+        <div className="mt-4 space-y-3 rounded-xl bg-sunken/60 p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="color"
+              value={customAccent.base}
+              onChange={(e) => pickCustom(e.target.value)}
+              aria-label="Pick a custom brand color"
+              className="h-9 w-14 cursor-pointer rounded-lg border border-edge bg-surface p-1"
+            />
+            <div className="w-28 shrink-0">
+              <Input
+                value={hexDraft}
+                onChange={(e) => pickCustom(e.target.value)}
+                aria-label="Custom color hex value"
+                className={cn('font-mono', hexDraft && !isValidHex(hexDraft) && 'border-critical focus:ring-critical/60')}
+                placeholder="#ff5ba6"
+                maxLength={7}
+              />
+            </div>
+            <Badge tone={whiteContrast >= 4.5 ? 'green' : 'yellow'}>
+              Button text {whiteContrast.toFixed(1)}:1 {whiteContrast >= 4.5 ? '✓ AA' : ''}
+            </Badge>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <AccentPreviewStrip label="Light mode" tokens={customAccent.light} surface="#fcfcfb" />
+            <AccentPreviewStrip label="Dark mode" tokens={customAccent.dark} surface="#1a1a19" />
+          </div>
+
+          <p className="text-xs leading-relaxed text-ink-3">
+            Shade steps and button-text contrast are generated automatically for both modes.
+            {customAccent.adjusted && (
+              <> Your pick was nudged {`darker`} in light mode so text on buttons stays readable.</>
+            )}
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AccentPreviewStrip({ label, tokens, surface }: { label: string; tokens: AccentTokens; surface: string }) {
+  const chips: Array<[string, string]> = [
+    ['Accent', tokens.accent],
+    ['Strong', tokens['accent-strong']],
+    ['Soft', tokens['accent-soft']],
+    ['Wash', tokens['accent-wash']],
+    ['Pop', tokens.pop],
+  ]
+  return (
+    <div className="rounded-lg border border-edge p-2.5" style={{ background: surface }}>
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide" style={{ color: '#898781' }}>
+        {label}
+      </div>
+      <div className="flex items-center gap-1.5">
+        {chips.map(([name, color]) => (
+          <span key={name} title={`${name}: ${color}`} className="h-7 flex-1 rounded-md" style={{ background: color }} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function AppearanceCard() {
   const theme = useUI((s) => s.theme)
   const setTheme = useUI((s) => s.setTheme)
@@ -258,30 +396,7 @@ function AppearanceCard() {
           />
         </AppearanceRow>
 
-        <AppearanceRow label="Accent color" hint="Colors buttons, links, and highlights. Charts keep their colorblind-safe palette.">
-          <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Accent color">
-            {ACCENTS.map((a) => {
-              const active = a === accent
-              return (
-                <button
-                  key={a}
-                  role="radio"
-                  aria-checked={active}
-                  aria-label={ACCENT_META[a].label}
-                  title={ACCENT_META[a].label}
-                  onClick={() => setAccent(a)}
-                  className={cn(
-                    'flex h-8 w-8 items-center justify-center rounded-full transition-transform duration-150 hover:scale-110',
-                    active && 'ring-2 ring-offset-2 ring-offset-surface',
-                  )}
-                  style={{ background: ACCENT_META[a].swatch, ...(active ? { ['--tw-ring-color' as never]: ACCENT_META[a].swatch } : {}) }}
-                >
-                  {active && <Check className="h-4 w-4 text-white" aria-hidden />}
-                </button>
-              )
-            })}
-          </div>
-        </AppearanceRow>
+        <AccentSection />
 
         <AppearanceRow label="Corner style" hint="From crisp and technical to soft and friendly.">
           <Segmented<Radius>

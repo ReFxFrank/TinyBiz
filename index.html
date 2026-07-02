@@ -18,6 +18,21 @@
         if (state.accent) el.setAttribute('data-accent', state.accent);
         if (state.radius) el.setAttribute('data-radius', state.radius);
         if (state.scale) el.setAttribute('data-scale', state.scale);
+        // Custom accent: rebuild the token style tag from persisted values
+        if (state.accent === 'custom' && state.customAccent) {
+          var css = '';
+          var block = function (sel, tokens) {
+            css += sel + '{';
+            for (var k in tokens) css += '--' + k + ':' + tokens[k] + ';';
+            css += '}';
+          };
+          block("html[data-accent='custom']", state.customAccent.light);
+          block("html.dark[data-accent='custom']", state.customAccent.dark);
+          var st = document.createElement('style');
+          st.id = 'tinybiz-custom-accent';
+          st.textContent = css;
+          document.head.appendChild(st);
+        }
       } catch (e) {}
     </script>
   </head>

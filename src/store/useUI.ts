@@ -1,14 +1,17 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { uid } from '@/lib/utils'
+import { generateAccentTheme, type CustomAccent } from '@/lib/color'
 
 export type Theme = 'light' | 'dark' | 'system'
 
-/** Accent color themes the user can pick in Settings → Appearance */
+/** Preset accent themes the user can pick in Settings → Appearance */
 export const ACCENTS = ['nova', 'violet', 'emerald', 'rose', 'amber', 'teal'] as const
-export type Accent = (typeof ACCENTS)[number]
+export type PresetAccent = (typeof ACCENTS)[number]
+/** 'custom' carries a user-picked brand color with generated shade steps */
+export type Accent = PresetAccent | 'custom'
 
-export const ACCENT_META: Record<Accent, { label: string; swatch: string }> = {
+export const ACCENT_META: Record<PresetAccent, { label: string; swatch: string }> = {
   nova: { label: 'Nova Blue', swatch: '#2a78d6' },
   violet: { label: 'Violet', swatch: '#7c3aed' },
   emerald: { label: 'Emerald', swatch: '#047857' },
@@ -32,6 +35,8 @@ export interface Toast {
 interface UIState {
   theme: Theme
   accent: Accent
+  /** Generated tokens for the user's own brand color (accent === 'custom') */
+  customAccent: CustomAccent | null
   radius: Radius
   scale: UIScale
   reduceMotion: boolean
@@ -42,6 +47,8 @@ interface UIState {
   toasts: Toast[]
   setTheme: (t: Theme) => void
   setAccent: (a: Accent) => void
+  /** Generate + activate a custom accent from any hex color */
+  setCustomAccent: (hex: string) => void
   setRadius: (r: Radius) => void
   setScale: (s: UIScale) => void
   setReduceMotion: (v: boolean) => void
@@ -57,6 +64,7 @@ export const useUI = create<UIState>()(
     (set) => ({
       theme: 'light',
       accent: 'nova',
+      customAccent: null,
       radius: 'soft',
       scale: 'cozy',
       reduceMotion: false,
@@ -66,6 +74,7 @@ export const useUI = create<UIState>()(
       toasts: [],
       setTheme: (theme) => set({ theme }),
       setAccent: (accent) => set({ accent }),
+      setCustomAccent: (hex) => set({ customAccent: generateAccentTheme(hex), accent: 'custom' }),
       setRadius: (radius) => set({ radius }),
       setScale: (scale) => set({ scale }),
       setReduceMotion: (reduceMotion) => set({ reduceMotion }),
@@ -81,6 +90,7 @@ export const useUI = create<UIState>()(
         ({
           theme: s.theme,
           accent: s.accent,
+          customAccent: s.customAccent,
           radius: s.radius,
           scale: s.scale,
           reduceMotion: s.reduceMotion,

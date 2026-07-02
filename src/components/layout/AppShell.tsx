@@ -1,5 +1,5 @@
-import { Suspense, useEffect, Component, type ReactNode } from 'react'
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Suspense, useEffect, useState, Component, type ReactNode } from 'react'
+import { useLocation, useNavigate, useOutlet } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
@@ -88,6 +88,17 @@ class PageErrorBoundary extends Component<{ children: ReactNode; resetKey: strin
   }
 }
 
+/**
+ * Freezes the outlet it mounted with. Without this, AnimatePresence's exiting
+ * wrapper would render the NEW route during its exit animation, double-mounting
+ * pages and swallowing one-shot ?new=1 effects.
+ */
+function FrozenOutlet() {
+  const outlet = useOutlet()
+  const [frozen] = useState(outlet)
+  return frozen
+}
+
 function PageFallback() {
   return (
     <div className="space-y-4 animate-fade-in">
@@ -121,7 +132,7 @@ export function AppShell() {
                   transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
                 >
                   <Suspense fallback={<PageFallback />}>
-                    <Outlet />
+                    <FrozenOutlet key={location.pathname} />
                   </Suspense>
                 </motion.div>
               </AnimatePresence>

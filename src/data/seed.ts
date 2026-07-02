@@ -415,7 +415,8 @@ export const seedExpenses: Expense[] = []
   ]
   for (let m = 0; m < 6; m++) {
     for (const [vendor, category, amount] of monthlyBills) {
-      const d = addDays(startOfDay(now), -m * 30 - ri(0, 3))
+      // Bill on the 1st-2nd of each calendar month so month buckets get exactly one
+      const d = new Date(now.getFullYear(), now.getMonth() - m, 1 + ri(0, 1), 10, 0, 0, 0)
       seedExpenses.push({
         id: sid('exp'),
         date: d.toISOString(),

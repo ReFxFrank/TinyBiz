@@ -317,7 +317,7 @@ export default function Dashboard() {
             trend={months12.map((p) => p.revenue)}
           />
           <Stat
-            label="Profit this month"
+            label="Net profit this month"
             value={moneyCompact(thisMonth?.net ?? 0)}
             delta={{ pct: pctDelta(thisMonth?.net ?? 0, lastMonth?.net ?? 0), vs: 'last month', upIsGood: true }}
             trend={months12.map((p) => p.net)}
@@ -340,7 +340,7 @@ export default function Dashboard() {
       ) : (
         <motion.div {...fadeUp} className="grid gap-4 lg:grid-cols-3">
           <ChartCard
-            className="lg:col-span-2"
+            className="lg:col-span-2 lg:self-start"
             title="Sales overview"
             subtitle={range === '12m' ? 'Monthly revenue, expenses & profit' : `Daily revenue, expenses & profit — last ${range === '30d' ? 30 : 90} days`}
             actions={
@@ -367,7 +367,7 @@ export default function Dashboard() {
                 { key: 'expenses', name: 'Expenses', color: 5, area: false },
                 { key: 'profit', name: 'Profit', color: 1, area: false },
               ]}
-              height={280}
+              height={340}
               valueFormatter={(v) => moneyCompact(v)}
             />
           </ChartCard>
@@ -552,6 +552,7 @@ export default function Dashboard() {
                 valueFormatter={(v) => moneyCompact(v)}
                 centerLabel="this month"
                 size={168}
+                layout="stack"
               />
             )}
           </Card>

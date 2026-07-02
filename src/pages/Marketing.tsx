@@ -123,8 +123,9 @@ function CampaignModal({ open, onClose, editing }: { open: boolean; onClose: () 
       clicks: Math.max(0, Number(form.clicks) || 0),
       conversions: Math.max(0, Number(form.conversions) || 0),
       revenue: Math.max(0, Number(form.revenue) || 0),
-      startDate: form.startDate,
-      endDate: form.endDate || undefined,
+      // Anchor date-only inputs to local noon so they don't shift a day via UTC parsing
+      startDate: new Date(`${form.startDate}T12:00:00`).toISOString(),
+      endDate: form.endDate ? new Date(`${form.endDate}T12:00:00`).toISOString() : undefined,
     }
     if (editing) {
       updateItem('campaigns', editing.id, payload)
@@ -237,7 +238,8 @@ function PromoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       uses: 0,
       maxUses: maxUses ? Math.max(1, Number(maxUses) || 1) : undefined,
       active: true,
-      expiresAt: expiresAt || undefined,
+      // A code that "expires Jul 2" stays valid through the end of Jul 2 locally
+      expiresAt: expiresAt ? new Date(`${expiresAt}T23:59:59`).toISOString() : undefined,
     }
     addItem('promoCodes', promo)
     toast(`Promo code ${promo.code} created`, { tone: 'success' })
@@ -414,6 +416,12 @@ export default function Marketing() {
 
   const [searchParams, setSearchParams] = useSearchParams()
   const [query, setQuery] = useState(searchParams.get('q') ?? '')
+  // Re-sync the search box when navigated here again (e.g. from global search)
+  useEffect(() => {
+    const q = searchParams.get('q')
+    if (q !== null) setQuery(q)
+  }, [searchParams])
+
   const debouncedQuery = useDebounced(query)
 
   const [campaignModalOpen, setCampaignModalOpen] = useState(false)

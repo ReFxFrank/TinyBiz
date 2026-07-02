@@ -189,6 +189,7 @@ export default function Manufacturing() {
   const products = useStore((s) => s.products)
   const updateItem = useStore((s) => s.updateItem)
   const removeItem = useStore((s) => s.removeItem)
+  const startQueuedBatch = useStore((s) => s.startQueuedBatch)
 
   const loaded = useLoaded()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -231,8 +232,8 @@ export default function Manufacturing() {
   }
 
   const startNow = (batch: ProductionBatch) => {
-    updateItem('batches', batch.id, { status: 'In Progress' })
-    updateItem('machines', batch.machineId, { status: 'Printing' })
+    // Store action flips the batch + machine AND commits recipe materials
+    startQueuedBatch(batch.id)
     toast(`Batch started on ${batch.machineName}`, { tone: 'success' })
   }
 
@@ -354,7 +355,7 @@ export default function Manufacturing() {
                 Start now
               </MenuItem>
             )}
-            {(b.status === 'In Progress' || b.status === 'Queued') && (
+            {b.status === 'In Progress' && (
               <MenuItem icon={<CheckCircle2 />} onSelect={() => setCompleting(b)}>
                 Complete…
               </MenuItem>

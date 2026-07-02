@@ -259,9 +259,18 @@ function TaskCard({
   return (
     <div
       draggable
+      role="button"
+      tabIndex={0}
+      aria-label={`Edit task: ${task.title}`}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onEdit}
+      onKeyDown={(e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
+          e.preventDefault()
+          onEdit()
+        }
+      }}
       className={cn('cursor-grab active:cursor-grabbing transition-opacity duration-150', dragging && 'opacity-50')}
     >
       <Card padding="sm" className="space-y-1.5 transition-shadow duration-200 hover:shadow-lifted">
@@ -407,6 +416,12 @@ export default function Tasks() {
 
   const [searchParams, setSearchParams] = useSearchParams()
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
+  // Re-sync the search box when navigated here again (e.g. from global search)
+  useEffect(() => {
+    const q = searchParams.get('q')
+    if (q !== null) setQuery(q)
+  }, [searchParams])
+
   const debouncedQuery = useDebounced(query)
   const [priority, setPriority] = useState('')
 

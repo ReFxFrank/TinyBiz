@@ -95,9 +95,10 @@ export function timeAgo(iso: string): string {
   return fmtDate(iso)
 }
 
-/** "in 2d" / "3d overdue" for due dates */
+/** "in 2d" / "3d overdue" for due dates — compares calendar days, not 24h spans */
 export function dueIn(iso: string): { label: string; overdue: boolean } {
-  const days = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000)
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const days = Math.round((startOf(new Date(iso)) - startOf(new Date())) / 86_400_000)
   if (days < 0) return { label: `${-days}d overdue`, overdue: true }
   if (days === 0) return { label: 'today', overdue: false }
   if (days === 1) return { label: 'tomorrow', overdue: false }

@@ -112,8 +112,13 @@ interface StoreState extends Collections {
    */
   startBatch: (recipeId: ID, quantity: number, machineId: ID, notes?: string) => ProductionBatch | undefined
   /**
-   * Finish a batch: adds `produced` units to the product's stock, records
-   * failed prints and waste, frees the machine.
+   * Move a Queued batch to In Progress, committing its recipe materials and
+   * putting its machine to work.
+   */
+  startQueuedBatch: (batchId: ID) => void
+  /**
+   * Finish an In Progress batch: adds `produced` units to the product's stock,
+   * records failed prints and waste, frees the machine. No-op otherwise.
    */
   completeBatch: (batchId: ID, produced: number, failed: number, wasteGrams: number) => void
 
@@ -188,13 +193,15 @@ export const useStore = create<StoreState>()(
         const s = get()
         const item = itemType === 'product' ? s.products.find((p) => p.id === itemId) : s.materials.find((m) => m.id === itemId)
         if (!item) return
+        // Stock never goes below zero, so log the delta that was actually applied
+        const appliedDelta = Math.max(-item.stock, delta)
         const entry: StockAdjustment = {
           id: uid('adj'),
           date: new Date().toISOString(),
           itemType,
           itemId,
           itemName: item.name,
-          delta,
+          delta: appliedDelta,
           reason,
           notes,
         }
@@ -273,10 +280,31 @@ export const useStore = create<StoreState>()(
         return batch
       },
 
+      startQueuedBatch: (batchId) => {
+        const s = get()
+        const batch = s.batches.find((b) => b.id === batchId)
+        if (!batch || batch.status !== 'Queued') return
+        const recipe = s.recipes.find((r) => r.id === batch.recipeId)
+        set((st) => ({
+          batches: st.batches.map((b) =>
+            b.id === batchId ? { ...b, status: 'In Progress' as const, startedAt: new Date().toISOString() } : b,
+          ),
+          machines: st.machines.map((m) => (m.id === batch.machineId ? { ...m, status: 'Printing' as const } : m)),
+        }))
+        // Materials are committed when the run actually starts
+        if (recipe) {
+          for (const line of recipe.lines) {
+            get().adjustStock('material', line.materialId, -line.quantity * batch.quantity, 'Production', `Batch ${batch.id} — ${batch.productName} ×${batch.quantity}`)
+          }
+        }
+      },
+
       completeBatch: (batchId, produced, failed, wasteGrams) => {
         const s = get()
         const batch = s.batches.find((b) => b.id === batchId)
-        if (!batch) return
+        // Only a running batch can complete — guards double-completion (which
+        // would double-add stock) and Queued batches that never consumed materials
+        if (!batch || batch.status !== 'In Progress') return
         set((st) => ({
           batches: st.batches.map((b) =>
             b.id === batchId
@@ -290,7 +318,16 @@ export const useStore = create<StoreState>()(
                 }
               : b,
           ),
-          machines: st.machines.map((m) => (m.id === batch.machineId ? { ...m, status: 'Idle' as const, hoursLogged: m.hoursLogged + batch.printTimeMin / 60 } : m)),
+          machines: st.machines.map((m) =>
+            m.id === batch.machineId
+              ? {
+                  ...m,
+                  // Don't clobber a Maintenance flag set mid-run
+                  status: m.status === 'Printing' ? ('Idle' as const) : m.status,
+                  hoursLogged: m.hoursLogged + batch.printTimeMin / 60,
+                }
+              : m,
+          ),
         }))
         if (produced > 0) {
           get().adjustStock('product', batch.productId, produced, 'Production', `Batch ${batch.id} completed on ${batch.machineName}`)

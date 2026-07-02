@@ -98,6 +98,12 @@ export default function Products() {
 
   const [view, setView] = useState<View>('grid')
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
+  // Re-sync the search box when navigated here again (e.g. from global search)
+  useEffect(() => {
+    const q = searchParams.get('q')
+    if (q !== null) setQuery(q)
+  }, [searchParams])
+
   const [category, setCategory] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [selectedId, setSelectedId] = useState<string | null>(null)

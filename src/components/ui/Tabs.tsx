@@ -13,17 +13,32 @@ export interface TabsProps<T extends string> {
   className?: string
 }
 
-/** Underline tabs for switching page sections */
+/** Underline tabs for switching page sections — arrow keys move between tabs */
 export function Tabs<T extends string>({ items, value, onChange, className }: TabsProps<T>) {
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
+    e.preventDefault()
+    const idx = items.findIndex((i) => i.value === value)
+    const next = items[(idx + (e.key === 'ArrowRight' ? 1 : items.length - 1)) % items.length]
+    onChange(next.value)
+    const el = (e.currentTarget as HTMLElement).querySelector<HTMLElement>(`[data-tab="${next.value}"]`)
+    el?.focus()
+  }
   return (
-    <div role="tablist" className={cn('flex items-center gap-1 border-b border-edge overflow-x-auto', className)}>
+    <div
+      role="tablist"
+      onKeyDown={onKeyDown}
+      className={cn('flex items-center gap-1 border-b border-edge overflow-x-auto', className)}
+    >
       {items.map((item) => {
         const active = item.value === value
         return (
           <button
             key={item.value}
             role="tab"
+            data-tab={item.value}
             aria-selected={active}
+            tabIndex={active ? 0 : -1}
             onClick={() => onChange(item.value)}
             className={cn(
               'relative -mb-px flex items-center gap-1.5 whitespace-nowrap px-3.5 py-2.5 text-sm font-medium transition-colors',

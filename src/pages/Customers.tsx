@@ -402,6 +402,12 @@ export default function Customers() {
 
   const [searchParams, setSearchParams] = useSearchParams()
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
+  // Re-sync the search box when navigated here again (e.g. from global search)
+  useEffect(() => {
+    const q = searchParams.get('q')
+    if (q !== null) setQuery(q)
+  }, [searchParams])
+
   const [tagFilter, setTagFilter] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)

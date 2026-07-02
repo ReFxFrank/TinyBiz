@@ -329,12 +329,19 @@ export default function Suppliers() {
   const suppliers = useStore((s) => s.suppliers)
   const materials = useStore((s) => s.materials)
   const addItem = useStore((s) => s.addItem)
+  const updateItem = useStore((s) => s.updateItem)
   const removeItem = useStore((s) => s.removeItem)
 
   const loaded = useLoaded()
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
+  // Re-sync the search box when navigated here again (e.g. from global search)
+  useEffect(() => {
+    const q = searchParams.get('q')
+    if (q !== null) setQuery(q)
+  }, [searchParams])
+
   const debouncedQuery = useDebounced(query)
   const [category, setCategory] = useState('')
   const [openId, setOpenId] = useState<string | null>(null)
@@ -400,6 +407,10 @@ export default function Suppliers() {
 
   const deleteSelected = () => {
     if (!selected) return
+    // Unlink materials sourced from this supplier so no dangling supplierId remains
+    for (const m of materials.filter((x) => x.supplierId === selected.id)) {
+      updateItem('materials', m.id, { supplierId: undefined })
+    }
     removeItem('suppliers', selected.id)
     setOpenId(null)
     toast('Supplier deleted', { tone: 'success' })

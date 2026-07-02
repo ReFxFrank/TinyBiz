@@ -23,7 +23,7 @@ import {
 } from '@/components/ui'
 import { BarsChart, ChartCard, TrendChart } from '@/components/charts'
 import { fmtDate, fmtMonth, money, money0, moneyCompact, num, pct } from '@/lib/format'
-import { isRevenueOrder, monthlySeries, type MonthPoint } from '@/lib/metrics'
+import { isRevenueOrder, monthlySeries, orderItemsTotal, type MonthPoint } from '@/lib/metrics'
 import { monthKey } from '@/lib/dates'
 import { cn, downloadFile, sum, toCsv, useLoaded } from '@/lib/utils'
 
@@ -130,14 +130,17 @@ export default function Accounting() {
   const prev = useMemo(() => totalsOf(previous), [previous])
 
   // Sales tax collected, bucketed by month (tax is a liability, not revenue).
-  const taxByMonth = useMemo(() => {
-    const map = new Map<string, number>()
+  // Taxable base = item totals only — shipping isn't taxed at order creation.
+  const { taxByMonth, taxableByMonth } = useMemo(() => {
+    const tax = new Map<string, number>()
+    const taxable = new Map<string, number>()
     for (const o of orders) {
       if (!isRevenueOrder(o)) continue
       const k = monthKey(o.placedAt)
-      map.set(k, (map.get(k) ?? 0) + o.taxCollected)
+      tax.set(k, (tax.get(k) ?? 0) + o.taxCollected)
+      taxable.set(k, (taxable.get(k) ?? 0) + orderItemsTotal(o))
     }
-    return map
+    return { taxByMonth: tax, taxableByMonth: taxable }
   }, [orders])
 
   const taxCollected = useMemo(() => sum(current.map((p) => taxByMonth.get(p.key) ?? 0)), [current, taxByMonth])
@@ -213,10 +216,14 @@ export default function Accounting() {
     const headers = ['Month', 'Taxable revenue', 'Tax collected']
     const rows: unknown[][] = current.map((p) => [
       fmtMonth(p.date.toISOString()),
-      p.revenue.toFixed(2),
+      (taxableByMonth.get(p.key) ?? 0).toFixed(2),
       (taxByMonth.get(p.key) ?? 0).toFixed(2),
     ])
-    rows.push(['Total', t.revenue.toFixed(2), taxCollected.toFixed(2)])
+    rows.push([
+      'Total',
+      sum(current.map((p) => taxableByMonth.get(p.key) ?? 0)).toFixed(2),
+      taxCollected.toFixed(2),
+    ])
     downloadFile(`tinybiz-sales-tax-${period}.csv`, `${meta}\n\n${toCsv(headers, rows)}`, 'text/csv')
     toast('Sales tax summary downloaded', { description: `Tax collected for ${label}.`, tone: 'success' })
   }

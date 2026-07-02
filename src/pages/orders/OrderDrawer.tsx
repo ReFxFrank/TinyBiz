@@ -15,7 +15,7 @@ import {
 } from '@/components/ui'
 import { useStore } from '@/store/useStore'
 import { ORDER_STATUSES, type Order, type OrderStatus } from '@/data/types'
-import { orderCost, orderItemsTotal, orderProfit, orderRevenue } from '@/lib/metrics'
+import { nextOrderNumber, orderCost, orderItemsTotal, orderProfit, orderRevenue } from '@/lib/metrics'
 import { dueIn, fmtDateShort, fmtDateTime, money } from '@/lib/format'
 import { addDays } from '@/lib/dates'
 import { cn, uid } from '@/lib/utils'
@@ -77,7 +77,7 @@ export default function OrderDrawer({ order, onClose, onOpenOrder }: OrderDrawer
     const clone: Order = {
       ...o,
       id: uid('ord'),
-      number: `NP-${1000 + orders.length + 1}`,
+      number: nextOrderNumber(orders),
       status: 'New',
       items: o.items.map((i) => ({ ...i })),
       shippingAddress: { ...o.shippingAddress },

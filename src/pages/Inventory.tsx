@@ -24,8 +24,19 @@ export default function Inventory() {
   const adjustments = useStore((s) => s.adjustments)
   const [searchParams, setSearchParams] = useSearchParams()
 
-  const [tab, setTab] = useState<TabKey>('products')
+  const [tab, setTab] = useState<TabKey>(() => {
+    const t = searchParams.get('tab')
+    return t === 'materials' || t === 'adjustments' ? t : 'products'
+  })
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
+
+  // Keep tab + search in sync when navigated to via global search / notifications
+  useEffect(() => {
+    const t = searchParams.get('tab')
+    if (t === 'materials' || t === 'adjustments' || t === 'products') setTab(t)
+    const q = searchParams.get('q')
+    if (q !== null) setQuery(q)
+  }, [searchParams])
   const [adjustTarget, setAdjustTarget] = useState<AdjustTarget | null>(null)
   const [materialModal, setMaterialModal] = useState<{ open: boolean; material: Material | null }>({
     open: false,
@@ -74,7 +85,6 @@ export default function Inventory() {
               <Button
                 variant="outline"
                 icon={<ScanBarcode />}
-                aria-disabled="true"
                 className="opacity-60"
                 onClick={() => toast('Coming soon', { description: 'Barcode scanning is on the roadmap.' })}
               >

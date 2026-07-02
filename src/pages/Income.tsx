@@ -76,6 +76,12 @@ export default function Income() {
 
   // ── Filters ────────────────────────────────────────────────────────────────
   const [query, setQuery] = useState(searchParams.get('q') ?? '')
+  // Re-sync the search box when navigated here again (e.g. from global search)
+  useEffect(() => {
+    const q = searchParams.get('q')
+    if (q !== null) setQuery(q)
+  }, [searchParams])
+
   const debouncedQuery = useDebounced(query, 200)
   const [category, setCategory] = useState('')
   const [range, setRange] = useState<'6m' | '12m'>('12m')

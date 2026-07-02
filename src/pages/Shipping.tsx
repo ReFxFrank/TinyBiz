@@ -64,6 +64,12 @@ export default function Shipping() {
   const setOrderStatus = useStore((s) => s.setOrderStatus)
 
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
+  // Re-sync the search box when navigated here again (e.g. from global search)
+  useEffect(() => {
+    const q = searchParams.get('q')
+    if (q !== null) setQuery(q)
+  }, [searchParams])
+
   const [carrierFilter, setCarrierFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -310,11 +316,11 @@ export default function Shipping() {
         orders={orders}
         shipments={shipments}
         weightForOrder={(order) => {
+          // Skip items whose product was deleted — prefill with what we can compute
           let total = 0
           for (const item of order.items) {
             const product = products.find((p) => p.id === item.productId)
-            if (!product) return undefined
-            total += product.weightGrams * item.quantity
+            if (product) total += product.weightGrams * item.quantity
           }
           return total > 0 ? total : undefined
         }}

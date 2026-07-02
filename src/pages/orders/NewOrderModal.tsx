@@ -5,6 +5,7 @@ import { useStore } from '@/store/useStore'
 import type { Customer, Order, OrderItem, SalesChannel } from '@/data/types'
 import { money } from '@/lib/format'
 import { addDays, dayKey } from '@/lib/dates'
+import { nextOrderNumber } from '@/lib/metrics'
 import { sum, uid } from '@/lib/utils'
 import { toast } from '@/store/useUI'
 
@@ -91,17 +92,25 @@ export default function NewOrderModal({ open, onClose }: { open: boolean; onClos
       customer = found
     }
 
-    const items: OrderItem[] = validLines.map(({ line, product }) => ({
-      productId: product.id,
-      name: product.name,
-      quantity: line.quantity,
-      unitPrice: product.price,
-      unitCost: product.cost,
-    }))
+    // Merge lines that reference the same product so items carry unique productIds
+    const merged = new Map<string, OrderItem>()
+    for (const { line, product } of validLines) {
+      const existing = merged.get(product.id)
+      if (existing) existing.quantity += line.quantity
+      else
+        merged.set(product.id, {
+          productId: product.id,
+          name: product.name,
+          quantity: line.quantity,
+          unitPrice: product.price,
+          unitCost: product.cost,
+        })
+    }
+    const items: OrderItem[] = [...merged.values()]
 
     const order: Order = {
       id: uid('ord'),
-      number: `NP-${1000 + orders.length + 1}`,
+      number: nextOrderNumber(orders),
       customerId: customer.id,
       customerName: customer.name,
       email: customer.email,

@@ -8,6 +8,8 @@ import { minutesToHours, money } from '@/lib/format'
 import { sum, uid } from '@/lib/utils'
 
 interface LineDraft {
+  /** Stable key for the row while editing — controlled inputs survive removals */
+  key: string
   materialId: string
   quantity: string
 }
@@ -40,20 +42,20 @@ export function RecipeModal({
       setProductId(editing.productId)
       setOutputQty(String(editing.outputQty))
       setPrintTimeMin(String(editing.printTimeMin))
-      setLines(editing.lines.map((l) => ({ materialId: l.materialId, quantity: String(l.quantity) })))
+      setLines(editing.lines.map((l) => ({ key: uid('line'), materialId: l.materialId, quantity: String(l.quantity) })))
     } else {
       setName('')
       setProductId('')
       setOutputQty('1')
       setPrintTimeMin('60')
-      setLines([{ materialId: '', quantity: '1' }])
+      setLines([{ key: uid('line'), materialId: '', quantity: '1' }])
     }
   }, [open, editing])
 
   const setLine = (i: number, patch: Partial<LineDraft>) =>
     setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)))
   const removeLine = (i: number) => setLines((ls) => ls.filter((_, idx) => idx !== i))
-  const addLine = () => setLines((ls) => [...ls, { materialId: '', quantity: '1' }])
+  const addLine = () => setLines((ls) => [...ls, { key: uid('line'), materialId: '', quantity: '1' }])
 
   const materialsCost = sum(
     lines.map((l) => {
@@ -77,6 +79,10 @@ export function RecipeModal({
     }
     if (editing) {
       updateItem('recipes', editing.id, patch)
+      // Re-linking to a different product must clear the old product's BOM link
+      if (editing.productId !== productId) {
+        updateItem('products', editing.productId, { recipeId: undefined })
+      }
       updateItem('products', productId, { recipeId: editing.id })
       toast('Recipe updated', { tone: 'success' })
     } else {
@@ -139,7 +145,7 @@ export function RecipeModal({
           </div>
           <div className="space-y-2">
             {lines.map((line, i) => (
-              <div key={i} className="flex items-center gap-2">
+              <div key={line.key} className="flex items-center gap-2">
                 <Select
                   aria-label={`Material for line ${i + 1}`}
                   className="min-w-0 flex-1"

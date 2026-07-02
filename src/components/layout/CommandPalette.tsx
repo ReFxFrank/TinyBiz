@@ -141,7 +141,7 @@ export function CommandPalette() {
         title: m.name,
         subtitle: `${m.stock.toLocaleString()} ${m.unit} on hand`,
         section: 'Inventory',
-        action: () => go(`/inventory?q=${encodeURIComponent(m.name)}`),
+        action: () => go(`/inventory?tab=materials&q=${encodeURIComponent(m.name)}`),
       })
     }
     for (const e of expenses.filter((e) => match(e.vendor, e.category)).slice(0, 4)) {
@@ -235,6 +235,7 @@ export function CommandPalette() {
                       role="combobox"
                       aria-expanded="true"
                       aria-controls="palette-results"
+                      aria-activedescendant={results[active] ? `palette-option-${active}` : undefined}
                     />
                     <Kbd>esc</Kbd>
                   </div>
@@ -257,6 +258,7 @@ export function CommandPalette() {
                             )}
                             <button
                               data-index={i}
+                              id={`palette-option-${i}`}
                               role="option"
                               aria-selected={i === active}
                               onClick={r.action}

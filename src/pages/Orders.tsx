@@ -49,6 +49,12 @@ export default function Orders() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
+  // Re-sync the search box when navigated here again (e.g. from global search)
+  useEffect(() => {
+    const q = searchParams.get('q')
+    if (q !== null) setQuery(q)
+  }, [searchParams])
+
   const [status, setStatus] = useState('')
   const [channel, setChannel] = useState('')
   const [range, setRange] = useState<Range>('all')

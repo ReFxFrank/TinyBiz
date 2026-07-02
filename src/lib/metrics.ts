@@ -32,6 +32,15 @@ export function orderUnits(o: Order): number {
   return sum(o.items.map((i) => i.quantity))
 }
 
+/** Next free order number ("NP-1201") — max existing + 1, safe across deletions */
+export function nextOrderNumber(orders: Order[]): string {
+  const max = orders.reduce((m, o) => {
+    const n = Number(o.number.replace(/\D/g, ''))
+    return Number.isFinite(n) ? Math.max(m, n) : m
+  }, 1000)
+  return `NP-${max + 1}`
+}
+
 // ── Range aggregates ─────────────────────────────────────────────────────────
 
 function inRange(iso: string, from: Date, to: Date): boolean {

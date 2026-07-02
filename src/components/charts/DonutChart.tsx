@@ -21,6 +21,8 @@ export interface DonutChartProps {
   /** Label under the center total */
   centerLabel?: string
   size?: number
+  /** 'row' puts the legend beside the donut (≥sm); 'stack' keeps it below — use in narrow cards */
+  layout?: 'row' | 'stack'
   className?: string
 }
 
@@ -33,12 +35,19 @@ export function foldSlices(data: DonutSlice[], keep = 5): DonutSlice[] {
   return [...head, { name: 'Other', value: rest }]
 }
 
-export function DonutChart({ data, valueFormatter = (v) => v.toLocaleString(), centerLabel, size = 200, className }: DonutChartProps) {
+export function DonutChart({
+  data,
+  valueFormatter = (v) => v.toLocaleString(),
+  centerLabel,
+  size = 200,
+  layout = 'row',
+  className,
+}: DonutChartProps) {
   const theme = useChartTheme()
   const total = data.reduce((a, s) => a + s.value, 0)
 
   return (
-    <div className={cn('flex flex-col items-center gap-5 sm:flex-row', className)}>
+    <div className={cn('flex flex-col items-center gap-5', layout === 'row' && 'sm:flex-row', className)}>
       <div className="relative shrink-0" style={{ width: size, height: size }}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>

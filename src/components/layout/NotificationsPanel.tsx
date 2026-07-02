@@ -30,6 +30,8 @@ const typeTint: Record<NotificationType, string> = {
 function NotificationRow({ n, onOpen }: { n: AppNotification; onOpen: (n: AppNotification) => void }) {
   const Icon = typeIcon[n.type]
   return (
+    // Popover.Close closes the panel before the row's navigation fires
+    <Popover.Close asChild>
     <button
       onClick={() => onOpen(n)}
       className={cn(
@@ -51,6 +53,7 @@ function NotificationRow({ n, onOpen }: { n: AppNotification; onOpen: (n: AppNot
       </span>
       {!n.read && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-accent" aria-label="Unread" />}
     </button>
+    </Popover.Close>
   )
 }
 

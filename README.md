@@ -41,6 +41,20 @@ npm run preview    # preview the production build
 
 The app seeds itself with ~6 months of demo data on first load. Reset it anytime from **Settings → Danger zone**.
 
+## Deploying to an Ubuntu VPS
+
+`deploy.sh` turns a fresh Ubuntu 22.04/24.04 server into a live TinyBiz host in one command — it installs nginx + Node 20 (if missing), clones this repo, builds, and configures nginx with SPA routing:
+
+```bash
+# Serve on the server's IP over http
+curl -fsSL https://raw.githubusercontent.com/ReFxFrank/TinyBiz/claude/small-business-manager-app-7d4twa/deploy.sh | sudo bash
+
+# Or with a domain + automatic HTTPS (point your DNS A record at the VPS first)
+curl -fsSL https://raw.githubusercontent.com/ReFxFrank/TinyBiz/claude/small-business-manager-app-7d4twa/deploy.sh | sudo bash -s -- shop.example.com
+```
+
+Re-run the same command anytime to deploy the latest code. All data lives in each visitor's browser (localStorage) — there is no server-side database to manage.
+
 ## Keyboard shortcuts
 
 - `⌘K` / `Ctrl+K` — global search

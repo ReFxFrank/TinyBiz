@@ -1,0 +1,164 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Design tokens — light is the default theme; `.dark` swaps the values.
+  Chart series colors live in src/components/charts/palette.ts and mirror these.
+*/
+:root {
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --raised: #ffffff;
+  --sunken: #f0efec;
+
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-3: #898781;
+
+  --hairline: #e1e0d9;
+  --edge: rgba(11, 11, 11, 0.1);
+
+  --accent: #2a78d6;
+  --accent-strong: #1c5cab;
+  --accent-soft: #cde2fb;
+  --accent-wash: #eaf2fc;
+
+  --pop: #7c6ce0;
+  --pop-soft: #ece9fb;
+
+  --good: #0ca30c;
+  --good-wash: #e7f6e7;
+  --warn: #fab219;
+  --warn-wash: #fdf3dc;
+  --serious: #ec835a;
+  --serious-wash: #fdeee7;
+  --critical: #d03b3b;
+  --critical-wash: #fbe9e9;
+}
+
+.dark {
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --raised: #232322;
+  --sunken: #141413;
+
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --ink-3: #898781;
+
+  --hairline: #2c2c2a;
+  --edge: rgba(255, 255, 255, 0.1);
+
+  --accent: #3987e5;
+  --accent-strong: #6da7ec;
+  --accent-soft: #1c3a5e;
+  --accent-wash: #16283d;
+
+  --pop: #9085e9;
+  --pop-soft: #272348;
+
+  --good-wash: #12280f;
+  --warn-wash: #332708;
+  --serious-wash: #33180d;
+  --critical-wash: #330f0f;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-page text-ink font-sans antialiased;
+  font-size: 14px;
+}
+
+* {
+  border-color: var(--edge);
+}
+
+/* Recessive, rounded scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--hairline);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-3);
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Card primitive used across the app */
+.card {
+  @apply bg-surface rounded-2xl border border-edge shadow-soft;
+}
+
+/* Glass layer for overlays / topbar */
+.glass {
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+}
+
+/* Soft brand gradient for hero touches */
+.brand-gradient {
+  background-image: linear-gradient(135deg, var(--accent), var(--pop));
+}
+.brand-gradient-soft {
+  background-image: linear-gradient(135deg, var(--accent-wash), var(--pop-soft));
+}
+
+/* Skeleton shimmer */
+.skeleton {
+  @apply bg-sunken rounded-lg;
+  background-image: linear-gradient(
+    90deg,
+    transparent 0,
+    var(--surface) 40px,
+    transparent 80px
+  );
+  background-size: 400px 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+/* Numbers that must align vertically (tables, axis ticks) */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hide number input spinners */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

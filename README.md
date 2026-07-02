@@ -55,6 +55,8 @@ curl -fsSL https://raw.githubusercontent.com/ReFxFrank/TinyBiz/claude/small-busi
 
 Re-run the same command anytime to deploy the latest code. All data lives in each visitor's browser (localStorage) — there is no server-side database to manage.
 
+**Auto-deploy**: `sudo bash /opt/tinybiz/deploy.sh --install-cron` sets up a cron job that polls the branch every 5 minutes and redeploys only when new commits land (silent no-op otherwise, logged to `/var/log/tinybiz-deploy.log`). Use `--force` to rebuild without new commits.
+
 ## Keyboard shortcuts
 
 - `⌘K` / `Ctrl+K` — global search

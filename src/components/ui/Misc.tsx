@@ -84,6 +84,43 @@ export function ProductTile({
   )
 }
 
+const RANK_MEDALS = ['👑', '🥈', '🥉']
+const RANK_TITLES = ['Top seller', '2nd best seller', '3rd best seller']
+
+/** Crown / medal for the top three ranks (0-indexed). Renders nothing past #3. */
+export function RankMedal({ rank, className }: { rank: number; className?: string }) {
+  if (rank < 0 || rank > 2) return null
+  return (
+    <span className={cn('select-none leading-none', className)} title={RANK_TITLES[rank]} role="img" aria-label={RANK_TITLES[rank]}>
+      {RANK_MEDALS[rank]}
+    </span>
+  )
+}
+
+/** Product artwork tile with a crown/medal overlay for top-ranked sellers */
+export function RankedProductTile({
+  emoji,
+  hue,
+  rank,
+  size = 'sm',
+}: {
+  emoji: string
+  hue: number
+  rank: number
+  size?: 'sm' | 'md' | 'lg'
+}) {
+  if (rank < 0 || rank > 2) return <ProductTile emoji={emoji} hue={hue} size={size} />
+  return (
+    <span className="relative inline-flex shrink-0">
+      <ProductTile emoji={emoji} hue={hue} size={size} />
+      <RankMedal
+        rank={rank}
+        className="absolute -right-1.5 -top-1.5 text-[13px] drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)]"
+      />
+    </span>
+  )
+}
+
 /** Section label used inside drawers/detail views */
 export function DetailLabel({ children }: { children: ReactNode }) {
   return <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">{children}</div>

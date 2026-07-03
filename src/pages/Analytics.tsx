@@ -11,6 +11,7 @@ import {
   EmptyState,
   PageHeader,
   ProductTile,
+  RankedProductTile,
   Segmented,
   SkeletonChart,
   SkeletonStats,
@@ -208,6 +209,13 @@ export default function Analytics() {
     })
   }, [customers])
 
+  // Rank by revenue (0 = top seller) so the crown/medals are stable regardless of table sort
+  const rankByProduct = useMemo(() => {
+    const m = new Map<string, number>()
+    view.sellers.forEach((s, i) => m.set(s.productId, i))
+    return m
+  }, [view.sellers])
+
   const sellerColumns = useMemo<Array<Column<SellerStat>>>(
     () => [
       {
@@ -217,7 +225,7 @@ export default function Analytics() {
           const p = productById.get(s.productId)
           return (
             <span className="flex items-center gap-3">
-              <ProductTile emoji={p?.image ?? '📦'} hue={p?.imageHue ?? 220} size="sm" />
+              <RankedProductTile emoji={p?.image ?? '📦'} hue={p?.imageHue ?? 220} size="sm" rank={rankByProduct.get(s.productId) ?? -1} />
               <span className="min-w-0">
                 <span className="block truncate font-medium text-ink">{s.name}</span>
                 {p && <span className="block text-xs text-ink-3">{p.category}</span>}
@@ -271,7 +279,7 @@ export default function Analytics() {
         },
       },
     ],
-    [productById],
+    [productById, rankByProduct],
   )
 
   if (!loaded) {
@@ -444,12 +452,12 @@ export default function Analytics() {
           <CardHeader title="Best sellers" subtitle={`Top products by revenue, ${def.label}`} />
           {sellers.length ? (
             <BarList
-              items={sellers.slice(0, 8).map((s) => {
+              items={sellers.slice(0, 8).map((s, i) => {
                 const p = productById.get(s.productId)
                 return {
                   label: s.name,
                   value: s.revenue,
-                  icon: <ProductTile emoji={p?.image ?? '📦'} hue={p?.imageHue ?? 220} size="sm" />,
+                  icon: <RankedProductTile emoji={p?.image ?? '📦'} hue={p?.imageHue ?? 220} size="sm" rank={i} />,
                   sublabel: `${num(s.units)} units · ${money(s.profit)} profit`,
                 }
               })}

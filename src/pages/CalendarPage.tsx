@@ -209,6 +209,10 @@ export default function CalendarPage() {
   }
 
   const openCreate = (date?: string) => {
+    if (date && daysOffByKey.has(date)) {
+      toast('That day is marked off', { description: 'Clear the time off first to schedule something.', tone: 'error' })
+      return
+    }
     setEditing(null)
     setPrefillDate(date)
     setSelectedDay(null)
@@ -231,6 +235,7 @@ export default function CalendarPage() {
   }
 
   const selectedDayEvents = selectedDay ? (byDay.get(selectedDay) ?? []) : []
+  const selectedDayOff = selectedDay ? daysOffByKey.get(selectedDay) : undefined
 
   return (
     <div>
@@ -332,11 +337,12 @@ export default function CalendarPage() {
                       onClick={() => setSelectedDay(key)}
                       aria-label={`${fmtDate(d.toISOString())}, ${dayEvents.length} event${dayEvents.length === 1 ? '' : 's'}${off ? `, ${off.kind}` : ''}`}
                       className={cn(
-                        'flex min-h-[64px] flex-col items-stretch gap-1 border-b border-r border-hairline p-1.5 text-left transition-colors sm:min-h-[96px] sm:p-2',
+                        'group relative flex min-h-[64px] flex-col items-stretch gap-1 border-b border-r border-hairline p-1.5 text-left transition-colors sm:min-h-[96px] sm:p-2',
                         'hover:bg-sunken/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/60',
                         i % 7 === 6 && 'border-r-0',
                         i >= 35 && 'border-b-0',
-                        off && TIME_OFF_STYLE[off.kind].cell,
+                        // Off days: gray the whole box; a faint corner ribbon marks the kind
+                        off && 'bg-sunken',
                         !inMonth && 'opacity-50',
                       )}
                     >
@@ -344,7 +350,7 @@ export default function CalendarPage() {
                         <span
                           className={cn(
                             'flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium',
-                            today ? 'bg-accent font-semibold text-white' : 'text-ink-2',
+                            today ? 'bg-accent font-semibold text-white' : off ? 'text-ink-3 line-through' : 'text-ink-2',
                           )}
                         >
                           {d.getDate()}
@@ -352,30 +358,50 @@ export default function CalendarPage() {
                         {off && (
                           <span
                             className={cn(
-                              'hidden rounded-full px-1.5 py-0.5 text-[10px] font-semibold sm:inline-block',
+                              'hidden items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold sm:inline-flex',
                               TIME_OFF_STYLE[off.kind].chip,
                             )}
                           >
-                            {TIME_OFF_STYLE[off.kind].label}
+                            {off.kind === 'Vacation' ? '🌴' : '☕'} {TIME_OFF_STYLE[off.kind].label}
                           </span>
                         )}
                       </span>
-                      <span className="hidden min-w-0 flex-col gap-1 sm:flex">
-                        {shown.map((e) => (
-                          <span key={e.id} className="flex min-w-0 items-center gap-1.5">
-                            <TypeDot type={e.type} />
-                            <span className="truncate text-xs text-ink-2">{e.title}</span>
-                          </span>
-                        ))}
-                        {overflow > 0 && <span className="text-[11px] font-medium text-ink-3">+{overflow} more</span>}
-                      </span>
-                      {/* Mobile: dots only */}
+                      {off ? (
+                        // Marked off — content is muted; nothing can be scheduled here
+                        <span className="hidden min-w-0 flex-1 flex-col justify-end gap-1 sm:flex">
+                          {dayEvents.length > 0 && (
+                            <span className="text-[11px] text-ink-3 line-through">
+                              {dayEvents.length} item{dayEvents.length === 1 ? '' : 's'}
+                            </span>
+                          )}
+                          <span className="text-[11px] font-medium text-ink-3">No work scheduled</span>
+                        </span>
+                      ) : (
+                        <span className="hidden min-w-0 flex-col gap-1 sm:flex">
+                          {shown.map((e) => (
+                            <span key={e.id} className="flex min-w-0 items-center gap-1.5">
+                              <TypeDot type={e.type} />
+                              <span className="truncate text-xs text-ink-2">{e.title}</span>
+                            </span>
+                          ))}
+                          {overflow > 0 && <span className="text-[11px] font-medium text-ink-3">+{overflow} more</span>}
+                        </span>
+                      )}
+                      {/* Mobile: dots only (off days show a muted dot) */}
                       {dayEvents.length > 0 && (
                         <span className="flex flex-wrap items-center gap-1 sm:hidden">
-                          {dayEvents.slice(0, 4).map((e) => (
-                            <TypeDot key={e.id} type={e.type} />
-                          ))}
-                          {dayEvents.length > 4 && <span className="text-[10px] text-ink-3">+{dayEvents.length - 4}</span>}
+                          {off ? (
+                            <span className="h-1.5 w-1.5 rounded-full bg-ink-3 opacity-50" aria-hidden />
+                          ) : (
+                            <>
+                              {dayEvents.slice(0, 4).map((e) => (
+                                <TypeDot key={e.id} type={e.type} />
+                              ))}
+                              {dayEvents.length > 4 && (
+                                <span className="text-[10px] text-ink-3">+{dayEvents.length - 4}</span>
+                              )}
+                            </>
+                          )}
                         </span>
                       )}
                     </button>
@@ -438,11 +464,13 @@ export default function CalendarPage() {
         title={selectedDay ? fmtDate(dateInputToIso(selectedDay)) : ''}
         subtitle={
           selectedDay
-            ? `${selectedDayEvents.length} event${selectedDayEvents.length === 1 ? '' : 's'} scheduled`
+            ? selectedDayOff
+              ? `Marked as ${selectedDayOff.kind.toLowerCase()} — no work scheduled`
+              : `${selectedDayEvents.length} event${selectedDayEvents.length === 1 ? '' : 's'} scheduled`
             : undefined
         }
         footer={
-          selectedDay ? (
+          selectedDay && !selectedDayOff ? (
             <Button
               icon={<Plus />}
               onClick={() => {
@@ -556,6 +584,7 @@ export default function CalendarPage() {
         onClose={() => setModalOpen(false)}
         editing={editing}
         defaultDate={prefillDate}
+        isDayOff={(key) => daysOffByKey.has(key)}
       />
 
       <TimeOffModal open={timeOffOpen} onClose={() => setTimeOffOpen(false)} existing={daysOffByKey} />
@@ -580,6 +609,7 @@ function EventModal({
   onClose,
   editing,
   defaultDate,
+  isDayOff,
 }: {
   open: boolean
   onClose: () => void
@@ -587,6 +617,8 @@ function EventModal({
   editing: CalendarEvent | null
   /** YYYY-MM-DD pre-fill for the date input */
   defaultDate?: string
+  /** True when a given YYYY-MM-DD is marked off — events can't be scheduled there */
+  isDayOff: (key: string) => boolean
 }) {
   const addItem = useStore((s) => s.addItem)
   const updateItem = useStore((s) => s.updateItem)
@@ -605,7 +637,8 @@ function EventModal({
     }
   }, [open, editing, defaultDate])
 
-  const valid = title.trim().length > 0 && date.length > 0
+  const dayBlocked = date.length > 0 && isDayOff(date)
+  const valid = title.trim().length > 0 && date.length > 0 && !dayBlocked
 
   const submit = () => {
     if (!valid) return
@@ -658,7 +691,7 @@ function EventModal({
           />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Date" required>
+          <Field label="Date" required error={dayBlocked ? 'This day is marked off' : undefined}>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
           <Field label="Type">

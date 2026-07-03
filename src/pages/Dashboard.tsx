@@ -28,6 +28,7 @@ import {
   OrderStatusBadge,
   PriorityBadge,
   ProductTile,
+  RankedProductTile,
   Segmented,
   SkeletonChart,
   SkeletonStats,
@@ -475,13 +476,13 @@ export default function Dashboard() {
               />
             ) : (
               <BarList
-                items={top5.map((s) => {
+                items={top5.map((s, i) => {
                   const p = productById.get(s.productId) as Product | undefined
                   return {
                     label: s.name,
                     value: s.revenue,
                     sublabel: `${s.units} unit${s.units === 1 ? '' : 's'}`,
-                    icon: <ProductIcon product={p} name={s.name} />,
+                    icon: <ProductIcon product={p} name={s.name} rank={i} />,
                   }
                 })}
                 valueFormatter={(v) => moneyCompact(v)}
@@ -602,7 +603,7 @@ function FulfillmentRow({ order }: { order: Order }) {
   )
 }
 
-function ProductIcon({ product, name }: { product: Product | undefined; name: string }) {
+function ProductIcon({ product, name, rank = -1 }: { product: Product | undefined; name: string; rank?: number }) {
   const hue = product?.imageHue ?? [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % 360
-  return <ProductTile emoji={product?.image ?? '📦'} hue={hue} size="sm" />
+  return <RankedProductTile emoji={product?.image ?? '📦'} hue={hue} size="sm" rank={rank} />
 }

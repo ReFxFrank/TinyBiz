@@ -62,7 +62,7 @@ const SHIPMENT_TONE: Record<ShipmentStatus, BadgeTone> = {
   'In transit': 'blue',
   'Out for delivery': 'yellow',
   Delivered: 'green',
-  Exception: 'red',
+  'Needs attention': 'red',
 }
 
 export function ShipmentStatusBadge({ status }: { status: ShipmentStatus }) {

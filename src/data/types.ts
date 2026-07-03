@@ -257,7 +257,7 @@ export interface Machine {
 
 // ── Fulfilment ───────────────────────────────────────────────────────────────
 
-export type ShipmentStatus = 'Label created' | 'In transit' | 'Out for delivery' | 'Delivered' | 'Exception'
+export type ShipmentStatus = 'Label created' | 'In transit' | 'Out for delivery' | 'Delivered' | 'Needs attention'
 
 export interface Shipment {
   id: ID

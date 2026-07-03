@@ -367,7 +367,17 @@ export const useStore = create<StoreState>()(
     }),
     {
       name: 'tinybiz-data',
-      version: 1,
+      version: 2,
+      // v2 renamed the shipment status 'Exception' → 'Needs attention'
+      migrate: (persisted, version) => {
+        const state = persisted as StoreState
+        if (version < 2 && Array.isArray(state?.shipments)) {
+          state.shipments = state.shipments.map((s) =>
+            (s.status as string) === 'Exception' ? { ...s, status: 'Needs attention' as const } : s,
+          )
+        }
+        return state
+      },
     },
   ),
 )

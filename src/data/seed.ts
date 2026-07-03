@@ -393,7 +393,7 @@ export const seedShipments: Shipment[] = seedOrders
       service: o.carrier === 'UPS' ? 'Ground' : o.carrier === 'FedEx' ? 'Home Delivery' : 'Ground Advantage',
       trackingNumber: o.trackingNumber ?? '',
       cost: o.shippingCost,
-      status: delivered ? 'Delivered' : chance(0.12) ? 'Out for delivery' : chance(0.06) ? 'Exception' : 'In transit',
+      status: delivered ? 'Delivered' : chance(0.12) ? 'Out for delivery' : chance(0.06) ? 'Needs attention' : 'In transit',
       shippedAt: o.shippedAt!,
       estimatedDelivery: delivered ? undefined : daysAhead(ri(1, 4)),
       deliveredAt: o.deliveredAt,

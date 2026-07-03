@@ -31,7 +31,7 @@ import { cn, downloadFile, uid, useLoaded } from '@/lib/utils'
 
 const CARRIERS: Carrier[] = ['USPS', 'UPS', 'FedEx', 'DHL']
 
-const SHIPMENT_STATUSES: ShipmentStatus[] = ['Label created', 'In transit', 'Out for delivery', 'Delivered', 'Exception']
+const SHIPMENT_STATUSES: ShipmentStatus[] = ['Label created', 'In transit', 'Out for delivery', 'Delivered', 'Needs attention']
 
 const SERVICES: Record<Carrier, string[]> = {
   USPS: ['Ground Advantage', 'Priority'],
@@ -94,8 +94,8 @@ export default function Shipping() {
     ).length
     const recent = shipments.filter((s) => new Date(s.shippedAt).getTime() >= cutoff30)
     const avgCost = recent.length ? recent.reduce((a, s) => a + s.cost, 0) / recent.length : 0
-    const exceptions = shipments.filter((s) => s.status === 'Exception').length
-    return { inTransit, delivered30, avgCost, exceptions }
+    const needsAttention = shipments.filter((s) => s.status === 'Needs attention').length
+    return { inTransit, delivered30, avgCost, needsAttention }
   }, [shipments])
 
   // ── Filtered rows ──────────────────────────────────────────────────────────
@@ -248,13 +248,13 @@ export default function Shipping() {
               onClick={() => showTileFilter('')}
             />
             <Stat
-              label="Exceptions"
+              label="Needs attention"
               value={
-                <span className={cn(stats.exceptions > 0 && 'text-critical')}>{num(stats.exceptions)}</span>
+                <span className={cn(stats.needsAttention > 0 && 'text-critical')}>{num(stats.needsAttention)}</span>
               }
               icon={<AlertTriangle />}
-              clickHint="Filter the table to delivery exceptions"
-              onClick={() => showTileFilter('Exception')}
+              clickHint="Filter the table to shipments needing attention"
+              onClick={() => showTileFilter('Needs attention')}
             />
           </div>
 
@@ -445,11 +445,11 @@ function ShipmentDrawer({
             </Button>
           </div>
 
-          {s.status === 'Exception' ? (
+          {s.status === 'Needs attention' ? (
             <div className="flex items-start gap-3 rounded-xl bg-critical-wash p-4 text-sm">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-critical" />
               <div>
-                <div className="font-semibold text-critical">Delivery exception</div>
+                <div className="font-semibold text-critical">Needs attention</div>
                 <p className="mt-0.5 text-[13px] leading-relaxed text-ink-2">
                   The carrier reported a problem with this package. Check {s.carrier} tracking for details or contact
                   the customer.

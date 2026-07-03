@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Download, MoreHorizontal, Pencil, Plus, Receipt, RefreshCw, Trash2 } from 'lucide-react'
+import { Download, MoreHorizontal, Pencil, Plus, Receipt, RefreshCw, Trash2, X } from 'lucide-react'
 import { useStore } from '@/store/useStore'
 import { toast } from '@/store/useUI'
 import type { Expense, ExpenseCategory } from '@/data/types'
@@ -35,7 +35,7 @@ import type { BadgeTone, Column } from '@/components/ui'
 import { BarsChart, ChartCard, DonutChart, foldSlices } from '@/components/charts'
 import { fmtDate, fmtMonth, money, money0, moneyCompact } from '@/lib/format'
 import { monthlySeries } from '@/lib/metrics'
-import { addDays, dayKey, startOfDay } from '@/lib/dates'
+import { addDays, dayKey, monthKey, startOfDay } from '@/lib/dates'
 import { downloadFile, sum, toCsv, uid, useLoaded } from '@/lib/utils'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -237,6 +237,8 @@ export default function Expenses() {
   const [category, setCategory] = useState('')
   const [range, setRange] = useState<RangeKey>('90d')
   const [recurringOnly, setRecurringOnly] = useState(false)
+  /** YYYY-MM when the ledger is pinned to a single month (via a chart bar) */
+  const [monthFilter, setMonthFilter] = useState<string | null>(null)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Expense | null>(null)
@@ -287,7 +289,12 @@ export default function Expenses() {
 
   // ── Charts ─────────────────────────────────────────────────────────────────
   const monthlyChartData = useMemo(
-    () => months.map((p) => ({ month: fmtMonth(p.date.toISOString()), expenses: Math.round(p.expenses * 100) / 100 })),
+    () =>
+      months.map((p) => ({
+        month: fmtMonth(p.date.toISOString()),
+        key: monthKey(p.date),
+        expenses: Math.round(p.expenses * 100) / 100,
+      })),
     [months],
   )
 
@@ -307,23 +314,39 @@ export default function Expenses() {
   // ── Table ──────────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const cutoff = rangeCutoff(range)
+    // A pinned month takes over from the range preset
+    const cutoff = monthFilter ? 0 : rangeCutoff(range)
     return expenses.filter((e) => {
+      if (monthFilter && monthKey(e.date) !== monthFilter) return false
       if (cutoff && new Date(e.date).getTime() < cutoff) return false
       if (category && e.category !== category) return false
       if (recurringOnly && !e.recurring) return false
       if (q && !e.vendor.toLowerCase().includes(q) && !(e.notes ?? '').toLowerCase().includes(q)) return false
       return true
     })
-  }, [expenses, query, category, range, recurringOnly])
+  }, [expenses, query, category, range, recurringOnly, monthFilter])
 
   /** Clicking a stat tile resets conflicting filters so the ledger matches the tile */
   const showTileFilter = (next: { range: RangeKey; category?: ExpenseCategory; recurringOnly?: boolean }) => {
     setQuery('')
     setCategory(next.category ?? '')
     setRecurringOnly(next.recurringOnly ?? false)
+    setMonthFilter(null)
     setRange(next.range)
   }
+
+  /** Clicking a bar pins the ledger to that month and scrolls to it */
+  const selectMonth = (key: string) => {
+    setQuery('')
+    setCategory('')
+    setRecurringOnly(false)
+    setMonthFilter(key)
+    window.setTimeout(() => {
+      document.getElementById('expense-ledger')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 60)
+  }
+
+  const monthFilterLabel = monthFilter ? fmtMonth(`${monthFilter}-01T12:00:00`) : ''
 
   const exportCsv = () => {
     const csv = toCsv(
@@ -410,7 +433,7 @@ export default function Expenses() {
     },
   ]
 
-  const hasFilters = query.trim() !== '' || category !== '' || range !== 'all' || recurringOnly
+  const hasFilters = query.trim() !== '' || category !== '' || range !== 'all' || recurringOnly || monthFilter !== null
 
   return (
     <div>
@@ -488,7 +511,7 @@ export default function Expenses() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <ChartCard
               title="Monthly spend"
-              subtitle="Total expenses per month, trailing 12 months"
+              subtitle="Total per month, trailing 12 months — click a bar to see that month"
               table={{
                 headers: ['Month', 'Expenses'],
                 rows: monthlyChartData.map((p) => [p.month, money(p.expenses)]),
@@ -499,6 +522,7 @@ export default function Expenses() {
                 xKey="month"
                 series={[{ key: 'expenses', name: 'Expenses', color: 0 }]}
                 valueFormatter={moneyCompact}
+                onBarClick={(row) => typeof row.key === 'string' && selectMonth(row.key)}
               />
             </ChartCard>
             <ChartCard
@@ -521,7 +545,7 @@ export default function Expenses() {
             </ChartCard>
           </div>
 
-          <div>
+          <div id="expense-ledger" className="scroll-mt-6">
             <FilterBar>
               <SearchInput
                 aria-label="Search expenses by vendor"
@@ -547,7 +571,25 @@ export default function Expenses() {
               >
                 Recurring only
               </Button>
-              <Segmented options={RANGE_OPTIONS} value={range} onChange={setRange} className="ml-auto" />
+              {monthFilter && (
+                <button
+                  onClick={() => setMonthFilter(null)}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-accent-wash py-1 pl-3 pr-2 text-[13px] font-medium text-accent transition-colors hover:bg-accent-soft"
+                  aria-label={`Clear ${monthFilterLabel} filter`}
+                >
+                  {monthFilterLabel}
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              )}
+              <Segmented
+                options={RANGE_OPTIONS}
+                value={range}
+                onChange={(r) => {
+                  setMonthFilter(null)
+                  setRange(r)
+                }}
+                className="ml-auto"
+              />
             </FilterBar>
 
             <DataTable
@@ -572,6 +614,7 @@ export default function Expenses() {
                           setQuery('')
                           setCategory('')
                           setRecurringOnly(false)
+                          setMonthFilter(null)
                           setRange('all')
                         }}
                       >

@@ -31,6 +31,8 @@ export interface BarsChartProps {
   valueFormatter?: (v: number) => string
   xTickFormatter?: (v: string | number) => string
   maxTicks?: number
+  /** When set, bars become clickable and this fires with the clicked row + index */
+  onBarClick?: (row: Record<string, string | number | undefined>, index: number) => void
 }
 
 export function BarsChart({
@@ -42,9 +44,16 @@ export function BarsChart({
   valueFormatter = (v) => v.toLocaleString(),
   xTickFormatter,
   maxTicks = 12,
+  onBarClick,
 }: BarsChartProps) {
   const theme = useChartTheme()
   const tickInterval = Math.max(0, Math.ceil(data.length / maxTicks) - 1)
+  const handleClick = onBarClick
+    ? (_: unknown, index: number) => {
+        const row = data[index]
+        if (row) onBarClick(row, index)
+      }
+    : undefined
 
   return (
     <div>
@@ -94,6 +103,8 @@ export function BarsChart({
                 radius={isTop ? [4, 4, 0, 0] : [0, 0, 0, 0]}
                 stroke={stacked ? theme.surface : undefined}
                 strokeWidth={stacked ? 1 : 0}
+                onClick={handleClick}
+                className={onBarClick ? 'cursor-pointer' : undefined}
                 isAnimationActive
                 animationDuration={500}
               />

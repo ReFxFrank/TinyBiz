@@ -267,6 +267,12 @@ export default function Products() {
 
   const selected = selectedId ? (products.find((p) => p.id === selectedId) ?? null) : null
 
+  // Prev/next in the drawer walk the same order the user is browsing:
+  // grid follows the sort dropdown; table follows its default name-asc sort.
+  const tableSorted = useMemo(() => [...filtered].sort((a, b) => a.name.localeCompare(b.name)), [filtered])
+  const navList = view === 'grid' ? gridSorted : tableSorted
+  const navIndex = selectedId ? navList.findIndex((p) => p.id === selectedId) : -1
+
   return (
     <div>
       <PageHeader
@@ -403,6 +409,9 @@ export default function Products() {
           setFormOpen(true)
         }}
         onDuplicated={(id) => setSelectedId(id)}
+        position={navIndex >= 0 ? { index: navIndex + 1, total: navList.length } : undefined}
+        onPrev={navIndex > 0 ? () => setSelectedId(navList[navIndex - 1].id) : undefined}
+        onNext={navIndex >= 0 && navIndex < navList.length - 1 ? () => setSelectedId(navList[navIndex + 1].id) : undefined}
       />
       <ProductModal open={formOpen} onClose={() => setFormOpen(false)} product={editing} />
     </div>

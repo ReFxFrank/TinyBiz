@@ -13,10 +13,12 @@ export interface DrawerProps {
   children: ReactNode
   footer?: ReactNode
   wide?: boolean
+  /** Controls shown left of the close button (e.g. prev/next record navigation) */
+  headerAccessory?: ReactNode
 }
 
 /** Right-hand slide-over for record details — Radix Dialog under the hood */
-export function Drawer({ open, onClose, title, subtitle, children, footer, wide }: DrawerProps) {
+export function Drawer({ open, onClose, title, subtitle, children, footer, wide, headerAccessory }: DrawerProps) {
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && onClose()}>
       <AnimatePresence>
@@ -47,11 +49,14 @@ export function Drawer({ open, onClose, title, subtitle, children, footer, wide 
                     <Dialog.Title className="truncate text-base font-semibold text-ink">{title}</Dialog.Title>
                     {subtitle && <div className="mt-0.5 text-[13px] text-ink-3">{subtitle}</div>}
                   </div>
-                  <Dialog.Close asChild>
-                    <IconButton label="Close" size="sm">
-                      <X />
-                    </IconButton>
-                  </Dialog.Close>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {headerAccessory}
+                    <Dialog.Close asChild>
+                      <IconButton label="Close" size="sm">
+                        <X />
+                      </IconButton>
+                    </Dialog.Close>
+                  </div>
                 </div>
                 <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
                 {footer && <div className="flex justify-end gap-2 border-t border-edge px-5 py-3.5">{footer}</div>}

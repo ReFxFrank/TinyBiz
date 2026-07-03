@@ -45,6 +45,7 @@ import { cn, sum, useLoaded } from '@/lib/utils'
 import { CompleteBatchModal } from '@/pages/manufacturing/CompleteBatchModal'
 import { RecipeModal } from '@/pages/manufacturing/RecipeModal'
 import { RunProductionModal } from '@/pages/manufacturing/RunProductionModal'
+import { MachineModal } from '@/pages/manufacturing/MachineModal'
 
 // ── Machines ─────────────────────────────────────────────────────────────────
 
@@ -54,7 +55,15 @@ const MACHINE_TONE: Record<Machine['status'], BadgeTone> = {
   Maintenance: 'orange',
 }
 
-function MachineCard({ machine }: { machine: Machine }) {
+function MachineCard({
+  machine,
+  onEdit,
+  onDelete,
+}: {
+  machine: Machine
+  onEdit: () => void
+  onDelete: () => void
+}) {
   const updateItem = useStore((s) => s.updateItem)
   const setStatus = (status: Machine['status']) => {
     updateItem('machines', machine.id, { status })
@@ -88,6 +97,13 @@ function MachineCard({ machine }: { machine: Machine }) {
           onSelect={() => setStatus('Maintenance')}
         >
           Set to Maintenance
+        </MenuItem>
+        <MenuSeparator />
+        <MenuItem icon={<Pencil />} onSelect={onEdit}>
+          Edit
+        </MenuItem>
+        <MenuItem icon={<Trash2 />} danger onSelect={onDelete}>
+          Delete
         </MenuItem>
       </Menu>
     </Card>
@@ -202,6 +218,9 @@ export default function Manufacturing() {
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null)
   const [deletingRecipe, setDeletingRecipe] = useState<Recipe | null>(null)
   const [highlightRecipeId, setHighlightRecipeId] = useState<string | null>(null)
+  const [machineModalOpen, setMachineModalOpen] = useState(false)
+  const [editingMachine, setEditingMachine] = useState<Machine | null>(null)
+  const [deletingMachine, setDeletingMachine] = useState<Machine | null>(null)
 
   // ?new=1 opens the Run production modal once, then clears the param
   useEffect(() => {
@@ -263,6 +282,33 @@ export default function Manufacturing() {
     }
     toast('Recipe deleted', { tone: 'success' })
     setDeletingRecipe(null)
+  }
+
+  const openMachineModal = (machine: Machine | null) => {
+    setEditingMachine(machine)
+    setMachineModalOpen(true)
+  }
+
+  /** A machine tied to a live batch can't be deleted — free it first */
+  const machineBusy = (machineId: string) =>
+    batches.some((b) => b.machineId === machineId && (b.status === 'In Progress' || b.status === 'Queued'))
+
+  const requestDeleteMachine = (machine: Machine) => {
+    if (machineBusy(machine.id)) {
+      toast('Machine is in use', {
+        description: `${machine.name} has a queued or running batch. Complete it before deleting.`,
+        tone: 'error',
+      })
+      return
+    }
+    setDeletingMachine(machine)
+  }
+
+  const deleteMachine = () => {
+    if (!deletingMachine) return
+    removeItem('machines', deletingMachine.id)
+    toast('Machine deleted', { tone: 'success' })
+    setDeletingMachine(null)
   }
 
   const batchColumns: Array<Column<ProductionBatch>> = useMemo(
@@ -439,12 +485,37 @@ export default function Manufacturing() {
           </div>
 
           <section aria-label="Machines">
-            <h2 className="mb-3 text-sm font-semibold text-ink">Machines</h2>
-            <div className="grid gap-4 sm:grid-cols-3">
-              {machines.map((m) => (
-                <MachineCard key={m.id} machine={m} />
-              ))}
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold text-ink">Machines</h2>
+              <Button size="sm" variant="outline" icon={<Plus />} onClick={() => openMachineModal(null)}>
+                Add machine
+              </Button>
             </div>
+            {machines.length === 0 ? (
+              <Card>
+                <EmptyState
+                  icon={<Factory />}
+                  title="No machines yet"
+                  description="Add your printers and machines to assign production batches to them."
+                  action={
+                    <Button size="sm" icon={<Plus />} onClick={() => openMachineModal(null)}>
+                      Add machine
+                    </Button>
+                  }
+                />
+              </Card>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-3">
+                {machines.map((m) => (
+                  <MachineCard
+                    key={m.id}
+                    machine={m}
+                    onEdit={() => openMachineModal(m)}
+                    onDelete={() => requestDeleteMachine(m)}
+                  />
+                ))}
+              </div>
+            )}
           </section>
 
           <section id="production-batches" className="scroll-mt-6">
@@ -552,6 +623,7 @@ export default function Manufacturing() {
       <RunProductionModal open={runOpen} onClose={() => setRunOpen(false)} initialRecipeId={runRecipeId} />
       <CompleteBatchModal batch={completing} onClose={() => setCompleting(null)} />
       <RecipeModal open={recipeModalOpen} onClose={() => setRecipeModalOpen(false)} editing={editingRecipe} />
+      <MachineModal open={machineModalOpen} onClose={() => setMachineModalOpen(false)} editing={editingMachine} />
 
       <ConfirmDialog
         open={Boolean(deletingRecipe)}
@@ -561,6 +633,20 @@ export default function Manufacturing() {
         description={
           deletingRecipe
             ? `“${deletingRecipe.name}” will be removed. Past batches keep their records, but you won't be able to run this recipe again.`
+            : undefined
+        }
+        confirmLabel="Delete"
+        danger
+      />
+
+      <ConfirmDialog
+        open={Boolean(deletingMachine)}
+        onClose={() => setDeletingMachine(null)}
+        onConfirm={deleteMachine}
+        title="Delete machine?"
+        description={
+          deletingMachine
+            ? `“${deletingMachine.name}” will be removed. Past batches keep their records.`
             : undefined
         }
         confirmLabel="Delete"

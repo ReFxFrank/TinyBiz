@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Copy, FlaskConical, Pencil, SlidersHorizontal, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Copy, FlaskConical, Pencil, SlidersHorizontal, Trash2 } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -8,6 +8,7 @@ import {
   DetailLabel,
   DetailRow,
   Drawer,
+  IconButton,
   ProductTile,
   StockBadge,
   Toggle,
@@ -36,9 +37,15 @@ export interface ProductDrawerProps {
   onEdit: (product: Product) => void
   /** Called with the freshly created copy so the parent can select it */
   onDuplicated: (id: string) => void
+  /** Step to the previous product in the browsing list, if any */
+  onPrev?: () => void
+  /** Step to the next product in the browsing list, if any */
+  onNext?: () => void
+  /** 1-based position within the browsing list, e.g. { index: 3, total: 14 } */
+  position?: { index: number; total: number }
 }
 
-export default function ProductDrawer({ product, onClose, onEdit, onDuplicated }: ProductDrawerProps) {
+export default function ProductDrawer({ product, onClose, onEdit, onDuplicated, onPrev, onNext, position }: ProductDrawerProps) {
   const navigate = useNavigate()
   const recipes = useStore((s) => s.recipes)
   const materials = useStore((s) => s.materials)
@@ -48,6 +55,25 @@ export default function ProductDrawer({ product, onClose, onEdit, onDuplicated }
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const p = product
+
+  // ←/→ arrow keys step through the browsing list while the drawer is open
+  useEffect(() => {
+    if (!p || (!onPrev && !onNext)) return
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable) return
+      if (e.key === 'ArrowLeft' && onPrev) {
+        e.preventDefault()
+        onPrev()
+      } else if (e.key === 'ArrowRight' && onNext) {
+        e.preventDefault()
+        onNext()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [p, onPrev, onNext])
+
   const recipe = p?.recipeId ? (recipes.find((r) => r.id === p.recipeId) ?? null) : null
   const recipeLines =
     recipe?.lines.map((line) => ({
@@ -90,6 +116,21 @@ export default function ProductDrawer({ product, onClose, onEdit, onDuplicated }
         wide
         title={p?.name ?? ''}
         subtitle={p ? <span className="font-mono">{p.sku}</span> : undefined}
+        headerAccessory={
+          position && position.total > 1 ? (
+            <div className="mr-1 flex items-center gap-0.5">
+              <IconButton label="Previous product" size="sm" onClick={onPrev} disabled={!onPrev}>
+                <ChevronLeft />
+              </IconButton>
+              <span className="min-w-[3.5rem] text-center text-xs tabular-nums text-ink-3">
+                {position.index} / {position.total}
+              </span>
+              <IconButton label="Next product" size="sm" onClick={onNext} disabled={!onNext}>
+                <ChevronRight />
+              </IconButton>
+            </div>
+          ) : undefined
+        }
         footer={
           p && (
             <>

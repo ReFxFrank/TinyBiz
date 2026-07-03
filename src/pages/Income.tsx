@@ -31,7 +31,7 @@ import {
   type Column,
 } from '@/components/ui'
 import { ChartCard, DonutChart, TrendChart, foldSlices } from '@/components/charts'
-import { fmtDate, fmtMonth, money, money0, moneyCompact } from '@/lib/format'
+import { fmtDate, fmtDateShort, fmtMonth, money, money0, moneyCompact } from '@/lib/format'
 import { isRevenueOrder, monthTotals, monthlySeries, orderRevenue, rangeTotals } from '@/lib/metrics'
 import { addDays, dayKey, startOfDay } from '@/lib/dates'
 import { sum, uid, useDebounced, useLoaded } from '@/lib/utils'
@@ -90,7 +90,7 @@ export default function Income() {
 
   const debouncedQuery = useDebounced(query, 200)
   const [category, setCategory] = useState('')
-  const [range, setRange] = useState<'6m' | '12m'>('12m')
+  const [range, setRange] = useState<'1m' | '6m' | '12m'>('12m')
 
   // ── Modal state ────────────────────────────────────────────────────────────
   const [modalOpen, setModalOpen] = useState(false)
@@ -137,19 +137,38 @@ export default function Income() {
   }, [orders, expenses, incomes])
 
   const trendMonths = range === '6m' ? 6 : 12
-  const trend = useMemo(
-    () => monthlySeries(orders, expenses, incomes, trendMonths),
-    [orders, expenses, incomes, trendMonths],
-  )
-  const trendData = useMemo(
-    () =>
-      trend.map((p) => ({
-        label: fmtMonth(p.date.toISOString()),
-        sales: Math.round(p.revenue * 100) / 100,
-        other: Math.round(p.otherIncome * 100) / 100,
-      })),
-    [trend],
-  )
+  const rangeLabel = range === '1m' ? '30 days' : `${trendMonths} months`
+  const trendData = useMemo(() => {
+    // 1m shows daily points; monthlySeries doesn't bucket manual income, so
+    // for the daily view we bucket both sales and other income by day here.
+    if (range === '1m') {
+      const start = startOfDay(addDays(new Date(), -29))
+      const days = new Map<string, { date: Date; sales: number; other: number }>()
+      for (let i = 0; i < 30; i++) {
+        const date = addDays(start, i)
+        days.set(dayKey(date), { date, sales: 0, other: 0 })
+      }
+      for (const o of orders) {
+        if (!isRevenueOrder(o)) continue
+        const d = days.get(dayKey(o.placedAt))
+        if (d) d.sales += orderRevenue(o)
+      }
+      for (const inc of incomes) {
+        const d = days.get(dayKey(inc.date))
+        if (d) d.other += inc.amount
+      }
+      return [...days.values()].map((d) => ({
+        label: fmtDateShort(d.date.toISOString()),
+        sales: Math.round(d.sales * 100) / 100,
+        other: Math.round(d.other * 100) / 100,
+      }))
+    }
+    return monthlySeries(orders, expenses, incomes, trendMonths).map((p) => ({
+      label: fmtMonth(p.date.toISOString()),
+      sales: Math.round(p.revenue * 100) / 100,
+      other: Math.round(p.otherIncome * 100) / 100,
+    }))
+  }, [orders, expenses, incomes, range, trendMonths])
 
   const channelSlices = useMemo(() => {
     const cutoff = addDays(startOfDay(new Date()), -89).getTime()
@@ -341,11 +360,12 @@ export default function Income() {
             <div id="income-trend" className="scroll-mt-20 lg:col-span-3">
               <ChartCard
                 title="Income over time"
-                subtitle={`Sales vs. other income, last ${trendMonths} months`}
+                subtitle={`Sales vs. other income, last ${rangeLabel}`}
                 className="h-full"
                 actions={
                   <Segmented
                     options={[
+                      { value: '1m', label: '1M' },
                       { value: '6m', label: '6m' },
                       { value: '12m', label: '12m' },
                     ]}
@@ -354,7 +374,7 @@ export default function Income() {
                   />
                 }
                 table={{
-                  headers: ['Month', 'Sales', 'Other income'],
+                  headers: [range === '1m' ? 'Day' : 'Month', 'Sales', 'Other income'],
                   rows: trendData.map((p) => [p.label, money(p.sales), money(p.other)]),
                 }}
               >

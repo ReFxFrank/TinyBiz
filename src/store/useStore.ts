@@ -31,6 +31,7 @@ import type {
   StockAdjustment,
   Supplier,
   TaskItem,
+  TimeOff,
 } from '@/data/types'
 import {
   buildSeedNotifications,
@@ -38,6 +39,7 @@ import {
   seedBatches,
   seedCampaigns,
   seedCustomers,
+  seedDaysOff,
   seedDocuments,
   seedEmployees,
   seedEvents,
@@ -73,6 +75,7 @@ export interface Collections {
   shipments: Shipment[]
   tasks: TaskItem[]
   events: CalendarEvent[]
+  daysOff: TimeOff[]
   documents: DocumentItem[]
   employees: Employee[]
   campaigns: Campaign[]
@@ -149,6 +152,7 @@ function seedCollections(): Collections & { settings: Settings } {
     shipments: seedShipments,
     tasks: seedTasks,
     events: seedEvents,
+    daysOff: seedDaysOff,
     documents: seedDocuments,
     employees: seedEmployees,
     campaigns: seedCampaigns,

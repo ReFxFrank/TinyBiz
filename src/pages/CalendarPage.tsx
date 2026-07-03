@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { CalendarDays, ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, Palmtree, Pencil, Plus, Sun, Trash2, X } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -21,7 +21,7 @@ import {
 } from '@/components/ui'
 import { useStore } from '@/store/useStore'
 import { toast } from '@/store/useUI'
-import { OPEN_STATUSES, type CalendarEvent, type EventType } from '@/data/types'
+import { OPEN_STATUSES, type CalendarEvent, type EventType, type TimeOff, type TimeOffKind } from '@/data/types'
 import { addDays, dayKey, isToday, monthGrid, WEEKDAYS } from '@/lib/dates'
 import { fmtDate, fmtDateShort } from '@/lib/format'
 import { cn, uid, useLoaded } from '@/lib/utils'
@@ -53,6 +53,12 @@ const TYPE_META: Record<EventType, { label: string; dot: string; tone: BadgeTone
   other: { label: 'Other', dot: 'bg-ink-3', tone: 'neutral' },
 }
 
+/** Cell tint + chip look for a marked day off (distinct from event tones) */
+const TIME_OFF_STYLE: Record<TimeOffKind, { cell: string; chip: string; label: string }> = {
+  'Day off': { cell: 'bg-warn-wash/60', chip: 'bg-warn-wash text-[#8a6100] dark:text-warn', label: 'Off' },
+  Vacation: { cell: 'bg-pop-soft/70', chip: 'bg-pop-soft text-pop', label: 'Vacation' },
+}
+
 const SOURCE_LABEL: Record<EventSource, string> = {
   event: 'Calendar',
   order: 'From orders',
@@ -78,6 +84,9 @@ export default function CalendarPage() {
   const orders = useStore((s) => s.orders)
   const tasks = useStore((s) => s.tasks)
   const batches = useStore((s) => s.batches)
+  const daysOff = useStore((s) => s.daysOff)
+  const addItem = useStore((s) => s.addItem)
+  const updateItem = useStore((s) => s.updateItem)
   const removeItem = useStore((s) => s.removeItem)
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -88,6 +97,7 @@ export default function CalendarPage() {
   const [editing, setEditing] = useState<CalendarEvent | null>(null)
   const [prefillDate, setPrefillDate] = useState<string | undefined>(undefined)
   const [pendingDelete, setPendingDelete] = useState<MergedEvent | null>(null)
+  const [timeOffOpen, setTimeOffOpen] = useState(false)
 
   // ?new=1 auto-opens the create modal
   useEffect(() => {
@@ -158,6 +168,24 @@ export default function CalendarPage() {
     return map
   }, [merged])
 
+  // Day-off lookup by YYYY-MM-DD key for O(1) cell tinting
+  const daysOffByKey = useMemo(() => new Map(daysOff.map((d) => [d.date, d])), [daysOff])
+
+  const markDayOff = (dateKey: string, kind: TimeOffKind) => {
+    const existing = daysOffByKey.get(dateKey)
+    if (existing) updateItem('daysOff', existing.id, { kind })
+    else addItem('daysOff', { id: uid('off'), date: dateKey, kind })
+    toast(`${fmtDateShort(dateInputToIso(dateKey))} marked as ${kind.toLowerCase()}`, { tone: 'success' })
+  }
+
+  const clearDayOff = (dateKey: string) => {
+    const existing = daysOffByKey.get(dateKey)
+    if (existing) {
+      removeItem('daysOff', existing.id)
+      toast('Day off cleared', { tone: 'success' })
+    }
+  }
+
   // Next 14 days for the side panel
   const upNext = useMemo(() => {
     const today = new Date()
@@ -210,9 +238,14 @@ export default function CalendarPage() {
         title="Calendar"
         description="Ship-by dates, deadlines, deliveries and market days — all in one view."
         actions={
-          <Button icon={<Plus />} onClick={() => openCreate()}>
-            New event
-          </Button>
+          <>
+            <Button variant="outline" icon={<Palmtree />} onClick={() => setTimeOffOpen(true)}>
+              Time off
+            </Button>
+            <Button icon={<Plus />} onClick={() => openCreate()}>
+              New event
+            </Button>
+          </>
         }
       />
 
@@ -266,6 +299,10 @@ export default function CalendarPage() {
                   {TYPE_META[t].label}
                 </span>
               ))}
+              <span className="flex items-center gap-1.5 text-xs text-ink-3">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-pop-soft" aria-hidden />
+                Time off
+              </span>
             </div>
           </Card>
 
@@ -283,31 +320,45 @@ export default function CalendarPage() {
                 {cells.map((d, i) => {
                   const key = dayKey(d)
                   const dayEvents = byDay.get(key) ?? []
+                  const off = daysOffByKey.get(key)
                   const inMonth = d.getMonth() === month.m
                   const today = isToday(d)
-                  const shown = dayEvents.slice(0, 3)
+                  const shown = dayEvents.slice(0, off ? 2 : 3)
                   const overflow = dayEvents.length - shown.length
                   return (
                     <button
                       key={key}
                       type="button"
                       onClick={() => setSelectedDay(key)}
-                      aria-label={`${fmtDate(d.toISOString())}, ${dayEvents.length} event${dayEvents.length === 1 ? '' : 's'}`}
+                      aria-label={`${fmtDate(d.toISOString())}, ${dayEvents.length} event${dayEvents.length === 1 ? '' : 's'}${off ? `, ${off.kind}` : ''}`}
                       className={cn(
                         'flex min-h-[64px] flex-col items-stretch gap-1 border-b border-r border-hairline p-1.5 text-left transition-colors sm:min-h-[96px] sm:p-2',
                         'hover:bg-sunken/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/60',
                         i % 7 === 6 && 'border-r-0',
                         i >= 35 && 'border-b-0',
+                        off && TIME_OFF_STYLE[off.kind].cell,
                         !inMonth && 'opacity-50',
                       )}
                     >
-                      <span
-                        className={cn(
-                          'flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium',
-                          today ? 'bg-accent font-semibold text-white' : 'text-ink-2',
+                      <span className="flex items-center justify-between gap-1">
+                        <span
+                          className={cn(
+                            'flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium',
+                            today ? 'bg-accent font-semibold text-white' : 'text-ink-2',
+                          )}
+                        >
+                          {d.getDate()}
+                        </span>
+                        {off && (
+                          <span
+                            className={cn(
+                              'hidden rounded-full px-1.5 py-0.5 text-[10px] font-semibold sm:inline-block',
+                              TIME_OFF_STYLE[off.kind].chip,
+                            )}
+                          >
+                            {TIME_OFF_STYLE[off.kind].label}
+                          </span>
                         )}
-                      >
-                        {d.getDate()}
                       </span>
                       <span className="hidden min-w-0 flex-col gap-1 sm:flex">
                         {shown.map((e) => (
@@ -403,6 +454,59 @@ export default function CalendarPage() {
           ) : undefined
         }
       >
+        {/* Time off controls */}
+        {selectedDay &&
+          (() => {
+            const off = daysOffByKey.get(selectedDay)
+            if (off) {
+              return (
+                <div
+                  className={cn(
+                    'mb-4 flex items-center justify-between gap-3 rounded-xl p-3.5',
+                    TIME_OFF_STYLE[off.kind].cell,
+                  )}
+                >
+                  <div className="flex items-center gap-2.5">
+                    {off.kind === 'Vacation' ? (
+                      <Palmtree className="h-4 w-4 text-pop" />
+                    ) : (
+                      <Sun className="h-4 w-4 text-[#8a6100] dark:text-warn" />
+                    )}
+                    <div>
+                      <div className="text-sm font-semibold text-ink">Marked as {off.kind.toLowerCase()}</div>
+                      {off.note && <div className="text-xs text-ink-2">{off.note}</div>}
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="sm" icon={<X />} onClick={() => clearDayOff(selectedDay)}>
+                    Clear
+                  </Button>
+                </div>
+              )
+            }
+            return (
+              <div className="mb-4 flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={<Sun />}
+                  className="flex-1"
+                  onClick={() => markDayOff(selectedDay, 'Day off')}
+                >
+                  Mark day off
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={<Palmtree />}
+                  className="flex-1"
+                  onClick={() => markDayOff(selectedDay, 'Vacation')}
+                >
+                  Mark vacation
+                </Button>
+              </div>
+            )
+          })()}
+
         {selectedDayEvents.length === 0 ? (
           <EmptyState
             icon={<CalendarDays />}
@@ -453,6 +557,8 @@ export default function CalendarPage() {
         editing={editing}
         defaultDate={prefillDate}
       />
+
+      <TimeOffModal open={timeOffOpen} onClose={() => setTimeOffOpen(false)} existing={daysOffByKey} />
 
       <ConfirmDialog
         open={pendingDelete !== null}
@@ -567,6 +673,117 @@ function EventModal({
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything to remember?" />
         </Field>
       </form>
+    </Modal>
+  )
+}
+
+// ── Time off modal (marks a date range as non-working) ──────────────────────────
+
+function TimeOffModal({
+  open,
+  onClose,
+  existing,
+}: {
+  open: boolean
+  onClose: () => void
+  /** Current days off keyed by YYYY-MM-DD, so we don't double-mark a day */
+  existing: Map<string, TimeOff>
+}) {
+  const addItem = useStore((s) => s.addItem)
+
+  const [start, setStart] = useState('')
+  const [end, setEnd] = useState('')
+  const [kind, setKind] = useState<TimeOffKind>('Vacation')
+  const [note, setNote] = useState('')
+
+  useEffect(() => {
+    if (open) {
+      const today = dayKey(new Date())
+      setStart(today)
+      setEnd(today)
+      setKind('Vacation')
+      setNote('')
+    }
+  }, [open])
+
+  // Keep end on/after start
+  const endValid = end >= start
+  const valid = start.length > 0 && end.length > 0 && endValid
+
+  const dayCount = useMemo(() => {
+    if (!valid) return 0
+    const s = new Date(dateInputToIso(start))
+    const e = new Date(dateInputToIso(end))
+    return Math.round((e.getTime() - s.getTime()) / 86_400_000) + 1
+  }, [start, end, valid])
+
+  const submit = () => {
+    if (!valid) return
+    let created = 0
+    let cursor = new Date(dateInputToIso(start))
+    const last = dateInputToIso(end)
+    while (cursor.toISOString() <= last) {
+      const key = dayKey(cursor)
+      if (!existing.has(key)) {
+        addItem('daysOff', { id: uid('off'), date: key, kind, note: note.trim() || undefined })
+        created++
+      }
+      cursor = addDays(cursor, 1)
+    }
+    toast(
+      created > 0 ? `Marked ${created} day${created === 1 ? '' : 's'} as ${kind.toLowerCase()}` : 'Those days were already marked',
+      { tone: created > 0 ? 'success' : 'default' },
+    )
+    onClose()
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Add time off"
+      description="Mark a day or range when the shop is closed — it won't count as a working day."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={!valid}>
+            {dayCount > 1 ? `Mark ${dayCount} days off` : 'Mark day off'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Field label="Type">
+          <Select
+            options={[
+              { value: 'Vacation', label: 'Vacation' },
+              { value: 'Day off', label: 'Day off' },
+            ]}
+            value={kind}
+            onChange={(e) => setKind(e.target.value as TimeOffKind)}
+          />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="From" required>
+            <Input
+              type="date"
+              value={start}
+              onChange={(e) => {
+                setStart(e.target.value)
+                if (end < e.target.value) setEnd(e.target.value)
+              }}
+            />
+          </Field>
+          <Field label="To" required error={endValid ? undefined : 'End must be on or after start'}>
+            <Input type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)} />
+          </Field>
+        </div>
+        <Field label="Note" hint="Optional — reason or reminder.">
+          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Family trip" />
+        </Field>
+      </div>
     </Modal>
   )
 }

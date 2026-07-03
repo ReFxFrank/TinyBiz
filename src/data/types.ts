@@ -305,6 +305,17 @@ export interface CalendarEvent {
   relatedId?: ID
 }
 
+export type TimeOffKind = 'Day off' | 'Vacation'
+
+/** A single non-working day marked on the calendar */
+export interface TimeOff {
+  id: ID
+  /** YYYY-MM-DD day key */
+  date: string
+  kind: TimeOffKind
+  note?: string
+}
+
 export type DocCategory = 'Invoice' | 'Receipt' | 'Manual' | 'Warranty' | 'Supplier' | 'Tax'
 export type DocFileType = 'pdf' | 'png' | 'jpg' | 'docx' | 'xlsx' | 'csv'
 

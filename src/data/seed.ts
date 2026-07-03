@@ -29,6 +29,7 @@ import type {
   StockAdjustment,
   Supplier,
   TaskItem,
+  TimeOff,
 } from '@/data/types'
 import { addDays, dayKey, startOfDay } from '@/lib/dates'
 
@@ -510,6 +511,17 @@ export const seedEvents: CalendarEvent[] = [
   { id: sid('evt'), title: 'Etsy summer sale starts', date: daysAhead(18), type: 'deadline' },
   { id: sid('evt'), title: 'Printer B maintenance day', date: daysAhead(21), type: 'production' },
   { id: sid('evt'), title: 'Craft supply co-op meetup', date: daysAhead(26), type: 'other' },
+]
+
+// ── Days off / vacation ──────────────────────────────────────────────────────
+
+const dayOffKey = (n: number) => dayKey(addDays(startOfDay(now), n))
+
+export const seedDaysOff: TimeOff[] = [
+  { id: sid('off'), date: dayOffKey(10), kind: 'Vacation', note: 'Family trip — shop closed.' },
+  { id: sid('off'), date: dayOffKey(11), kind: 'Vacation', note: 'Family trip — shop closed.' },
+  { id: sid('off'), date: dayOffKey(12), kind: 'Vacation', note: 'Family trip — shop closed.' },
+  { id: sid('off'), date: dayOffKey(20), kind: 'Day off', note: 'Recharge day.' },
 ]
 
 // ── Documents ────────────────────────────────────────────────────────────────

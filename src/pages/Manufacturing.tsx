@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   AlertTriangle,
@@ -13,6 +13,7 @@ import {
   Play,
   Plus,
   Recycle,
+  RefreshCw,
   Trash2,
 } from 'lucide-react'
 import {
@@ -29,11 +30,14 @@ import {
   MenuSeparator,
   PageHeader,
   ProductTile,
+  Progress,
   Skeleton,
   SkeletonStats,
   SkeletonTable,
   Stat,
   Tabs,
+  Tip,
+  Toggle,
   type BadgeTone,
   type Column,
 } from '@/components/ui'
@@ -55,12 +59,25 @@ const MACHINE_TONE: Record<Machine['status'], BadgeTone> = {
   Maintenance: 'orange',
 }
 
+/** Live telemetry pulled from the printer bridge for one machine */
+export interface LiveTelemetry {
+  state: 'printing' | 'idle' | 'unknown'
+  percent: number
+  job: string | null
+  nozzle: number | null
+  bed: number | null
+  online: boolean
+  updatedAt: string
+}
+
 function MachineCard({
   machine,
+  live,
   onEdit,
   onDelete,
 }: {
   machine: Machine
+  live?: LiveTelemetry
   onEdit: () => void
   onDelete: () => void
 }) {
@@ -69,43 +86,76 @@ function MachineCard({
     updateItem('machines', machine.id, { status })
     toast(`${machine.name} set to ${status.toLowerCase()}`, { tone: 'success' })
   }
+  const printing = live?.state === 'printing'
   return (
-    <Card className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <div className="truncate font-medium text-ink">{machine.name}</div>
-        <div className="text-xs text-ink-3">{machine.model}</div>
-        <div className="mt-2.5 flex flex-wrap items-center gap-2">
-          <Badge tone={MACHINE_TONE[machine.status]} dot>
-            {machine.status}
-          </Badge>
-          <span className="tnum text-xs text-ink-3">{num(Math.round(machine.hoursLogged))}h logged</span>
+    <Card className="flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate font-medium text-ink">{machine.name}</span>
+            {live && (
+              <Tip content={live.online ? `Live from bridge · ${timeAgo(live.updatedAt)}` : 'Bridge shows offline'}>
+                <span
+                  className={cn(
+                    'inline-flex h-1.5 w-1.5 shrink-0 rounded-full',
+                    live.online ? 'bg-good animate-pulse' : 'bg-ink-3',
+                  )}
+                  aria-label={live.online ? 'Live' : 'Offline'}
+                />
+              </Tip>
+            )}
+          </div>
+          <div className="text-xs text-ink-3">{machine.model}</div>
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <Badge tone={MACHINE_TONE[machine.status]} dot>
+              {machine.status}
+            </Badge>
+            <span className="tnum text-xs text-ink-3">{num(Math.round(machine.hoursLogged))}h logged</span>
+          </div>
         </div>
-      </div>
-      <Menu
-        trigger={
-          <IconButton label={`Actions for ${machine.name}`} size="sm">
-            <MoreHorizontal />
-          </IconButton>
-        }
-      >
-        <MenuItem icon={<CheckCircle2 />} disabled={machine.status === 'Idle'} onSelect={() => setStatus('Idle')}>
-          Set to Idle
-        </MenuItem>
-        <MenuItem
-          icon={<AlertTriangle />}
-          disabled={machine.status === 'Maintenance'}
-          onSelect={() => setStatus('Maintenance')}
+        <Menu
+          trigger={
+            <IconButton label={`Actions for ${machine.name}`} size="sm">
+              <MoreHorizontal />
+            </IconButton>
+          }
         >
-          Set to Maintenance
-        </MenuItem>
-        <MenuSeparator />
-        <MenuItem icon={<Pencil />} onSelect={onEdit}>
-          Edit
-        </MenuItem>
-        <MenuItem icon={<Trash2 />} danger onSelect={onDelete}>
-          Delete
-        </MenuItem>
-      </Menu>
+          <MenuItem icon={<CheckCircle2 />} disabled={machine.status === 'Idle'} onSelect={() => setStatus('Idle')}>
+            Set to Idle
+          </MenuItem>
+          <MenuItem
+            icon={<AlertTriangle />}
+            disabled={machine.status === 'Maintenance'}
+            onSelect={() => setStatus('Maintenance')}
+          >
+            Set to Maintenance
+          </MenuItem>
+          <MenuSeparator />
+          <MenuItem icon={<Pencil />} onSelect={onEdit}>
+            Edit
+          </MenuItem>
+          <MenuItem icon={<Trash2 />} danger onSelect={onDelete}>
+            Delete
+          </MenuItem>
+        </Menu>
+      </div>
+
+      {/* Live print progress from the bridge */}
+      {printing && (
+        <div className="rounded-lg bg-accent-wash/60 p-2.5">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className="truncate font-medium text-accent">{live?.job ?? 'Printing…'}</span>
+            <span className="tnum shrink-0 font-semibold text-accent">{Math.round(live?.percent ?? 0)}%</span>
+          </div>
+          <Progress value={live?.percent ?? 0} className="mt-1.5" />
+          {(live?.nozzle != null || live?.bed != null) && (
+            <div className="mt-2 flex gap-3 text-[11px] text-ink-3 tnum">
+              {live?.nozzle != null && <span>Nozzle {live.nozzle}°</span>}
+              {live?.bed != null && <span>Bed {live.bed}°</span>}
+            </div>
+          )}
+        </div>
+      )}
     </Card>
   )
 }
@@ -221,6 +271,83 @@ export default function Manufacturing() {
   const [machineModalOpen, setMachineModalOpen] = useState(false)
   const [editingMachine, setEditingMachine] = useState<Machine | null>(null)
   const [deletingMachine, setDeletingMachine] = useState<Machine | null>(null)
+
+  // Live printer status pulled from the bridge (never persisted)
+  const bridgeUrl = useStore((s) => s.settings.printerBridgeUrl)
+  const navigate = useNavigate()
+  const [liveByMachine, setLiveByMachine] = useState<Map<string, LiveTelemetry>>(new Map())
+  const [syncing, setSyncing] = useState(false)
+  const [lastSync, setLastSync] = useState<string | null>(null)
+  const [autoSync, setAutoSync] = useState(false)
+
+  const syncLive = useCallback(
+    async (silent = false) => {
+      const base = (bridgeUrl ?? '').trim().replace(/\/$/, '')
+      if (!base) {
+        if (!silent)
+          toast('No printer bridge set up', {
+            description: 'Add a bridge URL in Settings → Printer sync first.',
+            tone: 'error',
+          })
+        return
+      }
+      setSyncing(true)
+      try {
+        const res = await fetch(`${base}/status`, { signal: AbortSignal.timeout(6000) })
+        const data = await res.json()
+        const printers: Array<Record<string, unknown>> = Array.isArray(data.printers) ? data.printers : []
+        const byId = new Map(printers.map((p) => [String(p.id), p]))
+        // Read machines fresh so this callback stays stable (deps: bridgeUrl only)
+        const { machines: machs, updateItem: update } = useStore.getState()
+        const next = new Map<string, LiveTelemetry>()
+        let matched = 0
+        for (const m of machs) {
+          if (!m.syncId) continue
+          const p = byId.get(m.syncId)
+          if (!p) continue
+          matched++
+          const state = (p.state === 'printing' ? 'printing' : p.state === 'idle' ? 'idle' : 'unknown') as LiveTelemetry['state']
+          next.set(m.id, {
+            state,
+            percent: Number(p.percent) || 0,
+            job: (p.job as string) ?? null,
+            nozzle: p.nozzle == null ? null : Number(p.nozzle),
+            bed: p.bed == null ? null : Number(p.bed),
+            online: Boolean(p.online),
+            updatedAt: String(p.updatedAt ?? new Date().toISOString()),
+          })
+          // Reflect into the persisted status (leave Maintenance alone unless clearly printing)
+          const target: Machine['status'] =
+            state === 'printing' ? 'Printing' : m.status === 'Maintenance' ? 'Maintenance' : 'Idle'
+          if (target !== m.status) update('machines', m.id, { status: target })
+        }
+        setLiveByMachine(next)
+        setLastSync(new Date().toISOString())
+        if (!silent)
+          toast(matched ? `Synced ${matched} printer${matched === 1 ? '' : 's'}` : 'No machines matched a printer', {
+            tone: matched ? 'success' : 'default',
+            description: matched ? undefined : 'Give each machine its printer serial as the Live sync ID.',
+          })
+      } catch {
+        if (!silent)
+          toast('Could not reach the printer bridge', {
+            description: 'Check the URL in Settings and that the bridge is running.',
+            tone: 'error',
+          })
+      } finally {
+        setSyncing(false)
+      }
+    },
+    [bridgeUrl],
+  )
+
+  // Auto-refresh every 15s while enabled
+  useEffect(() => {
+    if (!autoSync || !(bridgeUrl ?? '').trim()) return
+    syncLive(true)
+    const id = window.setInterval(() => syncLive(true), 15_000)
+    return () => window.clearInterval(id)
+  }, [autoSync, bridgeUrl, syncLive])
 
   // ?new=1 opens the Run production modal once, then clears the param
   useEffect(() => {
@@ -485,11 +612,39 @@ export default function Manufacturing() {
           </div>
 
           <section aria-label="Machines">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-sm font-semibold text-ink">Machines</h2>
-              <Button size="sm" variant="outline" icon={<Plus />} onClick={() => openMachineModal(null)}>
-                Add machine
-              </Button>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-sm font-semibold text-ink">Machines</h2>
+                {lastSync && (
+                  <span className="text-xs text-ink-3">Synced {timeAgo(lastSync)}</span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {(bridgeUrl ?? '').trim() ? (
+                  <label className="flex items-center gap-1.5 text-xs text-ink-3">
+                    <Toggle checked={autoSync} onChange={setAutoSync} label="Auto" className="[&>span:first-child]:sr-only" />
+                    Auto
+                  </label>
+                ) : (
+                  <Tip content="Set up a printer bridge in Settings to sync live status">
+                    <Button size="sm" variant="ghost" onClick={() => navigate('/settings')}>
+                      Set up sync
+                    </Button>
+                  </Tip>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  icon={<RefreshCw className={syncing ? 'animate-spin' : undefined} />}
+                  onClick={() => syncLive(false)}
+                  disabled={syncing}
+                >
+                  {syncing ? 'Syncing…' : 'Sync live status'}
+                </Button>
+                <Button size="sm" variant="outline" icon={<Plus />} onClick={() => openMachineModal(null)}>
+                  Add machine
+                </Button>
+              </div>
             </div>
             {machines.length === 0 ? (
               <Card>
@@ -510,6 +665,7 @@ export default function Manufacturing() {
                   <MachineCard
                     key={m.id}
                     machine={m}
+                    live={liveByMachine.get(m.id)}
                     onEdit={() => openMachineModal(m)}
                     onDelete={() => requestDeleteMachine(m)}
                   />

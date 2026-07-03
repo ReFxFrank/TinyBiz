@@ -672,4 +672,5 @@ export const seedSettings: Settings = {
   notifyNewOrders: true,
   notifyExpensesDue: true,
   weeklyReports: true,
+  printerBridgeUrl: '',
 }

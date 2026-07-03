@@ -24,6 +24,7 @@ export function MachineModal({
   const [model, setModel] = useState('')
   const [status, setStatus] = useState<Machine['status']>('Idle')
   const [hours, setHours] = useState('0')
+  const [syncId, setSyncId] = useState('')
 
   useEffect(() => {
     if (!open) return
@@ -32,11 +33,13 @@ export function MachineModal({
       setModel(editing.model)
       setStatus(editing.status)
       setHours(String(Math.round(editing.hoursLogged)))
+      setSyncId(editing.syncId ?? '')
     } else {
       setName('')
       setModel('')
       setStatus('Idle')
       setHours('0')
+      setSyncId('')
     }
   }, [open, editing])
 
@@ -49,6 +52,7 @@ export function MachineModal({
       model: model.trim(),
       status,
       hoursLogged: Math.max(0, Number(hours) || 0),
+      syncId: syncId.trim() || undefined,
     }
     if (editing) {
       updateItem('machines', editing.id, patch)
@@ -92,6 +96,12 @@ export function MachineModal({
             <Input type="number" min={0} value={hours} onChange={(e) => setHours(e.target.value)} />
           </Field>
         </div>
+        <Field
+          label="Live sync ID"
+          hint="Printer serial from your bridge — enables live status sync. Leave blank for manual only."
+        >
+          <Input value={syncId} onChange={(e) => setSyncId(e.target.value)} placeholder="e.g. 01P00A1234567890" className="font-mono" />
+        </Field>
       </div>
     </Modal>
   )

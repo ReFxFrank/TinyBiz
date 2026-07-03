@@ -371,14 +371,21 @@ export const useStore = create<StoreState>()(
     }),
     {
       name: 'tinybiz-data',
-      version: 2,
-      // v2 renamed the shipment status 'Exception' → 'Needs attention'
+      version: 3,
       migrate: (persisted, version) => {
         const state = persisted as StoreState
+        // v2 renamed the shipment status 'Exception' → 'Needs attention'
         if (version < 2 && Array.isArray(state?.shipments)) {
           state.shipments = state.shipments.map((s) =>
             (s.status as string) === 'Exception' ? { ...s, status: 'Needs attention' as const } : s,
           )
+        }
+        // v3 added days off + the printer bridge URL
+        if (version < 3) {
+          if (!Array.isArray(state?.daysOff)) state.daysOff = seedDaysOff
+          if (state?.settings && state.settings.printerBridgeUrl === undefined) {
+            state.settings = { ...state.settings, printerBridgeUrl: '' }
+          }
         }
         return state
       },

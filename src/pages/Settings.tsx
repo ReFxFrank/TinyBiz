@@ -484,6 +484,90 @@ function NotificationsCard() {
   )
 }
 
+// ── Printer sync ─────────────────────────────────────────────────────────────
+
+function PrinterSyncCard() {
+  const settings = useStore((s) => s.settings)
+  const updateSettings = useStore((s) => s.updateSettings)
+  const [url, setUrl] = useState(settings.printerBridgeUrl ?? '')
+  const [checking, setChecking] = useState(false)
+  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  const dirty = url.trim() !== (settings.printerBridgeUrl ?? '')
+
+  const save = () => {
+    updateSettings({ printerBridgeUrl: url.trim().replace(/\/$/, '') })
+    toast('Printer bridge saved', { tone: 'success' })
+  }
+
+  const test = async () => {
+    const base = url.trim().replace(/\/$/, '')
+    if (!base) return
+    setChecking(true)
+    setResult(null)
+    try {
+      const res = await fetch(`${base}/status`, { signal: AbortSignal.timeout(6000) })
+      const data = await res.json()
+      const n = Array.isArray(data.printers) ? data.printers.length : 0
+      setResult({ ok: true, msg: `Connected — ${n} printer${n === 1 ? '' : 's'} reporting.` })
+    } catch {
+      setResult({ ok: false, msg: 'Could not reach the bridge. Check the URL and that it is running.' })
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader
+        title="Printer sync"
+        subtitle="Auto-update machine status from a Bambu printer bridge running on your network."
+        actions={
+          <Button size="sm" icon={<Save />} disabled={!dirty} onClick={save}>
+            Save
+          </Button>
+        }
+      />
+      <div className="space-y-3">
+        <Field
+          label="Bridge URL"
+          hint="Where the TinyBiz printer bridge is running — e.g. http://192.168.1.50:7070. Leave blank to keep status manual."
+        >
+          <div className="flex gap-2">
+            <Input
+              value={url}
+              onChange={(e) => {
+                setUrl(e.target.value)
+                setResult(null)
+              }}
+              placeholder="http://192.168.1.50:7070"
+              className="font-mono"
+            />
+            <Button variant="outline" onClick={test} disabled={!url.trim() || checking}>
+              {checking ? 'Testing…' : 'Test'}
+            </Button>
+          </div>
+        </Field>
+        {result && (
+          <div className={cn('flex items-center gap-2 text-[13px]', result.ok ? 'text-good' : 'text-critical')}>
+            {result.ok ? <Check className="h-4 w-4" /> : <span aria-hidden>⚠️</span>}
+            {result.msg}
+          </div>
+        )}
+        <div className="rounded-xl bg-sunken/60 p-3.5 text-[13px] leading-relaxed text-ink-2">
+          <p className="font-medium text-ink">How it works</p>
+          <p className="mt-1 text-ink-3">
+            The bridge is a small program you run on any always-on computer on the same network as your printers (setup
+            in <span className="font-mono text-ink-2">bridge/README.md</span>). Once it's running and saved here, open{' '}
+            <span className="font-medium text-ink-2">Manufacturing → Sync live status</span> and give each machine the
+            matching printer serial as its Live sync ID.
+          </p>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
 // ── Integrations ─────────────────────────────────────────────────────────────
 
 const INTEGRATIONS: Array<{ emoji: string; name: string; blurb: string }> = [
@@ -654,6 +738,7 @@ export default function Settings() {
           <PreferencesCard />
           <AppearanceCard />
           <NotificationsCard />
+          <PrinterSyncCard />
           <IntegrationsCard />
           <ShortcutsCard />
           <DangerZoneCard />

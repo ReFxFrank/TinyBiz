@@ -1,0 +1,12 @@
+{
+  "port": 7070,
+  "printers": [
+    {
+      "id": "01P00A1234567890",
+      "name": "Printer A — \"Betsy\"",
+      "model": "Bambu Lab X1 Carbon",
+      "host": "192.168.1.50",
+      "accessCode": "12345678"
+    }
+  ]
+}

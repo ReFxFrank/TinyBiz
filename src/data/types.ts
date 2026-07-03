@@ -253,6 +253,8 @@ export interface Machine {
   model: string
   status: 'Idle' | 'Printing' | 'Maintenance'
   hoursLogged: number
+  /** Bridge printer serial/id this machine maps to, for live status sync */
+  syncId?: string
 }
 
 // ── Fulfilment ───────────────────────────────────────────────────────────────
@@ -426,4 +428,6 @@ export interface Settings {
   notifyNewOrders: boolean
   notifyExpensesDue: boolean
   weeklyReports: boolean
+  /** Base URL of the TinyBiz printer bridge, e.g. http://192.168.1.50:7070 */
+  printerBridgeUrl: string
 }

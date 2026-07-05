@@ -1,0 +1,16 @@
+{
+  "name": "tinybiz-mail-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone SMTP mail-sending bridge for the TinyBiz web app's newsletter feature.",
+  "bin": {
+    "tinybiz-mail-bridge": "index.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "demo": "node index.js --demo"
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.15"
+  }
+}

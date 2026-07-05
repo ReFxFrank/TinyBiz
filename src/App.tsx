@@ -15,6 +15,7 @@ const Shipping = lazy(() => import('@/pages/Shipping'))
 const Manufacturing = lazy(() => import('@/pages/Manufacturing'))
 const Analytics = lazy(() => import('@/pages/Analytics'))
 const Marketing = lazy(() => import('@/pages/Marketing'))
+const Newsletter = lazy(() => import('@/pages/Newsletter'))
 const SocialMedia = lazy(() => import('@/pages/SocialMedia'))
 const CalendarPage = lazy(() => import('@/pages/CalendarPage'))
 const Tasks = lazy(() => import('@/pages/Tasks'))
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/manufacturing" element={<Manufacturing />} />
         <Route path="/analytics" element={<Analytics />} />
         <Route path="/marketing" element={<Marketing />} />
+        <Route path="/newsletter" element={<Newsletter />} />
         <Route path="/social" element={<SocialMedia />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/tasks" element={<Tasks />} />

@@ -396,6 +396,69 @@ export interface SocialPost {
   shares: number
 }
 
+// ── Newsletter ───────────────────────────────────────────────────────────────
+
+export type SubscriberStatus = 'subscribed' | 'unsubscribed'
+
+export interface Subscriber {
+  id: ID
+  email: string
+  name?: string
+  status: SubscriberStatus
+  tags: string[]
+  /** How they joined: 'Order' | 'Import' | 'Signup form' | 'Manual' */
+  source: string
+  createdAt: string
+}
+
+export type NewsletterCadence = 'one-time' | 'weekly' | 'monthly'
+export type NewsletterStatus = 'draft' | 'scheduled' | 'sent'
+
+export interface Newsletter {
+  id: ID
+  subject: string
+  /** Short preview text shown after the subject in inboxes */
+  preheader?: string
+  /** Main body copy (plain text, rendered into the template) */
+  intro: string
+  /** Undefined = everyone subscribed; otherwise only subscribers with this tag */
+  audienceTag?: string
+  cadence: NewsletterCadence
+  status: NewsletterStatus
+  // Auto content modules, pulled live from the shop when the email is built
+  includeBestSellers: boolean
+  includeNewProducts: boolean
+  /** Promo code to feature, by code string; undefined = none */
+  promoCode?: string
+  scheduledFor?: string
+  sentAt?: string
+  recipientCount?: number
+  opens?: number
+  clicks?: number
+  createdAt: string
+}
+
+export interface NewsletterSettings {
+  fromName: string
+  fromEmail: string
+  replyTo: string
+  /** Physical mailing address shown in the footer (required for CAN-SPAM compliance) */
+  mailingAddress: string
+  /** A friendly sign-off line in the footer */
+  footerNote: string
+  defaultCadence: NewsletterCadence
+  /** 0–6 (Sun–Sat) for weekly sends */
+  sendWeekday: number
+  /** 1–28 for monthly sends */
+  sendMonthDay: number
+  /** 0–23 local hour to send */
+  sendHour: number
+  /** Base URL of the TinyBiz mail bridge, e.g. http://192.168.1.50:7071 */
+  mailBridgeUrl: string
+  /** Shared secret the mail bridge requires */
+  mailBridgeToken: string
+}
+
 // ── System ───────────────────────────────────────────────────────────────────
 
 export type NotificationType = 'low-stock' | 'order' | 'shipping' | 'expense' | 'report' | 'message' | 'task'

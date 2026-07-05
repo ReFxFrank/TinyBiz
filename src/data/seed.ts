@@ -30,6 +30,9 @@ import type {
   Supplier,
   TaskItem,
   TimeOff,
+  Subscriber,
+  Newsletter,
+  NewsletterSettings,
 } from '@/data/types'
 import { addDays, dayKey, startOfDay } from '@/lib/dates'
 
@@ -585,6 +588,106 @@ export const seedSocialPosts: SocialPost[] = [
   { id: sid('pst'), platform: 'YouTube', content: 'Studio tour: how we run 3 printers in a spare room', scheduledFor: daysAhead(9, 15), status: 'Draft', likes: 0, comments: 0, shares: 0 },
   { id: sid('pst'), platform: 'TikTok', content: 'Axolotl army assembly line 🦎🦎🦎', scheduledFor: daysAgo(5, 19), status: 'Posted', likes: 3100, comments: 145, shares: 260 },
 ]
+
+// ── Newsletter ───────────────────────────────────────────────────────────────
+
+export const seedSubscribers: Subscriber[] = (() => {
+  const subs: Subscriber[] = []
+  // Most customers opted in when they ordered
+  seedCustomers.forEach((c, i) => {
+    if (chance(0.82)) {
+      const tags: string[] = []
+      if (c.tags.includes('vip')) tags.push('vip')
+      if (c.tags.includes('wholesale')) tags.push('wholesale')
+      subs.push({
+        id: sid('sub'),
+        email: c.email,
+        name: c.name,
+        status: chance(0.06) ? 'unsubscribed' : 'subscribed',
+        tags,
+        source: 'Order',
+        createdAt: c.createdAt,
+      })
+    }
+    void i
+  })
+  // A few from the website signup form
+  const extra = [
+    ['aria.blythe@example.com', 'Aria Blythe'],
+    ['tom.reyes@example.com', 'Tom Reyes'],
+    ['jamie.fox@example.com', 'Jamie Fox'],
+    ['lena.mori@example.com', 'Lena Mori'],
+    ['pat.osei@example.com', 'Pat Osei'],
+  ] as const
+  for (const [email, name] of extra) {
+    subs.push({ id: sid('sub'), email, name, status: 'subscribed', tags: [], source: 'Signup form', createdAt: daysAgo(ri(3, 90)) })
+  }
+  return subs
+})()
+
+export const seedNewsletters: Newsletter[] = [
+  {
+    id: sid('nws'),
+    subject: 'June at Nova Prints: new dragons & a summer treat 🐉',
+    preheader: 'Ember Red is back, plus 15% off your next order',
+    intro:
+      "Hi friends! June flew by in a cloud of filament. We restocked the Ember Red Articulated Dragon (our most-requested color), wrapped up a big wholesale run, and spent a sunny Saturday at the riverfront market meeting so many of you. Here's what's new this month — and a little thank-you inside.",
+    audienceTag: undefined,
+    cadence: 'monthly',
+    status: 'sent',
+    includeBestSellers: true,
+    includeNewProducts: true,
+    promoCode: 'SUMMER15',
+    sentAt: daysAgo(20, 9),
+    recipientCount: 24,
+    opens: 15,
+    clicks: 6,
+    createdAt: daysAgo(22),
+  },
+  {
+    id: sid('nws'),
+    subject: 'Your July maker update 🌞',
+    preheader: 'Market dates, a new desk collection, and a sneak peek',
+    intro:
+      "Happy July! We've got a busy month ahead — two markets, a brand-new desk collection dropping mid-month, and a behind-the-scenes look at how we run three printers out of a spare room. Thanks for following along.",
+    audienceTag: undefined,
+    cadence: 'monthly',
+    status: 'scheduled',
+    includeBestSellers: true,
+    includeNewProducts: true,
+    promoCode: undefined,
+    scheduledFor: daysAhead(6, 9),
+    createdAt: daysAgo(1),
+  },
+  {
+    id: sid('nws'),
+    subject: 'VIP early access: holiday pre-orders',
+    preheader: 'You get first dibs before anyone else',
+    intro:
+      "As one of our VIP customers, you're getting first access to holiday pre-orders before we announce them publicly. Reply and let us know what you'd love to see this season!",
+    audienceTag: 'vip',
+    cadence: 'one-time',
+    status: 'draft',
+    includeBestSellers: false,
+    includeNewProducts: true,
+    promoCode: undefined,
+    createdAt: daysAgo(0),
+  },
+]
+
+export const seedNewsletterSettings: NewsletterSettings = {
+  fromName: 'Nova Prints & Co.',
+  fromEmail: 'hello@novaprints.example',
+  replyTo: 'hello@novaprints.example',
+  mailingAddress: '742 Alder St, Studio 3, Portland, OR 97205',
+  footerNote: 'Made with 🐣 in Portland. Thanks for supporting a small maker shop!',
+  defaultCadence: 'monthly',
+  sendWeekday: 4, // Thursday
+  sendMonthDay: 1,
+  sendHour: 9,
+  mailBridgeUrl: '',
+  mailBridgeToken: '',
+}
 
 // ── Notifications ────────────────────────────────────────────────────────────
 

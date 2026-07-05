@@ -10,6 +10,7 @@ import {
   FileText,
   Handshake,
   LayoutDashboard,
+  Mail,
   Megaphone,
   Receipt,
   Settings,
@@ -69,6 +70,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Analytics', path: '/analytics', icon: BarChart3, shortcut: 'a' },
       { label: 'Marketing', path: '/marketing', icon: Megaphone },
+      { label: 'Newsletter', path: '/newsletter', icon: Mail, shortcut: 'n' },
       { label: 'Social Media', path: '/social', icon: Share2 },
     ],
   },

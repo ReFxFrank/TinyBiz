@@ -29,6 +29,9 @@ import type {
   SocialAccount,
   SocialPost,
   StockAdjustment,
+  Newsletter,
+  NewsletterSettings,
+  Subscriber,
   Supplier,
   TaskItem,
   TimeOff,
@@ -53,8 +56,11 @@ import {
   seedRecipes,
   seedSettings,
   seedShipments,
+  seedNewsletters,
+  seedNewsletterSettings,
   seedSocialAccounts,
   seedSocialPosts,
+  seedSubscribers,
   seedSuppliers,
   seedTasks,
 } from '@/data/seed'
@@ -82,6 +88,8 @@ export interface Collections {
   promoCodes: PromoCode[]
   socialAccounts: SocialAccount[]
   socialPosts: SocialPost[]
+  subscribers: Subscriber[]
+  newsletters: Newsletter[]
   adjustments: StockAdjustment[]
   notifications: AppNotification[]
 }
@@ -91,6 +99,7 @@ type ItemOf<K extends CollectionKey> = Collections[K][number]
 
 interface StoreState extends Collections {
   settings: Settings
+  newsletterSettings: NewsletterSettings
 
   /** Insert an item at the top of a collection. Returns the stored item. */
   addItem: <K extends CollectionKey>(key: K, item: ItemOf<K>) => ItemOf<K>
@@ -99,6 +108,7 @@ interface StoreState extends Collections {
   removeItem: <K extends CollectionKey>(key: K, id: ID) => void
 
   updateSettings: (patch: Partial<Settings>) => void
+  updateNewsletterSettings: (patch: Partial<NewsletterSettings>) => void
 
   // Inventory
   /** Change stock on a product or material and log the adjustment. */
@@ -137,7 +147,7 @@ interface StoreState extends Collections {
   resetDemo: () => void
 }
 
-function seedCollections(): Collections & { settings: Settings } {
+function seedCollections(): Collections & { settings: Settings; newsletterSettings: NewsletterSettings } {
   return {
     products: seedProducts,
     materials: seedMaterials,
@@ -159,9 +169,12 @@ function seedCollections(): Collections & { settings: Settings } {
     promoCodes: seedPromoCodes,
     socialAccounts: seedSocialAccounts,
     socialPosts: seedSocialPosts,
+    subscribers: seedSubscribers,
+    newsletters: seedNewsletters,
     adjustments: seedAdjustments,
     notifications: buildSeedNotifications(),
     settings: seedSettings,
+    newsletterSettings: seedNewsletterSettings,
   }
 }
 
@@ -191,6 +204,10 @@ export const useStore = create<StoreState>()(
       updateSettings: (patch) => {
         set((s) => ({ settings: { ...s.settings, ...patch } }))
         if (patch.currency) setActiveCurrency(patch.currency)
+      },
+
+      updateNewsletterSettings: (patch) => {
+        set((s) => ({ newsletterSettings: { ...s.newsletterSettings, ...patch } }))
       },
 
       adjustStock: (itemType, itemId, delta, reason, notes) => {
@@ -371,7 +388,7 @@ export const useStore = create<StoreState>()(
     }),
     {
       name: 'tinybiz-data',
-      version: 3,
+      version: 4,
       migrate: (persisted, version) => {
         const state = persisted as StoreState
         // v2 renamed the shipment status 'Exception' → 'Needs attention'
@@ -386,6 +403,12 @@ export const useStore = create<StoreState>()(
           if (state?.settings && state.settings.printerBridgeUrl === undefined) {
             state.settings = { ...state.settings, printerBridgeUrl: '' }
           }
+        }
+        // v4 added the newsletter system
+        if (version < 4) {
+          if (!Array.isArray(state?.subscribers)) state.subscribers = seedSubscribers
+          if (!Array.isArray(state?.newsletters)) state.newsletters = seedNewsletters
+          if (!state?.newsletterSettings) state.newsletterSettings = seedNewsletterSettings
         }
         return state
       },

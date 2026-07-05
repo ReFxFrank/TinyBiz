@@ -638,10 +638,13 @@ export const seedNewsletters: Newsletter[] = [
     includeBestSellers: true,
     includeNewProducts: true,
     promoCode: 'SUMMER15',
+    ctaLabel: 'Shop new arrivals',
+    ctaUrl: 'https://novaprints.example/shop',
     sentAt: daysAgo(20, 9),
     recipientCount: 24,
     opens: 15,
     clicks: 6,
+    unsubscribes: 1,
     createdAt: daysAgo(22),
   },
   {

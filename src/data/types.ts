@@ -430,11 +430,15 @@ export interface Newsletter {
   includeNewProducts: boolean
   /** Promo code to feature, by code string; undefined = none */
   promoCode?: string
+  /** Call-to-action button */
+  ctaLabel?: string
+  ctaUrl?: string
   scheduledFor?: string
   sentAt?: string
   recipientCount?: number
   opens?: number
   clicks?: number
+  unsubscribes?: number
   createdAt: string
 }
 

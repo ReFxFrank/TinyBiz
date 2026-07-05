@@ -14,7 +14,24 @@ export interface NewsletterContext {
   accent: string
   logoEmoji: string
   businessName: string
+  /** First name used to render {{first_name}} in previews; sends fall back to "there" */
+  sampleFirstName?: string
 }
+
+/** Replace personalization merge tags — {{first_name}}, {{name}}, {{shop}} */
+export function applyMergeTags(text: string, vars: { first_name: string; shop: string }): string {
+  return text.replace(/\{\{\s*(first[_ ]?name|name|shop)\s*\}\}/gi, (_, key: string) => {
+    const k = key.toLowerCase().replace(/\s/g, '_')
+    if (k === 'shop') return vars.shop
+    return vars.first_name
+  })
+}
+
+/** The merge tags a user can insert, for the composer helper */
+export const MERGE_TAGS: Array<{ tag: string; label: string }> = [
+  { tag: '{{first_name}}', label: "Subscriber's first name" },
+  { tag: '{{shop}}', label: 'Your shop name' },
+]
 
 /** Escape a string for safe insertion into HTML */
 function esc(s: string): string {
@@ -52,9 +69,21 @@ function productRow(p: Product, accent: string): string {
 /** The full HTML email for a newsletter */
 export function buildNewsletterHtml(n: Newsletter, s: NewsletterSettings, ctx: NewsletterContext): string {
   const accent = ctx.accent
-  const bodyParas = paragraphs(n.intro)
+  const vars = { first_name: ctx.sampleFirstName || 'there', shop: ctx.businessName }
+  const merged = (t: string) => applyMergeTags(t, vars)
+  const bodyParas = paragraphs(merged(n.intro))
     .map((p) => `<p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">${esc(p)}</p>`)
     .join('')
+
+  // Call-to-action button
+  let ctaBlock = ''
+  if (n.ctaLabel && n.ctaLabel.trim()) {
+    const href = (n.ctaUrl || '#').trim()
+    ctaBlock = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 4px;"><tr><td align="center">
+        <a href="${esc(href)}" style="display:inline-block;background:${accent};color:#fff;text-decoration:none;font-weight:700;font-size:16px;padding:13px 30px;border-radius:12px;">${esc(n.ctaLabel)}</a>
+      </td></tr></table>`
+  }
 
   // Best sellers module
   let bestSellersBlock = ''
@@ -109,7 +138,7 @@ export function buildNewsletterHtml(n: Newsletter, s: NewsletterSettings, ctx: N
 
   return `<!doctype html>
 <html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(n.subject)}</title></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(merged(n.subject))}</title></head>
 <body style="margin:0;padding:0;background:#f4f4f2;">
   ${preheader}
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f2;padding:24px 0;">
@@ -121,9 +150,10 @@ export function buildNewsletterHtml(n: Newsletter, s: NewsletterSettings, ctx: N
         </td></tr>
         <tr><td style="padding:32px;">
           ${bodyParas}
+          ${promoBlock}
           ${bestSellersBlock}
           ${newProductsBlock}
-          ${promoBlock}
+          ${ctaBlock}
         </td></tr>
         <tr><td style="padding:24px 32px;background:#fafaf9;border-top:1px solid #eee;color:#999;font-size:12px;line-height:1.6;">
           <div style="margin-bottom:6px;color:#777;">${esc(s.footerNote)}</div>
@@ -139,7 +169,9 @@ export function buildNewsletterHtml(n: Newsletter, s: NewsletterSettings, ctx: N
 
 /** Plain-text fallback for the same newsletter */
 export function buildNewsletterText(n: Newsletter, s: NewsletterSettings, ctx: NewsletterContext): string {
-  const lines: string[] = [ctx.businessName, '', ...paragraphs(n.intro)]
+  const vars = { first_name: ctx.sampleFirstName || 'there', shop: ctx.businessName }
+  const lines: string[] = [ctx.businessName, '', ...paragraphs(applyMergeTags(n.intro, vars))]
+  if (n.ctaLabel) lines.push('', `${n.ctaLabel}: ${n.ctaUrl || ''}`)
   if (n.promoCode) {
     const promo = ctx.promoCodes.find((p) => p.code === n.promoCode)
     if (promo) lines.push('', `${promo.discountPct}% off your next order — code ${promo.code}`)

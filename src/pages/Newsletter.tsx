@@ -42,6 +42,7 @@ import type { Newsletter, NewsletterStatus } from '@/data/types'
 import { fmtDate, fmtDateTime, num, pct } from '@/lib/format'
 import { cn, uid, useLoaded } from '@/lib/utils'
 import {
+  applyMergeTags,
   buildNewsletterHtml,
   buildNewsletterText,
   cadenceLabel,
@@ -81,6 +82,7 @@ export default function NewsletterPage() {
   const [previewing, setPreviewing] = useState<Newsletter | null>(null)
   const [scheduling, setScheduling] = useState<Newsletter | null>(null)
   const [sending, setSending] = useState<Newsletter | null>(null)
+  const [reporting, setReporting] = useState<Newsletter | null>(null)
   const [deleting, setDeleting] = useState<Newsletter | null>(null)
 
   // ?new=1 opens the compose modal once
@@ -93,6 +95,8 @@ export default function NewsletterPage() {
       setSearchParams(next, { replace: true })
     }
   }, [searchParams, setSearchParams])
+
+  const displaySubject = (s: string) => applyMergeTags(s, { first_name: 'there', shop: ctx.businessName })
 
   const subscribedCount = useMemo(() => subscribers.filter((s) => s.status === 'subscribed').length, [subscribers])
   const stats = useMemo(() => {
@@ -260,8 +264,10 @@ export default function NewsletterPage() {
                   <NewsletterCard
                     key={n.id}
                     n={n}
+                    subjectDisplay={displaySubject(n.subject)}
                     recipients={newsletterRecipients(n, subscribers).length}
                     onPreview={() => setPreviewing(n)}
+                    onReport={() => setReporting(n)}
                     onEdit={() => openCompose(n)}
                     onDuplicate={() => duplicate(n)}
                     onSchedule={() => setScheduling(n)}
@@ -281,6 +287,8 @@ export default function NewsletterPage() {
       <ComposeModal open={composeOpen} onClose={() => setComposeOpen(false)} editing={editing} />
 
       <PreviewDrawer newsletter={previewing} onClose={() => setPreviewing(null)} />
+
+      <ReportModal newsletter={reporting} onClose={() => setReporting(null)} />
 
       <ScheduleModal
         newsletter={scheduling}
@@ -325,8 +333,10 @@ export default function NewsletterPage() {
 
 function NewsletterCard({
   n,
+  subjectDisplay,
   recipients,
   onPreview,
+  onReport,
   onEdit,
   onDuplicate,
   onSchedule,
@@ -335,8 +345,10 @@ function NewsletterCard({
   onDelete,
 }: {
   n: Newsletter
+  subjectDisplay: string
   recipients: number
   onPreview: () => void
+  onReport: () => void
   onEdit: () => void
   onDuplicate: () => void
   onSchedule: () => void
@@ -355,7 +367,7 @@ function NewsletterCard({
             <Badge>{cadenceLabel(n.cadence)}</Badge>
             {n.audienceTag && <Badge tone="violet">{n.audienceTag}</Badge>}
           </div>
-          <h3 className="mt-2 truncate font-semibold text-ink">{n.subject}</h3>
+          <h3 className="mt-2 truncate font-semibold text-ink">{subjectDisplay}</h3>
           {n.preheader && <p className="mt-0.5 line-clamp-1 text-[13px] text-ink-3">{n.preheader}</p>}
         </div>
         <Menu
@@ -368,6 +380,11 @@ function NewsletterCard({
           <MenuItem icon={<Eye />} onSelect={onPreview}>
             Preview
           </MenuItem>
+          {n.status === 'sent' && (
+            <MenuItem icon={<MousePointerClick />} onSelect={onReport}>
+              View report
+            </MenuItem>
+          )}
           {n.status !== 'sent' && (
             <MenuItem icon={<Pencil />} onSelect={onEdit}>
               Edit
@@ -401,7 +418,7 @@ function NewsletterCard({
       {/* Status detail */}
       <div className="mt-auto border-t border-hairline pt-3 text-[13px] text-ink-3">
         {n.status === 'sent' ? (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <button onClick={onReport} className="group/report flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-left hover:text-ink">
             <span>Sent {n.sentAt ? fmtDate(n.sentAt) : ''} to {num(n.recipientCount ?? 0)}</span>
             <span className="flex items-center gap-1">
               <Eye className="h-3.5 w-3.5" /> {pct(openRate(n), 0)} opens
@@ -409,7 +426,10 @@ function NewsletterCard({
             <span className="flex items-center gap-1">
               <MousePointerClick className="h-3.5 w-3.5" /> {pct(clickRate(n), 0)} clicks
             </span>
-          </div>
+            <span className="ml-auto font-medium text-accent opacity-0 transition-opacity group-hover/report:opacity-100">
+              View report →
+            </span>
+          </button>
         ) : n.status === 'scheduled' ? (
           <div className="flex items-center gap-1.5 text-[#8a6100] dark:text-warn">
             <CalendarClock className="h-4 w-4" />
@@ -446,6 +466,65 @@ function PreviewDrawer({ newsletter, onClose }: { newsletter: Newsletter | null;
         </div>
       )}
     </Drawer>
+  )
+}
+
+// ── Campaign report ───────────────────────────────────────────────────────────
+
+function ReportModal({ newsletter, onClose }: { newsletter: Newsletter | null; onClose: () => void }) {
+  const n = newsletter
+  const delivered = n?.recipientCount ?? 0
+  const opens = n?.opens ?? 0
+  const clicks = n?.clicks ?? 0
+  const unsubs = n?.unsubscribes ?? 0
+
+  const rows: Array<{ label: string; value: number; rate: number; tone: string }> = n
+    ? [
+        { label: 'Delivered', value: delivered, rate: 100, tone: 'bg-accent' },
+        { label: 'Opened', value: opens, rate: openRate(n), tone: 'bg-good' },
+        { label: 'Clicked', value: clicks, rate: clickRate(n), tone: 'bg-pop' },
+        { label: 'Unsubscribed', value: unsubs, rate: delivered ? (unsubs / delivered) * 100 : 0, tone: 'bg-critical' },
+      ]
+    : []
+
+  return (
+    <Modal open={n !== null} onClose={onClose} title="Campaign report" description={n?.subject} size="md">
+      {n && (
+        <div className="space-y-5">
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Open rate', value: pct(openRate(n), 1) },
+              { label: 'Click rate', value: pct(clickRate(n), 1) },
+              { label: 'Recipients', value: num(delivered) },
+            ].map((s) => (
+              <div key={s.label} className="rounded-xl bg-sunken/60 p-3 text-center">
+                <div className="text-xl font-semibold text-ink">{s.value}</div>
+                <div className="mt-0.5 text-xs text-ink-3">{s.label}</div>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-3">
+            {rows.map((r) => (
+              <div key={r.label}>
+                <div className="mb-1 flex items-center justify-between text-[13px]">
+                  <span className="text-ink-2">{r.label}</span>
+                  <span className="font-medium text-ink tnum">
+                    {num(r.value)} <span className="text-ink-3">· {pct(r.rate, 0)}</span>
+                  </span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-sunken">
+                  <div className={cn('h-full rounded-full', r.tone)} style={{ width: `${Math.min(100, r.rate)}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-ink-3">
+            Sent {n.sentAt ? fmtDateTime(n.sentAt) : ''}. Open and click tracking is simulated in this demo — a mail
+            provider fills these in for real once connected.
+          </p>
+        </div>
+      )}
+    </Modal>
   )
 }
 

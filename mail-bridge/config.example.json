@@ -1,6 +1,7 @@
 {
   "port": 7071,
   "token": "change-me-to-a-long-random-string",
+  "publicUrl": "https://mail.yourshop.example",
   "from": {
     "name": "Nova Prints & Co.",
     "email": "hello@novaprints.example"

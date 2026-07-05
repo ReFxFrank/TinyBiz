@@ -160,8 +160,10 @@ export function SettingsTab() {
           </div>
           <div className="rounded-xl bg-sunken/60 p-3.5 text-[13px] leading-relaxed text-ink-3">
             The mail bridge is a small program you run on any always-on computer (setup in{' '}
-            <span className="font-mono text-ink-2">mail-bridge/README.md</span>) that sends via your email account. Until
-            it's connected, you can still compose, schedule, and preview — sending will run in <em>demo mode</em> (no real
+            <span className="font-mono text-ink-2">mail-bridge/README.md</span>) that sends via your email account and
+            personalizes each email per subscriber. It also tracks opens & clicks — for that, the bridge's{' '}
+            <span className="font-mono text-ink-2">publicUrl</span> must be reachable by your recipients' inboxes. Until
+            it's connected, you can still compose, schedule, and preview — sending runs in <em>demo mode</em> (no real
             emails leave).
           </div>
         </div>

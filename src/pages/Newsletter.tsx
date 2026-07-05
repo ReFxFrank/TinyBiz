@@ -9,6 +9,7 @@ import {
   MousePointerClick,
   Pencil,
   Plus,
+  RefreshCw,
   Send,
   Trash2,
   Users,
@@ -172,21 +173,31 @@ export default function NewsletterPage() {
       return
     }
     try {
-      const html = buildNewsletterHtml(n, nlSettings, ctx)
-      const text = buildNewsletterText(n, nlSettings, ctx)
+      // Send the TEMPLATE with merge tags intact — the bridge personalizes and
+      // injects open/click tracking per recipient.
+      const html = buildNewsletterHtml(n, nlSettings, ctx, { forSend: true })
+      const text = buildNewsletterText(n, nlSettings, ctx, { forSend: true })
       const res = await fetch(`${base}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token: nlSettings.mailBridgeToken,
+          campaignId: n.id,
           subject: n.subject,
           html,
           text,
           from: { name: nlSettings.fromName, email: nlSettings.fromEmail },
           replyTo: nlSettings.replyTo,
-          recipients: recipients.map((r) => ({ email: r.email, name: r.name })),
+          shop: ctx.businessName,
+          trackOpens: true,
+          trackClicks: true,
+          recipients: recipients.map((r) => ({
+            email: r.email,
+            name: r.name,
+            firstName: r.name?.split(' ')[0],
+          })),
         }),
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(30000),
       })
       const data = await res.json()
       if (!res.ok || !data.ok) throw new Error(data.error || 'send failed')
@@ -473,6 +484,47 @@ function PreviewDrawer({ newsletter, onClose }: { newsletter: Newsletter | null;
 
 function ReportModal({ newsletter, onClose }: { newsletter: Newsletter | null; onClose: () => void }) {
   const n = newsletter
+  const nlSettings = useStore((s) => s.newsletterSettings)
+  const subscribers = useStore((s) => s.subscribers)
+  const updateItem = useStore((s) => s.updateItem)
+  const base = nlSettings.mailBridgeUrl.trim().replace(/\/$/, '')
+  const [refreshing, setRefreshing] = useState(false)
+  const [live, setLive] = useState(false)
+
+  const refresh = async () => {
+    if (!n || !base) return
+    setRefreshing(true)
+    try {
+      const res = await fetch(`${base}/stats?campaign=${encodeURIComponent(n.id)}`, { signal: AbortSignal.timeout(8000) })
+      const data = await res.json()
+      if (!res.ok || !data.ok) throw new Error()
+      updateItem('newsletters', n.id, {
+        recipientCount: data.delivered ?? n.recipientCount,
+        opens: data.uniqueOpens ?? data.opens ?? 0,
+        clicks: data.uniqueClicks ?? data.clicks ?? 0,
+        unsubscribes: data.unsubscribes ?? 0,
+      })
+      // Sync anyone who unsubscribed via the email back into the list
+      for (const email of (data.unsubscribedEmails as string[] | undefined) ?? []) {
+        const sub = subscribers.find((s) => s.email.toLowerCase() === String(email).toLowerCase())
+        if (sub && sub.status === 'subscribed') updateItem('subscribers', sub.id, { status: 'unsubscribed' })
+      }
+      setLive(true)
+      toast('Stats refreshed', { tone: 'success' })
+    } catch {
+      toast('Could not fetch stats', { description: 'The mail bridge is unreachable.', tone: 'error' })
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  // Pull live stats automatically when the report opens (if a bridge is set)
+  useEffect(() => {
+    if (n && base) refresh()
+    else setLive(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [n?.id])
+
   const delivered = n?.recipientCount ?? 0
   const opens = n?.opens ?? 0
   const clicks = n?.clicks ?? 0
@@ -488,7 +540,26 @@ function ReportModal({ newsletter, onClose }: { newsletter: Newsletter | null; o
     : []
 
   return (
-    <Modal open={n !== null} onClose={onClose} title="Campaign report" description={n?.subject} size="md">
+    <Modal
+      open={n !== null}
+      onClose={onClose}
+      title="Campaign report"
+      description={n?.subject}
+      size="md"
+      footer={
+        base ? (
+          <>
+            <span className="mr-auto flex items-center gap-1.5 text-xs text-ink-3">
+              <span className={cn('h-1.5 w-1.5 rounded-full', live ? 'bg-good' : 'bg-ink-3')} />
+              {live ? 'Live from mail bridge' : 'Not synced'}
+            </span>
+            <Button variant="outline" size="sm" icon={<RefreshCw className={refreshing ? 'animate-spin' : undefined} />} onClick={refresh} disabled={refreshing}>
+              {refreshing ? 'Refreshing…' : 'Refresh stats'}
+            </Button>
+          </>
+        ) : undefined
+      }
+    >
       {n && (
         <div className="space-y-5">
           <div className="grid grid-cols-3 gap-3">
@@ -519,8 +590,10 @@ function ReportModal({ newsletter, onClose }: { newsletter: Newsletter | null; o
             ))}
           </div>
           <p className="text-xs text-ink-3">
-            Sent {n.sentAt ? fmtDateTime(n.sentAt) : ''}. Open and click tracking is simulated in this demo — a mail
-            provider fills these in for real once connected.
+            Sent {n.sentAt ? fmtDateTime(n.sentAt) : ''}.{' '}
+            {base
+              ? 'Opens and clicks are tracked by your mail bridge — hit Refresh to pull the latest.'
+              : 'Connect a mail bridge in Settings to track real opens and clicks.'}
           </p>
         </div>
       )}

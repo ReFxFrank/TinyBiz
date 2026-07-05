@@ -66,11 +66,22 @@ function productRow(p: Product, accent: string): string {
     </tr>`
 }
 
+export interface BuildOptions {
+  /**
+   * Build a SEND template: leave {{first_name}}/{{shop}} tags intact for the
+   * mail bridge to personalize per recipient, and point the unsubscribe link at
+   * the {{unsubscribe}} tag the bridge rewrites. Preview builds resolve tags.
+   */
+  forSend?: boolean
+}
+
 /** The full HTML email for a newsletter */
-export function buildNewsletterHtml(n: Newsletter, s: NewsletterSettings, ctx: NewsletterContext): string {
+export function buildNewsletterHtml(n: Newsletter, s: NewsletterSettings, ctx: NewsletterContext, opts: BuildOptions = {}): string {
   const accent = ctx.accent
   const vars = { first_name: ctx.sampleFirstName || 'there', shop: ctx.businessName }
-  const merged = (t: string) => applyMergeTags(t, vars)
+  // For send, keep tags for the bridge; for preview, resolve them now.
+  const merged = (t: string) => (opts.forSend ? t : applyMergeTags(t, vars))
+  const unsubHref = opts.forSend ? '{{unsubscribe}}' : '#unsubscribe'
   const bodyParas = paragraphs(merged(n.intro))
     .map((p) => `<p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">${esc(p)}</p>`)
     .join('')
@@ -158,7 +169,7 @@ export function buildNewsletterHtml(n: Newsletter, s: NewsletterSettings, ctx: N
         <tr><td style="padding:24px 32px;background:#fafaf9;border-top:1px solid #eee;color:#999;font-size:12px;line-height:1.6;">
           <div style="margin-bottom:6px;color:#777;">${esc(s.footerNote)}</div>
           <div>${esc(s.mailingAddress)}</div>
-          <div style="margin-top:10px;">You're receiving this because you subscribed at ${esc(ctx.businessName)}. <a href="#unsubscribe" style="color:#999;">Unsubscribe</a>.</div>
+          <div style="margin-top:10px;">You're receiving this because you subscribed at ${esc(ctx.businessName)}. <a href="${unsubHref}" style="color:#999;">Unsubscribe</a>.</div>
         </td></tr>
       </table>
     </td></tr>
@@ -168,9 +179,10 @@ export function buildNewsletterHtml(n: Newsletter, s: NewsletterSettings, ctx: N
 }
 
 /** Plain-text fallback for the same newsletter */
-export function buildNewsletterText(n: Newsletter, s: NewsletterSettings, ctx: NewsletterContext): string {
+export function buildNewsletterText(n: Newsletter, s: NewsletterSettings, ctx: NewsletterContext, opts: BuildOptions = {}): string {
   const vars = { first_name: ctx.sampleFirstName || 'there', shop: ctx.businessName }
-  const lines: string[] = [ctx.businessName, '', ...paragraphs(applyMergeTags(n.intro, vars))]
+  const intro = opts.forSend ? n.intro : applyMergeTags(n.intro, vars)
+  const lines: string[] = [ctx.businessName, '', ...paragraphs(intro)]
   if (n.ctaLabel) lines.push('', `${n.ctaLabel}: ${n.ctaUrl || ''}`)
   if (n.promoCode) {
     const promo = ctx.promoCodes.find((p) => p.code === n.promoCode)

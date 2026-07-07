@@ -53,9 +53,16 @@ curl -fsSL https://raw.githubusercontent.com/ReFxFrank/TinyBiz/claude/small-busi
 curl -fsSL https://raw.githubusercontent.com/ReFxFrank/TinyBiz/claude/small-business-manager-app-7d4twa/deploy.sh | sudo bash -s -- shop.example.com
 ```
 
-Re-run the same command anytime to deploy the latest code. All data lives in each visitor's browser (localStorage) — there is no server-side database to manage.
+All data lives in each visitor's browser (localStorage) — there is no server-side database to manage.
 
-**Auto-deploy**: `sudo bash /opt/tinybiz/deploy.sh --install-cron` sets up a cron job that polls the branch every 5 minutes and redeploys only when new commits land (silent no-op otherwise, logged to `/var/log/tinybiz-deploy.log`). Use `--force` to rebuild without new commits.
+**Redeploying**: the first run installs a `redeploy` command on the server, so pulling the latest code, rebuilding, and publishing is just:
+
+```bash
+redeploy            # pull latest + rebuild + publish (no-op if nothing new)
+redeploy --force    # rebuild even with no new commits
+```
+
+**Auto-deploy**: `redeploy --install-cron` sets up a cron job that polls the branch every 5 minutes and redeploys only when new commits land (silent no-op otherwise, logged to `/var/log/tinybiz-deploy.log`). After that you never touch the server — pushing to the branch is enough.
 
 ## Keyboard shortcuts
 

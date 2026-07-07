@@ -14,6 +14,10 @@
 #   Force a rebuild even with no new commits:
 #     sudo bash deploy.sh --force
 #
+#   After the first run, `redeploy` works from anywhere on the server:
+#     redeploy            # pull latest + rebuild + publish
+#     redeploy --force    # rebuild even with no new commits
+#
 # Idempotent and cron-safe: when there are no new commits it exits silently;
 # concurrent runs are prevented with a lock; the domain is remembered in
 # /etc/tinybiz-domain so unattended runs never clobber the HTTPS config.
@@ -27,6 +31,7 @@ DOMAIN_FILE="/etc/tinybiz-domain"
 LOCK_FILE="/var/lock/tinybiz-deploy.lock"
 CRON_FILE="/etc/cron.d/tinybiz-deploy"
 LOG_FILE="/var/log/tinybiz-deploy.log"
+SHIM_FILE="/usr/local/bin/redeploy"
 
 FORCE=0
 INSTALL_CRON=0
@@ -108,6 +113,24 @@ setup_https() {
   }
 }
 
+install_shim() {
+  # A `redeploy` command on the PATH so nobody has to remember this script's
+  # location. Re-execs itself under sudo, so plain `redeploy` works too.
+  local shim
+  shim="$(cat <<SHIM
+#!/usr/bin/env bash
+# TinyBiz: pull latest, rebuild, publish. Installed by ${APP_DIR}/deploy.sh.
+[ "\$(id -u)" -eq 0 ] || exec sudo "\$0" "\$@"
+exec bash ${APP_DIR}/deploy.sh "\$@"
+SHIM
+)"
+  if [ ! -f "$SHIM_FILE" ] || [ "$(cat "$SHIM_FILE")" != "$shim" ]; then
+    printf '%s\n' "$shim" > "$SHIM_FILE"
+    chmod 755 "$SHIM_FILE"
+    echo "──> Installed the \`redeploy\` command (${SHIM_FILE})."
+  fi
+}
+
 install_cron() {
   echo "──> Installing auto-deploy cron (polls every 5 minutes)…"
   cat > "$CRON_FILE" <<CRON
@@ -140,6 +163,8 @@ main() {
   elif [ -n "$DOMAIN" ]; then
     echo "$DOMAIN" > "$DOMAIN_FILE"
   fi
+
+  install_shim
 
   # Cron fast path: exit silently when there is nothing new to deploy
   if [ "$FORCE" -eq 0 ] && [ -d "$APP_DIR/.git" ] && [ -f "$APP_DIR/dist/index.html" ]; then
@@ -189,6 +214,10 @@ main() {
     echo "  → https://${DOMAIN}"
   else
     echo "  → http://${ip:-your-server-ip}"
+  fi
+  echo "  Next time, just run: redeploy"
+  if [ ! -f "$CRON_FILE" ]; then
+    echo "  Tip: \`redeploy --install-cron\` makes every push go live automatically (5-min poll)."
   fi
 }
 

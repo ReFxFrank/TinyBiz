@@ -257,6 +257,9 @@ main() {
 
   ensure_packages
 
+  local self_before=""
+  [ -f "$APP_DIR/deploy.sh" ] && self_before="$(sha256sum "$APP_DIR/deploy.sh" | cut -d' ' -f1)"
+
   echo "──> Fetching TinyBiz (${BRANCH})…"
   if [ -d "$APP_DIR/.git" ]; then
     git -C "$APP_DIR" fetch origin "$BRANCH"
@@ -264,6 +267,17 @@ main() {
     git -C "$APP_DIR" reset --hard "origin/${BRANCH}"
   else
     git clone --branch "$BRANCH" --single-branch "$REPO" "$APP_DIR"
+  fi
+
+  # If the pull updated THIS script, hand the deploy over to the new version
+  # so its improvements apply this run, not next run. Guarded against loops;
+  # the flock on FD 9 survives exec, so no second deploy can slip in.
+  if [ -z "${TINYBIZ_REEXEC:-}" ] && [ -n "$self_before" ] &&
+     [ "$(sha256sum "$APP_DIR/deploy.sh" | cut -d' ' -f1)" != "$self_before" ]; then
+    echo "──> deploy.sh was updated — continuing with the new version…"
+    local args=(--force)
+    [ "$INSTALL_CRON" -eq 1 ] && args+=(--install-cron)
+    TINYBIZ_REEXEC=1 exec bash "$APP_DIR/deploy.sh" "${args[@]}"
   fi
 
   echo "──> Building…"

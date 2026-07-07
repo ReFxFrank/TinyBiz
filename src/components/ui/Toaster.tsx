@@ -1,10 +1,11 @@
-import { useEffect } from 'react'
+import { forwardRef, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { CheckCircle2, Info, X, XCircle } from 'lucide-react'
 import { useUI, type Toast } from '@/store/useUI'
 import { cn } from '@/lib/utils'
 
-function ToastRow({ toast }: { toast: Toast }) {
+// forwardRef: AnimatePresence popLayout measures exiting children via ref
+const ToastRow = forwardRef<HTMLDivElement, { toast: Toast }>(function ToastRow({ toast }, ref) {
   const dismiss = useUI((s) => s.dismissToast)
   useEffect(() => {
     const t = setTimeout(() => dismiss(toast.id), 4200)
@@ -14,6 +15,7 @@ function ToastRow({ toast }: { toast: Toast }) {
   const Icon = toast.tone === 'success' ? CheckCircle2 : toast.tone === 'error' ? XCircle : Info
   return (
     <motion.div
+      ref={ref}
       layout
       initial={{ opacity: 0, y: 12, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -43,7 +45,7 @@ function ToastRow({ toast }: { toast: Toast }) {
       </button>
     </motion.div>
   )
-}
+})
 
 /** Fixed bottom-right toast stack — mount once in the app shell */
 export function Toaster() {

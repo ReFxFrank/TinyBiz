@@ -1,6 +1,6 @@
-import { NavLink } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { PanelLeftClose, PanelLeftOpen, X } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, Store, X } from 'lucide-react'
 import { NAV_GROUPS, SETTINGS_ITEM, type NavItem } from './nav'
 import { useUI } from '@/store/useUI'
 import { useStore } from '@/store/useStore'
@@ -48,6 +48,30 @@ function NavRow({ item, collapsed, onNavigate }: { item: NavItem; collapsed: boo
   )
 }
 
+/** Link out of the admin into the customer-facing storefront */
+function StorefrontRow({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+  const link = (
+    <Link
+      to="/store"
+      onClick={onNavigate}
+      className={cn(
+        'group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-ink-2 transition-colors duration-150 hover:bg-sunken hover:text-ink',
+        collapsed && 'justify-center px-0',
+      )}
+    >
+      <Store className="h-[18px] w-[18px] shrink-0" />
+      {!collapsed && <span className="truncate">View storefront</span>}
+    </Link>
+  )
+  return collapsed ? (
+    <Tip content="View storefront" side="right">
+      {link}
+    </Tip>
+  ) : (
+    link
+  )
+}
+
 function SidebarContent({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
   const settings = useStore((s) => s.settings)
   const toggleSidebar = useUI((s) => s.toggleSidebar)
@@ -85,6 +109,7 @@ function SidebarContent({ collapsed, onNavigate }: { collapsed: boolean; onNavig
       </nav>
 
       <div className="space-y-0.5 border-t border-edge px-3 py-3">
+        <StorefrontRow collapsed={collapsed} onNavigate={onNavigate} />
         <NavRow item={SETTINGS_ITEM} collapsed={collapsed} onNavigate={onNavigate} />
         <button
           onClick={toggleSidebar}

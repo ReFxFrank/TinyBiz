@@ -14,7 +14,7 @@ import { SkeletonStats, SkeletonChart } from '@/components/ui/Skeleton'
 import { cn } from '@/lib/utils'
 
 /** Applies the theme class + appearance attributes to <html>, following system preference when set */
-function useApplyTheme() {
+export function useApplyTheme() {
   const theme = useUI((s) => s.theme)
   const accent = useUI((s) => s.accent)
   const radius = useUI((s) => s.radius)

@@ -1,6 +1,7 @@
 import { lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
+import { StoreShell } from '@/pages/store/StoreShell'
 
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
 const Orders = lazy(() => import('@/pages/Orders'))
@@ -23,9 +24,24 @@ const Documents = lazy(() => import('@/pages/Documents'))
 const Employees = lazy(() => import('@/pages/Employees'))
 const Settings = lazy(() => import('@/pages/Settings'))
 
+// Customer-facing storefront (no admin chrome)
+const StoreHome = lazy(() => import('@/pages/store/StoreHome'))
+const StoreShop = lazy(() => import('@/pages/store/StoreShop'))
+const StoreProduct = lazy(() => import('@/pages/store/StoreProduct'))
+const StoreCheckout = lazy(() => import('@/pages/store/StoreCheckout'))
+const StoreConfirmation = lazy(() => import('@/pages/store/StoreConfirmation'))
+
 export default function App() {
   return (
     <Routes>
+      <Route path="/store" element={<StoreShell />}>
+        <Route index element={<StoreHome />} />
+        <Route path="shop" element={<StoreShop />} />
+        <Route path="product/:id" element={<StoreProduct />} />
+        <Route path="checkout" element={<StoreCheckout />} />
+        <Route path="confirmation/:orderId" element={<StoreConfirmation />} />
+        <Route path="*" element={<Navigate to="/store" replace />} />
+      </Route>
       <Route element={<AppShell />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/orders" element={<Orders />} />

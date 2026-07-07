@@ -28,22 +28,25 @@ TinyBiz combines the parts of Notion, Shopify analytics, an Etsy seller dashboar
 - **Radix UI** primitives (dialogs, menus, tooltips, switches) for accessibility
 - **Framer Motion** for page transitions and micro-animations
 - **Recharts** styled to a validated, colorblind-safe chart palette
-- **Zustand** (persisted to localStorage) — the app ships with a rich seeded demo business, *Nova Prints & Co.*
+- **Zustand** for state, synced live to a small **Node + Express + SQLite** API server (`server/`) — with an optional rich sample business, *Nova Prints & Co.*
 
 ## Getting started
 
 ```bash
-npm install
-npm run dev        # start the dev server
-npm run build      # typecheck + production build
-npm run preview    # preview the production build
+npm install                 # frontend deps
+(cd server && npm install)  # API deps — once
+
+node server/index.js        # terminal 1: API on :4000
+npm run dev                 # terminal 2: Vite dev server (proxies /api to :4000)
+npm run build               # typecheck + production build
+npm run preview             # preview the production build
 ```
 
-The app seeds itself with ~6 months of demo data on first load. Reset it anytime from **Settings → Danger zone**.
+The first visit shows a one-time setup screen: create the owner sign-in, then start with ~6 months of sample business data, import the data already in your browser, or start empty. To start over completely, stop the API and delete the database file.
 
 ## Deploying to an Ubuntu VPS
 
-`deploy.sh` turns a fresh Ubuntu 22.04/24.04 server into a live TinyBiz host in one command — it installs nginx + Node 20 (if missing), clones this repo, builds, and configures nginx with SPA routing:
+`deploy.sh` turns a fresh Ubuntu 22.04/24.04 server into a live TinyBiz host in one command — it installs nginx + Node 20 (if missing), clones this repo, builds, runs the API as a systemd service (`tinybiz-api`), and configures nginx with SPA routing plus an `/api` proxy:
 
 ```bash
 # Serve on the server's IP over http
@@ -53,7 +56,7 @@ curl -fsSL https://raw.githubusercontent.com/ReFxFrank/TinyBiz/claude/small-busi
 curl -fsSL https://raw.githubusercontent.com/ReFxFrank/TinyBiz/claude/small-business-manager-app-7d4twa/deploy.sh | sudo bash -s -- shop.example.com
 ```
 
-All data lives in each visitor's browser (localStorage) — there is no server-side database to manage.
+The admin signs in, and all business data lives in SQLite on the server at `/var/lib/tinybiz/tinybiz.db` — the first visit shows a one-time setup screen (create the owner account, then choose sample data, import the browser's existing data, or start empty). Storefront orders and newsletter subscribers land in the server database from any customer's browser. Backups are one file: copy `/var/lib/tinybiz/tinybiz.db`.
 
 **Redeploying**: the first run installs a `redeploy` command on the server, so pulling the latest code, rebuilding, and publishing is just:
 
@@ -63,6 +66,14 @@ redeploy --force    # rebuild even with no new commits
 ```
 
 **Auto-deploy**: `redeploy --install-cron` sets up a cron job that polls the branch every 5 minutes and redeploys only when new commits land (silent no-op otherwise, logged to `/var/log/tinybiz-deploy.log`). After that you never touch the server — pushing to the branch is enough.
+
+## Payments (Stripe)
+
+Until Stripe keys are set, storefront checkout runs in a clearly-labeled no-payment preview mode. To take real payments:
+
+1. Create a [Stripe](https://stripe.com) account and copy your secret key (Developers → API keys).
+2. On the VPS, edit `/etc/tinybiz.env` and uncomment `STRIPE_SECRET_KEY`. Optionally uncomment `STRIPE_WEBHOOK_SECRET` for webhooks — not required, the confirmation page verifies payment directly with Stripe.
+3. `sudo systemctl restart tinybiz-api`
 
 ## Keyboard shortcuts
 

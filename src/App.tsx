@@ -1,6 +1,7 @@
 import { lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
+import { AuthGate } from '@/components/auth/AuthGate'
 import { StoreShell } from '@/pages/store/StoreShell'
 
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
@@ -42,7 +43,13 @@ export default function App() {
         <Route path="confirmation/:orderId" element={<StoreConfirmation />} />
         <Route path="*" element={<Navigate to="/store" replace />} />
       </Route>
-      <Route element={<AppShell />}>
+      <Route
+        element={
+          <AuthGate>
+            <AppShell />
+          </AuthGate>
+        }
+      >
         <Route path="/" element={<Dashboard />} />
         <Route path="/orders" element={<Orders />} />
         <Route path="/inventory" element={<Inventory />} />

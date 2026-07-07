@@ -8,12 +8,12 @@ import { motion } from 'framer-motion'
 import { ArrowRight, HeartHandshake, Mail, ShoppingBag, Sparkles, Truck } from 'lucide-react'
 import { Button, Input } from '@/components/ui'
 import { StoreProductCard } from './StoreProductCard'
-import { useStore } from '@/store/useStore'
+import { useCatalog } from '@/store/useCatalog'
 import { FREE_SHIPPING_OVER } from '@/store/useCart'
 import { toast } from '@/store/useUI'
-import { bestSellers } from '@/lib/metrics'
+import { api, ApiError } from '@/lib/api'
 import { money } from '@/lib/format'
-import { cn, uid } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import type { Product } from '@/data/types'
 
 /** Same soft-gradient artwork recipe as StoreProductCard */
@@ -34,7 +34,8 @@ const HERO_SPOTS = [
 ]
 
 function Hero({ heroEmojis }: { heroEmojis: string[] }) {
-  const settings = useStore((s) => s.settings)
+  const shop = useCatalog((s) => s.shop)
+  if (!shop) return null
   return (
     <section className="relative overflow-hidden rounded-3xl border border-hairline brand-gradient-soft px-6 py-16 sm:px-12 sm:py-24">
       {/* Floating product art — purely decorative */}
@@ -56,13 +57,13 @@ function Hero({ heroEmojis }: { heroEmojis: string[] }) {
           aria-hidden
           className="inline-flex h-16 w-16 items-center justify-center rounded-2xl brand-gradient text-4xl shadow-pop"
         >
-          {settings.logoEmoji}
+          {shop.logoEmoji}
         </span>
-        <h1 className="mt-6 text-4xl font-extrabold tracking-tight text-ink sm:text-5xl">{settings.businessName}</h1>
-        <p className="mt-3 text-lg font-medium text-ink-2">{settings.tagline}</p>
+        <h1 className="mt-6 text-4xl font-extrabold tracking-tight text-ink sm:text-5xl">{shop.businessName}</h1>
+        <p className="mt-3 text-lg font-medium text-ink-2">{shop.tagline}</p>
         <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-ink-3">
-          Every piece is designed, 3D-printed, and hand-finished in our {settings.address.city} studio — in small
-          batches, never mass-produced.
+          Every piece is designed, 3D-printed, and hand-finished in our {shop.city} studio — in small batches, never
+          mass-produced.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Link to="/store/shop">
@@ -80,8 +81,9 @@ function Hero({ heroEmojis }: { heroEmojis: string[] }) {
 // ── Trust strip ──────────────────────────────────────────────────────────────
 
 function TrustStrip() {
+  const threshold = useCatalog((s) => s.shop?.freeShippingOver ?? FREE_SHIPPING_OVER)
   const props = [
-    { icon: Truck, title: 'Free US shipping', body: `On every order over ${money(FREE_SHIPPING_OVER)}` },
+    { icon: Truck, title: 'Free US shipping', body: `On every order over ${money(threshold)}` },
     { icon: Sparkles, title: 'Made to order', body: 'Printed in-house in small batches' },
     { icon: HeartHandshake, title: 'Easy returns', body: '30-day returns & friendly support' },
   ]
@@ -128,44 +130,30 @@ function SectionHeading({ title, subtitle, viewAll }: { title: string; subtitle:
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function NewsletterSignup() {
-  const subscribers = useStore((s) => s.subscribers)
-  const addItem = useStore((s) => s.addItem)
-  const updateItem = useStore((s) => s.updateItem)
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
-  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (busy) return
     const value = email.trim()
     if (!EMAIL_RE.test(value)) {
       setError('Please enter a valid email address.')
       return
     }
     setError(null)
-
-    const existing = subscribers.find((s) => s.email.toLowerCase() === value.toLowerCase())
-    if (existing) {
-      if (existing.status === 'subscribed') {
-        toast('You are already on the list', { tone: 'default' })
-      } else {
-        updateItem('subscribers', existing.id, { status: 'subscribed' })
-        toast('Welcome back!', { description: 'You are back on the list.', tone: 'success' })
-        setEmail('')
-      }
-      return
+    setBusy(true)
+    try {
+      const res = await api.subscribe(value)
+      if (res.already) toast('You are already on the list', { tone: 'default' })
+      else toast("You're in!", { description: 'Watch your inbox for the next drop.', tone: 'success' })
+      setEmail('')
+    } catch (err) {
+      setError(err instanceof ApiError && err.status !== 0 ? 'That email doesn\u2019t look right.' : 'Could not subscribe right now — try again in a moment.')
+    } finally {
+      setBusy(false)
     }
-
-    addItem('subscribers', {
-      id: uid('sub'),
-      email: value,
-      name: '',
-      status: 'subscribed',
-      tags: ['storefront'],
-      source: 'Signup form',
-      createdAt: new Date().toISOString(),
-    })
-    toast("You're in!", { description: 'Watch your inbox for the next drop.', tone: 'success' })
-    setEmail('')
   }
 
   return (
@@ -193,7 +181,9 @@ function NewsletterSignup() {
             autoComplete="email"
             className="h-11 flex-1 bg-surface"
           />
-          <Button type="submit" size="lg" className="shrink-0">Subscribe</Button>
+          <Button type="submit" size="lg" className="shrink-0" disabled={busy}>
+            {busy ? 'Subscribing…' : 'Subscribe'}
+          </Button>
         </form>
         <p id="newsletter-error" aria-live="polite" className="mt-2 min-h-[18px] text-xs font-medium text-critical">
           {error ?? ''}
@@ -207,18 +197,18 @@ function NewsletterSignup() {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function StoreHome() {
-  const settings = useStore((s) => s.settings)
-  const products = useStore((s) => s.products)
-  const orders = useStore((s) => s.orders)
+  const shop = useCatalog((s) => s.shop)
+  const products = useCatalog((s) => s.products)
+  const bestSellerIds = useCatalog((s) => s.bestSellerIds)
 
   const activeProducts = useMemo(() => products.filter((p) => p.active), [products])
 
-  /** Top 4 best sellers (active only), padded with other active products */
+  /** Top 4 best sellers (server-ranked), padded with other active products */
   const featured = useMemo(() => {
     const byId = new Map(activeProducts.map((p) => [p.id, p]))
     const picks: Product[] = []
-    for (const stat of bestSellers(orders)) {
-      const p = byId.get(stat.productId)
+    for (const id of bestSellerIds) {
+      const p = byId.get(id)
       if (p && !picks.includes(p)) picks.push(p)
       if (picks.length === 4) break
     }
@@ -227,7 +217,7 @@ export default function StoreHome() {
       if (!picks.includes(p)) picks.push(p)
     }
     return picks
-  }, [orders, activeProducts])
+  }, [bestSellerIds, activeProducts])
 
   /** One tile per category that has at least one active product */
   const categories = useMemo(() => {
@@ -308,17 +298,17 @@ export default function StoreHome() {
         <section className="card overflow-hidden p-0">
           <div className="grid sm:grid-cols-[240px_1fr]">
             <div aria-hidden className="flex min-h-[160px] items-center justify-center brand-gradient-soft text-7xl">
-              {settings.logoEmoji}
+              {shop?.logoEmoji ?? '🛍️'}
             </div>
             <div className="p-6 sm:p-8">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-accent-strong dark:text-accent">
                 About the maker
               </div>
               <h2 className="mt-2 text-xl font-bold tracking-tight text-ink">
-                Hi, I&rsquo;m {settings.ownerName} — the maker behind {settings.businessName}
+                Hi, I&rsquo;m {shop?.ownerName} — the maker behind {shop?.businessName}
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-ink-2">
-                {settings.businessName} started with a single printer on a kitchen table and a stubborn belief that
+                {shop?.businessName} started with a single printer on a kitchen table and a stubborn belief that
                 everyday objects should be a little more delightful. Every design is still modeled in-house, printed on
                 our own machines in small batches, and hand-finished one piece at a time.
               </p>

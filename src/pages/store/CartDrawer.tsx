@@ -7,6 +7,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Minus, Plus, ShoppingBag, Tag, X } from 'lucide-react'
 import { Button, Drawer, EmptyState, Input, Progress } from '@/components/ui'
 import { useCart, useCartDetails } from '@/store/useCart'
+import { api } from '@/lib/api'
 import { money } from '@/lib/format'
 
 const tileGradient = (hue: number) =>
@@ -17,23 +18,37 @@ export function CartDrawer() {
   const setOpen = useCart((s) => s.setDrawerOpen)
   const setQty = useCart((s) => s.setQty)
   const remove = useCart((s) => s.remove)
-  const promoCode = useCart((s) => s.promoCode)
-  const setPromoCode = useCart((s) => s.setPromoCode)
+  const setPromo = useCart((s) => s.setPromo)
   const { lines, count, subtotal, promo, discount, shipping, freeShippingThreshold, taxRate, tax, total } =
     useCartDetails()
   const navigate = useNavigate()
   const [codeInput, setCodeInput] = useState('')
+  const [promoError, setPromoError] = useState<string | null>(null)
+  const [applying, setApplying] = useState(false)
 
-  const promoInvalid = promoCode !== null && promo === null
   const afterDiscount = subtotal - discount
   const remaining = freeShippingThreshold - afterDiscount
 
-  const applyCode = () => {
+  // The server owns promo validity; keep the typed code on rejection so the
+  // shopper can fix a typo instead of retyping.
+  const applyCode = async () => {
     const code = codeInput.trim()
-    if (!code) return
-    // Keep the typed code in the input — if it's rejected the shopper can fix a
-    // typo instead of retyping; on success the form is replaced by the chip.
-    setPromoCode(code)
+    if (!code || applying) return
+    setApplying(true)
+    setPromoError(null)
+    try {
+      const res = await api.promo(code)
+      if (res.valid && res.code && res.discountPct != null) {
+        setPromo({ code: res.code, discountPct: res.discountPct })
+        setCodeInput('')
+      } else {
+        setPromoError('That code isn\u2019t valid or has expired')
+      }
+    } catch {
+      setPromoError('Could not check that code — try again in a moment')
+    } finally {
+      setApplying(false)
+    }
   }
 
   const goToCheckout = () => {
@@ -199,7 +214,7 @@ export function CartDrawer() {
                   </span>
                 </div>
                 <button
-                  onClick={() => setPromoCode(null)}
+                  onClick={() => setPromo(null)}
                   className="shrink-0 text-xs font-medium text-ink-3 underline underline-offset-2 hover:text-ink"
                 >
                   Remove
@@ -209,7 +224,7 @@ export function CartDrawer() {
               <form
                 onSubmit={(e) => {
                   e.preventDefault()
-                  applyCode()
+                  void applyCode()
                 }}
                 className="flex gap-2"
               >
@@ -220,18 +235,18 @@ export function CartDrawer() {
                   aria-label="Promo code"
                   className="flex-1"
                 />
-                <Button type="submit" variant="secondary" disabled={!codeInput.trim()}>
-                  Apply
+                <Button type="submit" variant="secondary" disabled={!codeInput.trim() || applying}>
+                  {applying ? 'Checking…' : 'Apply'}
                 </Button>
               </form>
             )}
             <div aria-live="polite">
-              {promoInvalid && (
+              {promoError && (
                 <div className="mt-2 flex items-center justify-between gap-2 text-xs text-critical">
-                  <span>That code isn&rsquo;t valid or has expired</span>
+                  <span>{promoError}</span>
                   <button
                     onClick={() => {
-                      setPromoCode(null)
+                      setPromoError(null)
                       setCodeInput('')
                     }}
                     className="font-medium underline underline-offset-2 hover:opacity-80"

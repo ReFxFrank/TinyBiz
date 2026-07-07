@@ -1,19 +1,17 @@
 // Storefront checkout — contact + shipping form on the left, sticky order
-// summary on the right. Placing an order writes real records into the admin
-// store: the customer, the order, stock deductions, promo usage, and a
-// notification — so the order lands straight in the shop's Orders queue.
+// summary on the right. Placing an order POSTs to the server, which validates
+// stock and promo, writes the customer/order/stock/notification records, and
+// either confirms immediately (mock mode) or hands off to Stripe Checkout.
 
-import { useRef, useState, type ChangeEvent, type FormEvent, type RefObject } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type RefObject } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, CreditCard, Lock, ShoppingBag, Tag } from 'lucide-react'
 import { Button, Card, CardHeader, EmptyState, Field, Input, Textarea } from '@/components/ui'
 import { useCart, useCartDetails } from '@/store/useCart'
-import { useStore } from '@/store/useStore'
+import { useCatalog } from '@/store/useCatalog'
+import { api, ApiError } from '@/lib/api'
 import { toast } from '@/store/useUI'
 import { money } from '@/lib/format'
-import { nextOrderNumber } from '@/lib/metrics'
-import { uid } from '@/lib/utils'
-import type { OrderItem } from '@/data/types'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -26,8 +24,19 @@ const FIELD_ORDER: FieldKey[] = ['name', 'email', 'line1', 'city', 'state', 'zip
 export default function StoreCheckout() {
   const { lines, count, subtotal, promo, discount, shipping, taxRate, tax, total } = useCartDetails()
   const clear = useCart((s) => s.clear)
-  const setQty = useCart((s) => s.setQty)
+  const setPromo = useCart((s) => s.setPromo)
+  const reloadCatalog = useCatalog((s) => s.load)
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Stripe's cancel_url points back here with ?canceled=1 — the cart is intact
+  useEffect(() => {
+    if (searchParams.get('canceled')) {
+      toast('Payment canceled — your cart is right where you left it', { tone: 'default' })
+      setSearchParams({}, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const [form, setForm] = useState({ name: '', email: '', line1: '', city: '', state: '', zip: '', notes: '' })
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({})
@@ -67,120 +76,36 @@ export default function StoreCheckout() {
     return errs
   }
 
-  const placeOrder = () => {
-    const store = useStore.getState()
-
-    // Last-moment availability check: stock may have moved (admin edits,
-    // another sale) since these lines were added. Never book an order the
-    // shop can't fulfill — clamp the cart and let the shopper re-confirm.
-    const overstock = lines.filter((l) => {
-      const product = store.products.find((p) => p.id === l.product.id)
-      const live = l.item.variantId
-        ? product?.variants.find((v) => v.id === l.item.variantId)?.stock
-        : product?.stock
-      return live == null || l.item.qty > live
-    })
-    if (overstock.length > 0) {
-      for (const l of overstock) {
-        const product = store.products.find((p) => p.id === l.product.id)
-        const live = l.item.variantId
-          ? product?.variants.find((v) => v.id === l.item.variantId)?.stock
-          : product?.stock
-        setQty(l.item.productId, l.item.variantId, Math.max(0, live ?? 0))
-      }
-      toast('Stock changed while you were checking out — we adjusted your cart. Please review it.', { tone: 'error' })
-      setSubmitting(false)
-      return
-    }
-
-    const now = new Date().toISOString()
-    const name = form.name.trim()
-    const email = form.email.trim()
-    const address = {
-      line1: form.line1.trim(),
-      city: form.city.trim(),
-      state: form.state.trim(),
-      zip: form.zip.trim(),
-      country: 'United States',
-    }
-
-    // Customer — match by email (case-insensitive), create if new
-    const existing = store.customers.find((c) => c.email.trim().toLowerCase() === email.toLowerCase())
-    const customer =
-      existing ??
-      store.addItem('customers', {
-        id: uid('cus'),
-        name,
-        email,
-        address,
-        tags: ['storefront'],
-        createdAt: now,
+  const placeOrder = async () => {
+    try {
+      const res = await api.checkout({
+        items: lines.map((l) => ({ productId: l.item.productId, variantId: l.item.variantId, qty: l.item.qty })),
+        promoCode: promo?.code,
+        contact: { name: form.name.trim(), email: form.email.trim() },
+        address: { line1: form.line1.trim(), city: form.city.trim(), state: form.state.trim(), zip: form.zip.trim() },
+        notes: form.notes.trim() || undefined,
       })
-
-    // Orders have no discount field — bake the promo into per-item pricing so
-    // admin revenue stays truthful, and record the promo in the order notes.
-    // discountedUnitPrice comes from useCartDetails, the same rounding the
-    // shopper was quoted, so the stored order re-sums to exactly `total`.
-    const number = nextOrderNumber(store.orders)
-    const items: OrderItem[] = lines.map((l) => ({
-      productId: l.product.id,
-      name: l.name,
-      quantity: l.item.qty,
-      unitPrice: l.discountedUnitPrice,
-      unitCost: l.variant ? l.variant.cost : l.product.cost,
-    }))
-    const promoNote = promo ? `Promo ${promo.code} (−${promo.discountPct}%)` : ''
-    const customerNote = form.notes.trim()
-    const notes = [promoNote, customerNote].filter(Boolean).join(' — ') || undefined
-
-    const order = store.addItem('orders', {
-      id: uid('ord'),
-      number,
-      customerId: customer.id,
-      customerName: name,
-      email,
-      status: 'New',
-      channel: 'Website',
-      items,
-      shippingCost: 0,
-      shippingCharged: shipping,
-      taxCollected: tax,
-      shippingAddress: address,
-      notes,
-      placedAt: now,
-      shipBy: new Date(Date.now() + 4 * 86_400_000).toISOString(),
-    })
-
-    // Stock — base products via adjustStock (logged), variant stock lives
-    // inside product.variants so patch the product. Re-read state each pass so
-    // multiple variant lines on the same product both apply.
-    for (const l of lines) {
-      const { variantId } = l.item
-      if (variantId) {
-        const prod = useStore.getState().products.find((p) => p.id === l.product.id)
-        if (prod) {
-          store.updateItem('products', prod.id, {
-            variants: prod.variants.map((v) =>
-              v.id === variantId ? { ...v, stock: Math.max(0, v.stock - l.item.qty) } : v,
-            ),
-          })
-        }
+      if (res.mode === 'stripe') {
+        // Keep the cart until payment succeeds — cancel returns the shopper here
+        window.location.assign(res.checkoutUrl)
+        return
+      }
+      clear()
+      navigate(`/store/confirmation/${res.orderId}`)
+    } catch (err) {
+      setSubmitting(false)
+      if (err instanceof ApiError && err.code === 'promo') {
+        setPromo(null)
+        toast(err.message, { tone: 'error' })
+      } else if (err instanceof ApiError && (err.code === 'stock' || err.code === 'gone')) {
+        toast(err.message, { tone: 'error' })
+        void reloadCatalog(true) // refresh availability so the cart self-corrects
       } else {
-        store.adjustStock('product', l.product.id, -l.item.qty, 'Manual', `Storefront order ${number}`)
+        toast(err instanceof ApiError ? err.message : 'Could not place the order — try again in a moment.', {
+          tone: 'error',
+        })
       }
     }
-
-    if (promo) store.updateItem('promoCodes', promo.id, { uses: promo.uses + 1 })
-
-    store.addNotification({
-      type: 'order',
-      title: `New website order ${number}`,
-      body: `${name} — ${money(total)}`,
-      link: '/orders',
-    })
-
-    clear()
-    navigate(`/store/confirmation/${order.id}`)
   }
 
   const handleSubmit = (e: FormEvent) => {
@@ -196,7 +121,7 @@ export default function StoreCheckout() {
       return
     }
     setSubmitting(true)
-    placeOrder()
+    void placeOrder()
   }
 
   if (lines.length === 0 && !submitting) {

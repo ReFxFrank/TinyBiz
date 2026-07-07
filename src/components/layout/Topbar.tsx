@@ -1,11 +1,38 @@
 import { useNavigate } from 'react-router-dom'
-import { Menu as MenuIcon, Moon, Monitor, Plus, Search, Sun } from 'lucide-react'
+import { LogOut, Menu as MenuIcon, Moon, Monitor, Plus, Search, Settings as SettingsIcon, Sun } from 'lucide-react'
 import { useUI, type Theme } from '@/store/useUI'
 import { useStore } from '@/store/useStore'
+import { useSyncStatus, type SyncPhase } from '@/store/sync'
+import { signOut } from '@/components/auth/AuthGate'
 import { Button, IconButton } from '@/components/ui/Button'
-import { Menu, MenuItem, MenuLabel } from '@/components/ui/Menu'
+import { Menu, MenuItem, MenuLabel, MenuSeparator } from '@/components/ui/Menu'
 import { Avatar, Kbd } from '@/components/ui/Misc'
 import { NotificationsPanel } from './NotificationsPanel'
+import { cn } from '@/lib/utils'
+
+const SYNC_LABEL: Record<SyncPhase, string> = {
+  idle: 'Synced',
+  saving: 'Saving…',
+  saved: 'Saved to server',
+  offline: 'Offline — changes queued',
+}
+
+/** Tiny colored dot: green = saved, pulsing = saving, amber = offline */
+function SyncDot() {
+  const phase = useSyncStatus((s) => s.phase)
+  return (
+    <span
+      title={SYNC_LABEL[phase]}
+      aria-label={SYNC_LABEL[phase]}
+      role="status"
+      className={cn(
+        'inline-block h-2 w-2 rounded-full',
+        phase === 'offline' ? 'bg-warn' : 'bg-good',
+        phase === 'saving' && 'animate-pulse',
+      )}
+    />
+  )
+}
 
 const themeIcons: Record<Theme, typeof Sun> = { light: Sun, dark: Moon, system: Monitor }
 
@@ -78,16 +105,30 @@ export function Topbar() {
 
         <NotificationsPanel />
 
-        <button
-          onClick={() => navigate('/settings')}
-          className="ml-1 flex items-center gap-2 rounded-xl p-1 pr-2 transition-colors hover:bg-sunken"
-          aria-label="Business settings"
+        <Menu
+          align="end"
+          trigger={
+            <button
+              className="ml-1 flex items-center gap-2 rounded-xl p-1 pr-2 transition-colors hover:bg-sunken"
+              aria-label="Account menu"
+            >
+              <Avatar name={settings.ownerName} size="sm" hue={262} />
+              <span className="hidden max-w-[120px] truncate text-[13px] font-medium text-ink md:block">
+                {settings.ownerName}
+              </span>
+              <SyncDot />
+            </button>
+          }
         >
-          <Avatar name={settings.ownerName} size="sm" hue={262} />
-          <span className="hidden max-w-[120px] truncate text-[13px] font-medium text-ink md:block">
-            {settings.ownerName}
-          </span>
-        </button>
+          <MenuLabel>{settings.businessName}</MenuLabel>
+          <MenuItem icon={<SettingsIcon />} onSelect={() => navigate('/settings')}>
+            Settings
+          </MenuItem>
+          <MenuSeparator />
+          <MenuItem icon={<LogOut />} onSelect={() => void signOut()}>
+            Sign out
+          </MenuItem>
+        </Menu>
       </div>
     </header>
   )

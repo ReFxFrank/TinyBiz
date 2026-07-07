@@ -7,7 +7,7 @@ import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { PackageSearch } from 'lucide-react'
 import { Button, EmptyState, SearchInput, Select } from '@/components/ui'
-import { useStore } from '@/store/useStore'
+import { useCatalog } from '@/store/useCatalog'
 import { StoreProductCard } from './StoreProductCard'
 import { cn } from '@/lib/utils'
 import type { Product } from '@/data/types'
@@ -28,7 +28,7 @@ function displayPrice(p: Product): number {
 }
 
 export default function StoreShop() {
-  const products = useStore((s) => s.products)
+  const products = useCatalog((s) => s.products)
   const [searchParams, setSearchParams] = useSearchParams()
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<SortKey>('featured')

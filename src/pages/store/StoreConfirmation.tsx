@@ -1,12 +1,16 @@
-// Order confirmation — the celebratory landing after checkout. Looks the order
-// up in the real admin store, so refreshing (or the shop owner peeking at the
-// admin) shows exactly what the customer just placed.
+// Order confirmation — the celebratory landing after checkout. Fetches the
+// order from the server, so the link works in any browser. The Stripe return
+// path (/store/confirmation/stripe?session_id=…) polls until the payment is
+// confirmed, then clears the cart.
 
-import { Link, useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { CheckCircle2, Package, Printer, ShoppingBag, Truck } from 'lucide-react'
 import { Button, Card, EmptyState } from '@/components/ui'
-import { useStore } from '@/store/useStore'
+import { useCatalog } from '@/store/useCatalog'
+import { useCart } from '@/store/useCart'
+import { api, ApiError, type PublicOrder } from '@/lib/api'
 import { fmtDate, money } from '@/lib/format'
 
 const tileGradient = (hue: number) =>
@@ -17,11 +21,80 @@ const PROMO_NOTE_RE = /Promo\s+\S+\s+\(−\d+%\)/
 
 export default function StoreConfirmation() {
   const { orderId } = useParams()
-  const order = useStore((s) => s.orders.find((o) => o.id === orderId))
-  const products = useStore((s) => s.products)
-  const settings = useStore((s) => s.settings)
+  const [searchParams] = useSearchParams()
+  const sessionId = searchParams.get('session_id')
+  // /store/confirmation/stripe?session_id=… is where Stripe sends the shopper back
+  const stripeMode = orderId === 'stripe' && Boolean(sessionId)
+  const clear = useCart((s) => s.clear)
+  const products = useCatalog((s) => s.products)
+  const shop = useCatalog((s) => s.shop)
 
-  if (!order) {
+  const [order, setOrder] = useState<PublicOrder | null>(null)
+  const [status, setStatus] = useState<'loading' | 'ready' | 'pending' | 'notfound'>('loading')
+
+  useEffect(() => {
+    let cancelled = false
+    const run = async () => {
+      if (stripeMode && sessionId) {
+        // Poll: the payment may take a beat to register (webhook or direct check)
+        for (let attempt = 0; attempt < 12 && !cancelled; attempt++) {
+          try {
+            const res = await api.orderBySession(sessionId)
+            if (res.order) {
+              if (!cancelled) {
+                setOrder(res.order)
+                setStatus('ready')
+                clear()
+              }
+              return
+            }
+          } catch (err) {
+            if (err instanceof ApiError && err.status === 404) {
+              if (!cancelled) setStatus('notfound')
+              return
+            }
+          }
+          if (!cancelled) setStatus('pending')
+          await new Promise((r) => setTimeout(r, 1800))
+        }
+      } else if (orderId) {
+        try {
+          const res = await api.order(orderId)
+          if (!cancelled) {
+            setOrder(res.order)
+            setStatus('ready')
+          }
+        } catch {
+          if (!cancelled) setStatus('notfound')
+        }
+      }
+    }
+    void run()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId, sessionId])
+
+  if (status === 'loading' || status === 'pending') {
+    return (
+      <div className="mx-auto flex w-full max-w-2xl flex-col items-center px-4 py-24 text-center sm:px-6">
+        <span className="inline-flex h-14 w-14 animate-pulse items-center justify-center rounded-2xl brand-gradient text-3xl" aria-hidden>
+          {status === 'pending' ? '💳' : '📦'}
+        </span>
+        <h1 className="mt-5 text-xl font-bold text-ink">
+          {status === 'pending' ? 'Confirming your payment…' : 'Fetching your order…'}
+        </h1>
+        {status === 'pending' && (
+          <p className="mt-2 max-w-sm text-sm text-ink-3">
+            Hang tight — this usually takes a few seconds. Don’t close this page.
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  if (status === 'notfound' || !order) {
     return (
       <div className="mx-auto w-full max-w-2xl px-4 py-16 sm:px-6">
         <EmptyState
@@ -182,10 +255,10 @@ export default function StoreConfirmation() {
         <p className="mt-6 text-center text-xs text-ink-3">
           Questions about your order? Email{' '}
           <a
-            href={`mailto:${settings.email}`}
+            href={`mailto:${shop?.email}`}
             className="font-medium text-ink-2 underline underline-offset-2 hover:text-ink"
           >
-            {settings.email}
+            {shop?.email}
           </a>
           .
         </p>

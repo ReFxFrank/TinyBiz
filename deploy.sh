@@ -32,6 +32,9 @@ LOCK_FILE="/var/lock/tinybiz-deploy.lock"
 CRON_FILE="/etc/cron.d/tinybiz-deploy"
 LOG_FILE="/var/log/tinybiz-deploy.log"
 SHIM_FILE="/usr/local/bin/redeploy"
+API_SERVICE="tinybiz-api"
+ENV_FILE="/etc/tinybiz.env"
+DATA_DIR="/var/lib/tinybiz"
 
 FORCE=0
 INSTALL_CRON=0
@@ -47,10 +50,14 @@ done
 
 ensure_packages() {
   export DEBIAN_FRONTEND=noninteractive
-  if ! command -v git >/dev/null 2>&1 || ! command -v nginx >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; then
+  # build-essential + python3 are better-sqlite3's compile fallback for when
+  # its prebuilt binary download fails — cheap insurance, idempotent.
+  if ! command -v git >/dev/null 2>&1 || ! command -v nginx >/dev/null 2>&1 \
+    || ! command -v curl >/dev/null 2>&1 || ! command -v gcc >/dev/null 2>&1 \
+    || ! command -v python3 >/dev/null 2>&1; then
     echo "──> Installing system packages…"
     apt-get update -y -qq
-    apt-get install -y -qq git nginx curl ca-certificates
+    apt-get install -y -qq git nginx curl ca-certificates build-essential python3
   fi
   # Node 20 via NodeSource, only when node is absent or older than 18
   if ! command -v node >/dev/null 2>&1 || [ "$(node -v | sed 's/^v//' | cut -d. -f1)" -lt 18 ]; then
@@ -60,15 +67,75 @@ ensure_packages() {
   fi
 }
 
+setup_api() {
+  mkdir -p "$DATA_DIR"
+
+  # Seed the env file once, never overwrite — operators put Stripe keys here
+  if [ ! -f "$ENV_FILE" ]; then
+    echo "──> Creating ${ENV_FILE}…"
+    cat > "$ENV_FILE" <<ENV
+TINYBIZ_DB=${DATA_DIR}/tinybiz.db
+PORT=4000
+# Uncomment to enable real Stripe payments on the storefront:
+# STRIPE_SECRET_KEY=sk_live_...
+# STRIPE_WEBHOOK_SECRET=whsec_...
+ENV
+    chmod 600 "$ENV_FILE"
+  fi
+
+  local unit unit_file="/etc/systemd/system/${API_SERVICE}.service"
+  unit="$(cat <<UNIT
+[Unit]
+Description=TinyBiz API
+After=network.target
+
+[Service]
+WorkingDirectory=${APP_DIR}/server
+ExecStart=/usr/bin/node index.js
+EnvironmentFile=${ENV_FILE}
+Restart=always
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+)"
+  if [ ! -f "$unit_file" ] || [ "$(cat "$unit_file")" != "$unit" ]; then
+    echo "──> Installing systemd service (${API_SERVICE})…"
+    printf '%s\n' "$unit" > "$unit_file"
+    systemctl daemon-reload
+  fi
+  systemctl enable --now "$API_SERVICE"
+  # Restart on every deploy — the process must pick up the freshly built code
+  systemctl restart "$API_SERVICE"
+}
+
 configure_nginx() {
   local server_name="${DOMAIN:-_}"
-  # Skip the rewrite when the site config already targets this server_name —
-  # certbot appends TLS blocks to this file and a rewrite would wipe them.
-  if [ -f /etc/nginx/sites-available/tinybiz ] && grep -q "server_name ${server_name};" /etc/nginx/sites-available/tinybiz; then
+  local site="/etc/nginx/sites-available/tinybiz"
+  # Never rewrite a config that already targets this server_name — certbot
+  # appends TLS blocks to this file and a rewrite would wipe them. Configs
+  # from before the API server lack the /api proxy, so inject just that
+  # block in place (before every location /assets/, covering the TLS copy).
+  if [ -f "$site" ] && grep -q "server_name ${server_name};" "$site"; then
+    if ! grep -q "location /api/" "$site"; then
+      echo "──> Adding the /api proxy to the existing nginx config…"
+      sed -i '/location \/assets\/ {/i\
+    location /api/ {\
+        proxy_pass http://127.0.0.1:4000;\
+        proxy_http_version 1.1;\
+        proxy_set_header Host $host;\
+        proxy_set_header X-Real-IP $remote_addr;\
+        proxy_set_header X-Forwarded-Proto $scheme;\
+    }\
+' "$site"
+      nginx -t
+    fi
     return
   fi
   echo "──> Configuring nginx…"
-  cat > /etc/nginx/sites-available/tinybiz <<NGINX
+  cat > "$site" <<NGINX
 server {
     listen 80;
     listen [::]:80;
@@ -80,6 +147,15 @@ server {
     gzip on;
     gzip_types text/css application/javascript application/json image/svg+xml;
     gzip_min_length 1024;
+
+    # The API server (systemd: ${API_SERVICE}) listens on localhost only
+    location /api/ {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
 
     # Hashed build assets never change — cache hard
     location /assets/ {
@@ -195,6 +271,10 @@ main() {
   npm ci --no-audit --no-fund
   npm run build
 
+  echo "──> Installing API server dependencies…"
+  (cd "$APP_DIR/server" && npm ci --no-audit --no-fund)
+
+  setup_api
   configure_nginx
   systemctl reload nginx
 
@@ -214,6 +294,18 @@ main() {
     echo "  → https://${DOMAIN}"
   else
     echo "  → http://${ip:-your-server-ip}"
+  fi
+  # Health check — informational only, a slow API start must not fail the deploy
+  local health
+  if health="$(curl -fsS --max-time 5 --retry 5 --retry-delay 1 --retry-connrefused \
+      http://127.0.0.1:4000/api/health 2>/dev/null)"; then
+    if printf '%s' "$health" | grep -q '"stripe":true'; then
+      echo "  API: running (Stripe enabled)"
+    else
+      echo "  API: running (mock checkout)"
+    fi
+  else
+    echo "  !! API health check failed — debug with: journalctl -u ${API_SERVICE} -n 20"
   fi
   echo "  Next time, just run: redeploy"
   if [ ! -f "$CRON_FILE" ]; then

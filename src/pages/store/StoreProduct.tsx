@@ -7,7 +7,7 @@ import { Link, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Minus, PackageCheck, Plus, Printer, ShoppingBag, Sparkles, Truck } from 'lucide-react'
 import { Badge, Button, Card, EmptyState } from '@/components/ui'
-import { useStore } from '@/store/useStore'
+import { useCatalog } from '@/store/useCatalog'
 import { useCart, FREE_SHIPPING_OVER } from '@/store/useCart'
 import { toast } from '@/store/useUI'
 import { money } from '@/lib/format'
@@ -29,7 +29,7 @@ function tileGradient(hue: number): string {
 
 export default function StoreProduct() {
   const { id } = useParams()
-  const products = useStore((s) => s.products)
+  const products = useCatalog((s) => s.products)
   const product = products.find((p) => p.id === id && p.active)
 
   if (!product) {
@@ -54,7 +54,7 @@ export default function StoreProduct() {
 }
 
 function ProductView({ product }: { product: Product }) {
-  const products = useStore((s) => s.products)
+  const products = useCatalog((s) => s.products)
   const add = useCart((s) => s.add)
   const setDrawerOpen = useCart((s) => s.setDrawerOpen)
 

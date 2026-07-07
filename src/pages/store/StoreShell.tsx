@@ -8,8 +8,9 @@ import { MotionConfig } from 'framer-motion'
 import { ArrowLeft, ShoppingBag, X } from 'lucide-react'
 import { useApplyTheme } from '@/components/layout/AppShell'
 import { Toaster } from '@/components/ui/Toaster'
+import { ErrorState } from '@/components/ui/EmptyState'
 import { useUI } from '@/store/useUI'
-import { useStore } from '@/store/useStore'
+import { useCatalog } from '@/store/useCatalog'
 import { useCart, useCartDetails } from '@/store/useCart'
 import { CartDrawer } from './CartDrawer'
 import { cn } from '@/lib/utils'
@@ -40,7 +41,7 @@ function PreviewBanner() {
 }
 
 function StoreHeader() {
-  const settings = useStore((s) => s.settings)
+  const shop = useCatalog((s) => s.shop)
   const setDrawerOpen = useCart((s) => s.setDrawerOpen)
   const { count } = useCartDetails()
 
@@ -53,9 +54,9 @@ function StoreHeader() {
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-6 px-4 sm:px-6">
         <Link to="/store" className="flex min-w-0 items-center gap-2.5">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl brand-gradient text-lg shadow-pop">
-            {settings.logoEmoji}
+            {shop?.logoEmoji ?? '🛍️'}
           </span>
-          <span className="truncate text-[15px] font-semibold text-ink">{settings.businessName}</span>
+          <span className="truncate text-[15px] font-semibold text-ink">{shop?.businessName ?? 'Shop'}</span>
         </Link>
 
         <nav className="flex flex-1 items-center gap-1" aria-label="Store">
@@ -95,7 +96,8 @@ function StoreHeader() {
 }
 
 function StoreFooter() {
-  const settings = useStore((s) => s.settings)
+  const shop = useCatalog((s) => s.shop)
+  if (!shop) return null
   return (
     <footer className="border-t border-hairline bg-surface">
       <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
@@ -103,11 +105,11 @@ function StoreFooter() {
           <div className="max-w-xs">
             <div className="flex items-center gap-2.5">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl brand-gradient text-lg">
-                {settings.logoEmoji}
+                {shop.logoEmoji}
               </span>
-              <span className="text-[15px] font-semibold text-ink">{settings.businessName}</span>
+              <span className="text-[15px] font-semibold text-ink">{shop.businessName}</span>
             </div>
-            <p className="mt-3 text-sm leading-relaxed text-ink-3">{settings.tagline}</p>
+            <p className="mt-3 text-sm leading-relaxed text-ink-3">{shop.tagline}</p>
           </div>
           <div className="flex gap-12 text-sm">
             <div>
@@ -120,9 +122,9 @@ function StoreFooter() {
             <div>
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-3">Contact</div>
               <div className="space-y-1.5 text-ink-2">
-                <div>{settings.email}</div>
+                <div>{shop.email}</div>
                 <div>
-                  {settings.address.city}, {settings.address.state}
+                  {shop.city}, {shop.state}
                 </div>
               </div>
             </div>
@@ -130,7 +132,7 @@ function StoreFooter() {
         </div>
         <div className="mt-8 flex items-center justify-between border-t border-hairline pt-5 text-xs text-ink-3">
           <span>
-            © {new Date().getFullYear()} {settings.businessName}
+            © {new Date().getFullYear()} {shop.businessName}
           </span>
           <span>
             Powered by <span className="font-semibold text-ink-2">TinyBiz</span>
@@ -160,15 +162,39 @@ export function StoreShell() {
   const { pathname } = useLocation()
   useEffect(() => window.scrollTo(0, 0), [pathname])
 
+  // The storefront runs off the public catalog API — load it once, refresh on focus
+  const load = useCatalog((s) => s.load)
+  const status = useCatalog((s) => s.status)
+  useEffect(() => {
+    void load()
+    const onFocus = () => {
+      if (document.visibilityState === 'visible') void load(true)
+    }
+    document.addEventListener('visibilitychange', onFocus)
+    return () => document.removeEventListener('visibilitychange', onFocus)
+  }, [load])
+
   return (
     <MotionConfig reducedMotion={reduceMotion ? 'always' : 'user'}>
       <div className="flex min-h-screen flex-col bg-page">
         <PreviewBanner />
         <StoreHeader />
         <main className="flex-1">
-          <Suspense fallback={<StoreFallback />}>
-            <Outlet />
-          </Suspense>
+          {status === 'error' ? (
+            <div className="mx-auto w-full max-w-lg px-4 py-20">
+              <ErrorState
+                title="The shop is taking a quick break"
+                description="We couldn't reach the store server. Try again in a moment."
+                onRetry={() => void load(true)}
+              />
+            </div>
+          ) : status === 'ready' ? (
+            <Suspense fallback={<StoreFallback />}>
+              <Outlet />
+            </Suspense>
+          ) : (
+            <StoreFallback />
+          )}
         </main>
         <StoreFooter />
         <CartDrawer />

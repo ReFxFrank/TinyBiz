@@ -147,7 +147,7 @@ interface StoreState extends Collections {
   resetDemo: () => void
 }
 
-function seedCollections(): Collections & { settings: Settings; newsletterSettings: NewsletterSettings } {
+export function seedCollections(): Collections & { settings: Settings; newsletterSettings: NewsletterSettings } {
   return {
     products: seedProducts,
     materials: seedMaterials,

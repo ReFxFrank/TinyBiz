@@ -8,6 +8,7 @@ import { Button, Card, CardHeader, Field, Textarea } from '@/components/ui'
 import { useStore } from '@/store/useStore'
 import { toast } from '@/store/useUI'
 import { defaultPolicies, POLICY_FIELDS } from '@/lib/policyCopy'
+import { emojify } from '@/lib/emoji'
 import { DEFAULT_SHIPPING, type PolicyContent } from '@/data/types'
 
 /** Textarea that grows with its content so long policies never scroll inside the field */
@@ -40,7 +41,8 @@ export function PoliciesCard() {
   )
 
   const [draft, setDraft] = useState<Partial<PolicyContent>>(settings.policies ?? {})
-  const set = (key: keyof PolicyContent, value: string) => setDraft((d) => ({ ...d, [key]: value }))
+  // emojify as-you-type: ":sparkles:" becomes ✨ the moment the closing colon lands
+  const set = (key: keyof PolicyContent, value: string) => setDraft((d) => ({ ...d, [key]: emojify(value) }))
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings.policies ?? {})
 
   const save = () => {

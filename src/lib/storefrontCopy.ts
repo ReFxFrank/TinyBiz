@@ -4,6 +4,7 @@
 // Edited in the admin under Settings → Storefront content.
 
 import type { StorefrontContent } from '@/data/types'
+import { emojify } from '@/lib/emoji'
 
 export interface CopyContext {
   businessName: string
@@ -56,7 +57,8 @@ export function resolveStorefrontCopy(
   const out = { ...base }
   for (const key of Object.keys(base) as Array<keyof StorefrontContent>) {
     const v = overrides?.[key]
-    if (typeof v === 'string' && v.trim() !== '') out[key] = v
+    // emojify covers overrides saved before shortcode support existed
+    if (typeof v === 'string' && v.trim() !== '') out[key] = emojify(v)
   }
   return out
 }

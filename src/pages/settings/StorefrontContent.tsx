@@ -8,6 +8,7 @@ import { Button, Card, CardHeader, Field, Input, Textarea } from '@/components/u
 import { useStore } from '@/store/useStore'
 import { toast } from '@/store/useUI'
 import { defaultStorefrontCopy, STOREFRONT_FIELDS } from '@/lib/storefrontCopy'
+import { emojify } from '@/lib/emoji'
 import type { StorefrontContent as Content } from '@/data/types'
 
 export function StorefrontContentCard() {
@@ -25,7 +26,8 @@ export function StorefrontContentCard() {
   )
 
   const [draft, setDraft] = useState<Partial<Content>>(settings.storefront ?? {})
-  const set = (key: keyof Content, value: string) => setDraft((d) => ({ ...d, [key]: value }))
+  // emojify as-you-type: ":sparkles:" becomes ✨ the moment the closing colon lands
+  const set = (key: keyof Content, value: string) => setDraft((d) => ({ ...d, [key]: emojify(value) }))
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings.storefront ?? {})
 
   const save = () => {

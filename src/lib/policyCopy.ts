@@ -4,6 +4,7 @@
 // customized. Edited in the admin under Settings → Store policies.
 
 import type { PolicyContent } from '@/data/types'
+import { emojify } from '@/lib/emoji'
 
 export interface PolicyContext {
   businessName: string
@@ -61,7 +62,8 @@ export function resolvePolicies(overrides: Partial<PolicyContent> | undefined, c
   const out = { ...base }
   for (const key of Object.keys(base) as Array<keyof PolicyContent>) {
     const v = overrides?.[key]
-    if (typeof v === 'string' && v.trim() !== '') out[key] = v
+    // emojify covers overrides saved before shortcode support existed
+    if (typeof v === 'string' && v.trim() !== '') out[key] = emojify(v)
   }
   return out
 }

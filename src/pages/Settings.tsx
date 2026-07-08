@@ -21,6 +21,7 @@ import {
 } from '@/components/ui'
 import { cn, useLoaded } from '@/lib/utils'
 import { bestTextOn, contrastRatio, isValidHex, normalizeHex, type AccentTokens } from '@/lib/color'
+import { emojify } from '@/lib/emoji'
 import { AccountCard, TeamAccess } from '@/pages/settings/TeamAccess'
 import { StorefrontContentCard } from '@/pages/settings/StorefrontContent'
 import { PoliciesCard } from '@/pages/settings/PoliciesCard'
@@ -68,7 +69,8 @@ function BusinessProfileCard() {
   const valid = draft.businessName.trim().length > 0 && draft.email.trim().length > 0
 
   const set = (k: keyof ProfileDraft) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setDraft((d) => ({ ...d, [k]: e.target.value }))
+    // The tagline shows on the storefront — support :sparkles:-style shortcodes there
+    setDraft((d) => ({ ...d, [k]: k === 'tagline' ? emojify(e.target.value) : e.target.value }))
 
   const save = () => {
     updateSettings({

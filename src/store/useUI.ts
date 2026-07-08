@@ -6,13 +6,14 @@ import { generateAccentTheme, type CustomAccent } from '@/lib/color'
 export type Theme = 'light' | 'dark' | 'system'
 
 /** Preset accent themes the user can pick in Settings → Appearance */
-export const ACCENTS = ['nova', 'violet', 'emerald', 'rose', 'amber', 'teal'] as const
+export const ACCENTS = ['nova', 'tinymagic', 'violet', 'emerald', 'rose', 'amber', 'teal'] as const
 export type PresetAccent = (typeof ACCENTS)[number]
 /** 'custom' carries a user-picked brand color with generated shade steps */
 export type Accent = PresetAccent | 'custom'
 
 export const ACCENT_META: Record<PresetAccent, { label: string; swatch: string }> = {
   nova: { label: 'Nova Blue', swatch: '#2a78d6' },
+  tinymagic: { label: 'Tiny Magic', swatch: '#8a9c48' },
   violet: { label: 'Violet', swatch: '#7c3aed' },
   emerald: { label: 'Emerald', swatch: '#047857' },
   rose: { label: 'Rose', swatch: '#e11d48' },

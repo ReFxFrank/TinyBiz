@@ -6,7 +6,6 @@ import { Suspense, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { MotionConfig } from 'framer-motion'
 import { ArrowLeft, ShoppingBag, X } from 'lucide-react'
-import { useApplyTheme } from '@/components/layout/AppShell'
 import { Toaster } from '@/components/ui/Toaster'
 import { ErrorState } from '@/components/ui/EmptyState'
 import { useUI } from '@/store/useUI'
@@ -62,9 +61,11 @@ function StoreHeader() {
     >
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-6 px-4 sm:px-6">
         <Link to="/" className="flex min-w-0 items-center gap-2.5">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl brand-gradient text-lg shadow-pop">
-            {shop?.logoEmoji ?? '🛍️'}
-          </span>
+          <img
+            src="/brand/logo.png"
+            alt=""
+            className="h-9 w-9 shrink-0 rounded-full ring-1 ring-white/15 shadow-pop"
+          />
           <span className="truncate text-[15px] font-semibold text-ink">{shop?.businessName ?? 'Shop'}</span>
         </Link>
 
@@ -113,9 +114,7 @@ function StoreFooter() {
         <div className="flex flex-col gap-8 sm:flex-row sm:justify-between">
           <div className="max-w-xs">
             <div className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl brand-gradient text-lg">
-                {shop.logoEmoji}
-              </span>
+              <img src="/brand/logo.png" alt="" className="h-9 w-9 rounded-full ring-1 ring-white/15" />
               <span className="text-[15px] font-semibold text-ink">{shop.businessName}</span>
             </div>
             <p className="mt-3 text-sm leading-relaxed text-ink-3">{shop.tagline}</p>
@@ -166,8 +165,41 @@ function StoreFallback() {
   )
 }
 
+/**
+ * The storefront is ALWAYS dark and always wears the shop's brand accent
+ * (the "tinymagic" sage/pink preset drawn from the logo) — independent of
+ * the owner's admin theme, which is restored when they hop back to /admin.
+ */
+function useStorefrontTheme() {
+  const shop = useCatalog((s) => s.shop)
+  useEffect(() => {
+    const el = document.documentElement
+    const wasDark = el.classList.contains('dark')
+    const prevAccent = el.getAttribute('data-accent')
+    el.classList.add('dark')
+    el.setAttribute('data-accent', 'tinymagic')
+    return () => {
+      if (!wasDark) el.classList.remove('dark')
+      if (prevAccent) el.setAttribute('data-accent', prevAccent)
+      else el.removeAttribute('data-accent')
+    }
+  }, [])
+  // Shop-branded tab: title + logo favicon (restored for the admin on unmount)
+  useEffect(() => {
+    const icon = document.querySelector<HTMLLinkElement>("link[rel='icon']")
+    const prevHref = icon?.href
+    const prevTitle = document.title
+    if (icon) icon.href = '/brand/favicon.png'
+    if (shop) document.title = `${shop.businessName} — ${shop.tagline || 'made with magic'}`
+    return () => {
+      if (icon && prevHref) icon.href = prevHref
+      document.title = prevTitle
+    }
+  }, [shop])
+}
+
 export function StoreShell() {
-  useApplyTheme()
+  useStorefrontTheme()
   const reduceMotion = useUI((s) => s.reduceMotion)
   const { pathname } = useLocation()
   useEffect(() => window.scrollTo(0, 0), [pathname])

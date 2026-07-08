@@ -130,16 +130,29 @@ function ProductView({ product }: { product: Product }) {
 
       <div className="mt-6 grid gap-8 lg:grid-cols-2 lg:gap-10">
         {/* Artwork */}
-        <div
-          className="group flex aspect-square items-center justify-center overflow-hidden rounded-2xl border border-hairline"
-          style={{ background: tileGradient(product.imageHue) }}
-        >
-          <span
-            className="text-8xl transition-transform duration-300 group-hover:scale-105 sm:text-9xl"
-            aria-hidden
+        <div className="relative">
+          {/* Faint aurora bloom behind the tile — decorative only */}
+          <div className="pointer-events-none absolute -inset-8 overflow-hidden rounded-3xl" aria-hidden>
+            <div
+              className="aurora-orb left-[-8%] top-[-10%] h-64 w-64"
+              style={{ background: 'var(--accent)', opacity: 0.28 }}
+            />
+            <div
+              className="aurora-orb bottom-[-12%] right-[-6%] h-56 w-56"
+              style={{ background: 'var(--pop)', opacity: 0.2, animationDelay: '-6s' }}
+            />
+          </div>
+          <div
+            className="glow-card tb-noise group relative flex aspect-square items-center justify-center overflow-hidden rounded-2xl border border-hairline"
+            style={{ background: tileGradient(product.imageHue) }}
           >
-            {product.image}
-          </span>
+            <span
+              className="text-8xl transition-transform duration-300 group-hover:scale-105 sm:text-9xl"
+              aria-hidden
+            >
+              {product.image}
+            </span>
+          </div>
         </div>
 
         {/* Details */}
@@ -148,7 +161,7 @@ function ProductView({ product }: { product: Product }) {
           <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-ink sm:text-3xl">{product.name}</h1>
 
           <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="text-2xl font-bold text-ink">{money(price)}</span>
+            <span className="text-3xl font-bold tracking-tight text-ink">{money(price)}</span>
             {soldOut ? (
               <span className="text-sm font-medium text-critical">Sold out</span>
             ) : lowStock ? (
@@ -195,7 +208,7 @@ function ProductView({ product }: { product: Product }) {
                       className={cn(
                         'rounded-xl border px-3.5 py-2 text-left text-sm transition-all',
                         selected
-                          ? 'border-accent bg-accent-wash ring-1 ring-accent'
+                          ? 'border-accent bg-accent-wash shadow-pop ring-1 ring-accent'
                           : 'border-edge bg-surface hover:border-ink-3',
                         out && 'cursor-not-allowed opacity-45 hover:border-edge',
                       )}
@@ -218,12 +231,12 @@ function ProductView({ product }: { product: Product }) {
           )}
 
           <div className="mt-6 flex items-stretch gap-3">
-            <div className="flex items-center rounded-xl border border-edge bg-surface">
+            <div className="flex items-center rounded-xl border border-edge bg-surface shadow-soft">
               <button
                 onClick={() => setQty((q) => Math.max(1, q - 1))}
                 disabled={soldOut || qty <= 1}
                 aria-label="Decrease quantity"
-                className="flex h-11 w-10 items-center justify-center rounded-l-xl text-ink-2 transition-colors hover:bg-sunken hover:text-ink disabled:pointer-events-none disabled:opacity-40"
+                className="flex h-11 w-10 items-center justify-center rounded-l-xl text-ink-2 transition-colors hover:bg-raised hover:text-ink disabled:pointer-events-none disabled:opacity-40"
               >
                 <Minus className="h-4 w-4" />
               </button>
@@ -234,29 +247,37 @@ function ProductView({ product }: { product: Product }) {
                 onClick={() => setQty((q) => Math.min(available, q + 1))}
                 disabled={soldOut || qty >= available}
                 aria-label="Increase quantity"
-                className="flex h-11 w-10 items-center justify-center rounded-r-xl text-ink-2 transition-colors hover:bg-sunken hover:text-ink disabled:pointer-events-none disabled:opacity-40"
+                className="flex h-11 w-10 items-center justify-center rounded-r-xl text-ink-2 transition-colors hover:bg-raised hover:text-ink disabled:pointer-events-none disabled:opacity-40"
               >
                 <Plus className="h-4 w-4" />
               </button>
             </div>
-            <Button size="lg" icon={<ShoppingBag />} disabled={soldOut} onClick={addToCart} className="flex-1">
-              {soldOut ? 'Sold out' : 'Add to cart'}
-            </Button>
+            <div className={cn('isolate flex-1 rounded-xl', !soldOut && 'glow-halo')}>
+              <Button size="lg" icon={<ShoppingBag />} disabled={soldOut} onClick={addToCart} className="w-full">
+                {soldOut ? 'Sold out' : 'Add to cart'}
+              </Button>
+            </div>
           </div>
 
-          <ul className="mt-7 space-y-3 border-t border-hairline pt-6 text-sm text-ink-2">
-            <li className="flex items-center gap-2.5">
-              <Truck className="h-4 w-4 shrink-0 text-accent-strong dark:text-accent" aria-hidden />
+          <ul className="mt-7 space-y-3.5 border-t border-hairline pt-6 text-sm text-ink-2">
+            <li className="flex items-center gap-3">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-wash text-accent-strong dark:text-accent">
+                <Truck className="h-4 w-4" aria-hidden />
+              </span>
               Free shipping on orders over {money(FREE_SHIPPING_OVER)}
             </li>
-            <li className="flex items-center gap-2.5">
-              <Printer className="h-4 w-4 shrink-0 text-accent-strong dark:text-accent" aria-hidden />
+            <li className="flex items-center gap-3">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-wash text-accent-strong dark:text-accent">
+                <Printer className="h-4 w-4" aria-hidden />
+              </span>
               {product.productionTimeMin > 0
                 ? `Printed fresh for you — about ${printDuration(product.productionTimeMin)} on the printer`
                 : 'Made in small batches in our studio'}
             </li>
-            <li className="flex items-center gap-2.5">
-              <PackageCheck className="h-4 w-4 shrink-0 text-accent-strong dark:text-accent" aria-hidden />
+            <li className="flex items-center gap-3">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-wash text-accent-strong dark:text-accent">
+                <PackageCheck className="h-4 w-4" aria-hidden />
+              </span>
               Ships in 3–5 business days
             </li>
           </ul>
@@ -266,7 +287,7 @@ function ProductView({ product }: { product: Product }) {
       {/* Specs */}
       <Card className="mt-10" padding="lg">
         <h2 className="text-[15px] font-semibold text-ink">Details</h2>
-        <dl className="mt-4 grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+        <dl className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
           <SpecRow label="SKU">{specSku}</SpecRow>
           <SpecRow label="Weight">{product.weightGrams} g</SpecRow>
           <SpecRow label="Dimensions">
@@ -291,9 +312,14 @@ function ProductView({ product }: { product: Product }) {
       {/* Related */}
       {related.length > 0 && (
         <section className="mt-12">
-          <div className="mb-4 flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-accent-strong dark:text-accent" aria-hidden />
-            <h2 className="text-lg font-semibold text-ink">You might also like</h2>
+          <div className="mb-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent-strong dark:text-accent">
+              Keep exploring
+            </p>
+            <div className="mt-1 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-accent-strong dark:text-accent" aria-hidden />
+              <h2 className="text-lg font-semibold text-ink">You might also like</h2>
+            </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {related.map((p) => (
@@ -308,7 +334,7 @@ function ProductView({ product }: { product: Product }) {
 
 function SpecRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div>
+    <div className="border-t border-hairline pt-3">
       <dt className="text-xs font-medium uppercase tracking-wide text-ink-3">{label}</dt>
       <dd className="mt-1 text-sm text-ink">{children}</dd>
     </div>

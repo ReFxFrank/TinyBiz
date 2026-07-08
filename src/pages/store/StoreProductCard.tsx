@@ -39,10 +39,10 @@ export function StoreProductCard({ product, badge }: { product: Product; badge?:
   return (
     <Link
       to={`/product/${product.id}`}
-      className="group card flex flex-col gap-3 p-3 transition-all hover:-translate-y-0.5 hover:shadow-pop"
+      className="group card glow-card flex h-full flex-col gap-3 !border-hairline p-3 hover:-translate-y-0.5"
     >
       <div
-        className="relative flex aspect-square items-center justify-center overflow-hidden rounded-xl"
+        className="relative flex aspect-square items-center justify-center overflow-hidden rounded-xl ring-1 ring-inset ring-black/5 transition-shadow duration-300 group-hover:shadow-[inset_0_0_44px_rgba(255,255,255,0.5)]"
         style={{
           background: `linear-gradient(135deg, hsl(${product.imageHue}, 70%, 92%), hsl(${(product.imageHue + 40) % 360}, 60%, 86%))`,
         }}
@@ -52,8 +52,10 @@ export function StoreProductCard({ product, badge }: { product: Product; badge?:
         </span>
         {badge && <div className="absolute left-2 top-2">{badge}</div>}
         {soldOut && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/45">
-            <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-neutral-800">Sold out</span>
+          <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <span className="rounded-full bg-white/95 px-3.5 py-1.5 text-xs font-semibold text-neutral-900 shadow-lifted">
+              Sold out
+            </span>
           </div>
         )}
         {!soldOut && !hasVariants && (
@@ -70,8 +72,8 @@ export function StoreProductCard({ product, badge }: { product: Product; badge?:
         <div className="truncate text-sm font-semibold text-ink">{product.name}</div>
         <div className="mt-0.5 text-xs text-ink-3">{product.category}</div>
         <div className="mt-1.5 flex items-center justify-between gap-2">
-          <span className="text-[15px] font-bold text-ink">
-            {hasVariants && <span className="mr-1 text-xs font-medium text-ink-3">from</span>}
+          <span className="text-base font-extrabold tracking-tight text-ink">
+            {hasVariants && <span className="mr-1 text-xs font-medium tracking-normal text-ink-3">from</span>}
             {money(fromPrice)}
           </span>
           <span className={cn('text-[11px] font-medium', lowStock ? 'text-[#8a6100] dark:text-warn' : 'text-transparent')}>

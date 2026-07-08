@@ -130,6 +130,24 @@ html.dark[data-accent='emerald'] {
   --pop: #22d3ee;
   --pop-soft: #0e3a44;
 }
+html[data-accent='tinymagic'] {
+  --accent: #5f6f2d;
+  --accent-strong: #4c5a24;
+  --accent-soft: #d9e0b3;
+  --accent-wash: #eef1dc;
+  --accent-fg: #ffffff;
+  --pop: #c2589f;
+  --pop-soft: #f8e4f1;
+}
+html.dark[data-accent='tinymagic'] {
+  --accent: #b3c375;
+  --accent-strong: #c3d18a;
+  --accent-soft: #3a4222;
+  --accent-wash: #262d16;
+  --accent-fg: #1f2609;
+  --pop: #ecc7e3;
+  --pop-soft: #3c2a38;
+}
 html[data-accent='rose'] {
   --accent: #e11d48;
   --accent-strong: #be123c;
@@ -278,3 +296,93 @@ input[type='number'] {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Storefront effect kit — reactbits/animate-ui-style visuals, hand-rolled so
+   the shop stays dependency-free. All animations respect prefers-reduced-motion
+   via the global rule above. Designed for the always-dark storefront.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* Aurora: blurred drifting orbs behind hero/CTA sections */
+@keyframes tb-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(4%, -7%) scale(1.1); }
+  66% { transform: translate(-6%, 5%) scale(0.94); }
+}
+.aurora-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: 0.45;
+  pointer-events: none;
+  animation: tb-drift 16s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Headline gradient that glints as it sweeps */
+@keyframes tb-shimmer-sweep { to { background-position: 200% center; } }
+.shimmer-text {
+  background: linear-gradient(
+    110deg,
+    var(--ink) 30%,
+    var(--accent) 46%,
+    var(--pop, var(--accent)) 54%,
+    var(--ink) 70%
+  );
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: tb-shimmer-sweep 4.5s linear infinite;
+}
+
+/* Infinite marquee — duplicate the track content once for a seamless loop */
+.tb-marquee { overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+@keyframes tb-marquee-roll { to { transform: translateX(-50%); } }
+.tb-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: tb-marquee-roll 36s linear infinite;
+}
+.tb-marquee:hover .tb-marquee-track { animation-play-state: paused; }
+
+/* Card that lights up on hover — accent ring + soft halo */
+.glow-card {
+  transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+}
+.glow-card:hover {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent),
+    0 12px 48px -12px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* CTA halo — a glowing bloom behind primary buttons */
+.glow-halo { position: relative; }
+.glow-halo::before {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  border-radius: inherit;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 45%, transparent), transparent);
+  filter: blur(14px);
+  opacity: 0.7;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Film grain to keep large dark surfaces from banding */
+.tb-noise::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+}
+
+/* Slow float for decorative product tiles */
+@keyframes tb-bob {
+  0%, 100% { transform: translateY(0) rotate(var(--bob-rot, 0deg)); }
+  50% { transform: translateY(-10px) rotate(var(--bob-rot, 0deg)); }
+}
+.tb-bob { animation: tb-bob 5.5s ease-in-out infinite; }

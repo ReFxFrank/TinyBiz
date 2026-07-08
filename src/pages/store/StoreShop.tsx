@@ -95,11 +95,25 @@ export default function StoreShop() {
       transition={{ duration: 0.3, ease: 'easeOut' }}
       className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6"
     >
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h1 className="text-3xl font-bold tracking-tight text-ink">Shop</h1>
-        <p className="text-sm text-ink-3">
-          {filtered.length} {filtered.length === 1 ? 'product' : 'products'}
-        </p>
+      <div className="relative">
+        {/* Slim aurora wash behind the page header — decorative only */}
+        <div className="pointer-events-none absolute -inset-x-6 -top-16 h-48 overflow-hidden" aria-hidden>
+          <div
+            className="aurora-orb left-[4%] top-[10%] h-44 w-[26rem]"
+            style={{ background: 'var(--accent)', opacity: 0.16 }}
+          />
+        </div>
+        <div className="relative flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent-strong dark:text-accent">
+              The full catalog
+            </p>
+            <h1 className="shimmer-text mt-1 text-3xl font-bold tracking-tight">Shop</h1>
+          </div>
+          <p className="text-sm text-ink-3">
+            {filtered.length} {filtered.length === 1 ? 'product' : 'products'}
+          </p>
+        </div>
       </div>
 
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -128,8 +142,8 @@ export default function StoreShop() {
             className={cn(
               'shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-all',
               category === c
-                ? 'bg-accent text-[color:var(--accent-fg)] shadow-soft'
-                : 'bg-sunken text-ink-2 hover:bg-hairline hover:text-ink',
+                ? 'bg-accent text-[color:var(--accent-fg)] shadow-pop ring-1 ring-inset ring-white/20'
+                : 'bg-sunken text-ink-2 ring-1 ring-inset ring-transparent hover:text-ink hover:ring-edge',
             )}
           >
             {c}
@@ -139,8 +153,17 @@ export default function StoreShop() {
 
       {filtered.length > 0 ? (
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.map((p) => (
-            <StoreProductCard key={p.id} product={p} />
+          {filtered.map((p, i) => (
+            <motion.div
+              key={p.id}
+              className="h-full"
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-80px' }}
+              transition={{ duration: 0.4, ease: 'easeOut', delay: (i % 4) * 0.05 }}
+            >
+              <StoreProductCard product={p} />
+            </motion.div>
           ))}
         </div>
       ) : (

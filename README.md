@@ -42,7 +42,7 @@ npm run build               # typecheck + production build
 npm run preview             # preview the production build
 ```
 
-The first visit shows a one-time setup screen: create the owner sign-in, then start with ~6 months of sample business data, import the data already in your browser, or start empty. To start over completely, stop the API and delete the database file.
+The site root is the customer storefront (always dark, dressed in the shop's brand). The owner's workspace lives at `/admin` — the first visit there shows a one-time setup screen: create the owner sign-in, then start with ~6 months of sample business data, import the data already in your browser, or start empty. To start over completely, stop the API and delete the database file.
 
 ## Deploying to an Ubuntu VPS
 
@@ -56,7 +56,7 @@ curl -fsSL https://raw.githubusercontent.com/ReFxFrank/TinyBiz/main/deploy.sh | 
 curl -fsSL https://raw.githubusercontent.com/ReFxFrank/TinyBiz/main/deploy.sh | sudo bash -s -- shop.example.com
 ```
 
-The admin signs in, and all business data lives in SQLite on the server at `/var/lib/tinybiz/tinybiz.db` — the first visit shows a one-time setup screen (create the owner account, then choose sample data, import the browser's existing data, or start empty). Storefront orders and newsletter subscribers land in the server database from any customer's browser. Backups are one file: copy `/var/lib/tinybiz/tinybiz.db`.
+The admin signs in, and all business data lives in SQLite on the server at `/var/lib/tinybiz/tinybiz.db` — the first visit to `/admin` shows a one-time setup screen (create the owner account, then choose sample data, import the browser's existing data, or start empty). Storefront orders and newsletter subscribers land in the server database from any customer's browser. Backups are one file: copy `/var/lib/tinybiz/tinybiz.db`.
 
 **Redeploying**: the first run installs a `redeploy` command on the server, so pulling the latest code, rebuilding, and publishing is just:
 

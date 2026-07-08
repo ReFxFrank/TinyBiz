@@ -13,6 +13,8 @@
         var state = raw ? JSON.parse(raw).state : {};
         var theme = state.theme || 'light';
         var dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        // The storefront (everything outside /admin) is always dark
+        if (location.pathname.indexOf('/admin') !== 0) dark = true;
         var el = document.documentElement;
         if (dark) el.classList.add('dark');
         if (state.accent) el.setAttribute('data-accent', state.accent);

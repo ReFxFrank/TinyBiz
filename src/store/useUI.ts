@@ -63,8 +63,8 @@ interface UIState {
 export const useUI = create<UIState>()(
   persist(
     (set) => ({
-      theme: 'light',
-      accent: 'nova',
+      theme: 'dark',
+      accent: 'tinymagic',
       customAccent: null,
       radius: 'soft',
       scale: 'cozy',
@@ -87,6 +87,18 @@ export const useUI = create<UIState>()(
     }),
     {
       name: 'tinybiz-ui',
+      // v2: the app adopted the Tiny Magic brand — dark workspace, sage accent.
+      // One-time flip for existing browsers; custom brand colors are kept, and
+      // everything stays changeable in Settings → Appearance.
+      version: 2,
+      migrate: (persisted) => {
+        const p = persisted as Partial<UIState>
+        return {
+          ...p,
+          theme: 'dark',
+          accent: p.accent === 'custom' ? 'custom' : 'tinymagic',
+        } as UIState
+      },
       partialize: (s) =>
         ({
           theme: s.theme,

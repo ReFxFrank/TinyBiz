@@ -84,9 +84,7 @@ function SidebarContent({ collapsed, onNavigate }: { collapsed: boolean; onNavig
   return (
     <div className="flex h-full flex-col">
       <div className={cn('flex items-center gap-2.5 px-4 pb-2 pt-5', collapsed && 'justify-center px-0')}>
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl brand-gradient text-lg shadow-pop">
-          {settings.logoEmoji}
-        </span>
+        <img src="/brand/logo.png" alt="" className="h-9 w-9 shrink-0 rounded-full ring-1 ring-white/15 shadow-pop" />
         {!collapsed && (
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-ink">{settings.businessName}</div>

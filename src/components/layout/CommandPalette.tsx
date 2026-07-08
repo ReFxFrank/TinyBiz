@@ -35,11 +35,11 @@ interface Result {
 }
 
 const QUICK_ACTIONS: Array<{ label: string; path: string }> = [
-  { label: 'New order', path: '/orders?new=1' },
-  { label: 'New product', path: '/products?new=1' },
-  { label: 'New customer', path: '/customers?new=1' },
-  { label: 'New expense', path: '/expenses?new=1' },
-  { label: 'New task', path: '/tasks?new=1' },
+  { label: 'New order', path: '/admin/orders?new=1' },
+  { label: 'New product', path: '/admin/products?new=1' },
+  { label: 'New customer', path: '/admin/customers?new=1' },
+  { label: 'New expense', path: '/admin/expenses?new=1' },
+  { label: 'New task', path: '/admin/tasks?new=1' },
 ]
 
 export function CommandPalette() {

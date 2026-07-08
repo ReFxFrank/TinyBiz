@@ -12,7 +12,7 @@ function NavRow({ item, collapsed, onNavigate }: { item: NavItem; collapsed: boo
   const link = (
     <NavLink
       to={item.path}
-      end={item.path === '/'}
+      end={item.path === '/admin'}
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
@@ -52,7 +52,7 @@ function NavRow({ item, collapsed, onNavigate }: { item: NavItem; collapsed: boo
 function StorefrontRow({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
   const link = (
     <Link
-      to="/store"
+      to="/"
       onClick={onNavigate}
       className={cn(
         'group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-ink-2 transition-colors duration-150 hover:bg-sunken hover:text-ink',

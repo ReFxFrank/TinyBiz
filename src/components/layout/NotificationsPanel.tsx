@@ -66,7 +66,9 @@ export function NotificationsPanel() {
 
   const open = (n: AppNotification) => {
     markRead(n.id)
-    if (n.link) navigate(n.link)
+    // Notification links always point into the admin; older records predate
+    // the /admin prefix, so add it when it's missing.
+    if (n.link) navigate(n.link.startsWith('/admin') ? n.link : `/admin${n.link === '/' ? '' : n.link}`)
   }
 
   return (

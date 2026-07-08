@@ -473,7 +473,7 @@ export default function Suppliers() {
               value={num(sourced)}
               icon={<Package />}
               clickHint="Open the materials inventory"
-              onClick={() => navigate('/inventory?tab=materials')}
+              onClick={() => navigate('/admin/inventory?tab=materials')}
             />
             <Stat
               label="Top rated"

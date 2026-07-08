@@ -134,7 +134,7 @@ export default function ProductsTab({
           <MenuItem icon={<PackageMinus />} onSelect={() => onAdjust(p, true)}>
             Record damaged
           </MenuItem>
-          <MenuItem icon={<ExternalLink />} onSelect={() => navigate(`/products?q=${encodeURIComponent(p.name)}`)}>
+          <MenuItem icon={<ExternalLink />} onSelect={() => navigate(`/admin/products?q=${encodeURIComponent(p.name)}`)}>
             View product
           </MenuItem>
         </Menu>
@@ -199,7 +199,7 @@ export default function ProductsTab({
                   Clear filters
                 </Button>
               ) : (
-                <Button onClick={() => navigate('/products?new=1')}>Add a product</Button>
+                <Button onClick={() => navigate('/admin/products?new=1')}>Add a product</Button>
               )
             }
           />

@@ -705,7 +705,7 @@ export function buildSeedNotifications(): AppNotification[] {
       body: `${m.stock}${m.unit === 'g' ? 'g' : ` ${m.unit}`} left — reorder point is ${m.reorderPoint}${m.unit === 'g' ? 'g' : ''}.`,
       createdAt: daysAgo(0, 8),
       read: false,
-      link: '/inventory',
+      link: '/admin/inventory',
     })
   }
   const lowProds = seedProducts.filter((p) => p.stock <= p.reorderPoint)
@@ -717,7 +717,7 @@ export function buildSeedNotifications(): AppNotification[] {
       body: `${p.stock} left in stock — reorder point is ${p.reorderPoint}.`,
       createdAt: daysAgo(0, 7),
       read: false,
-      link: '/inventory',
+      link: '/admin/inventory',
     })
   }
   const todayOrders = seedOrders.filter((o) => dayKey(o.placedAt) === dayKey(now))
@@ -729,7 +729,7 @@ export function buildSeedNotifications(): AppNotification[] {
       body: `${o.customerName} — ${o.items.map((i) => `${i.quantity}× ${i.name}`).join(', ')}`,
       createdAt: o.placedAt,
       read: false,
-      link: '/orders',
+      link: '/admin/orders',
     })
   }
   notifications.push({
@@ -739,7 +739,7 @@ export function buildSeedNotifications(): AppNotification[] {
     body: 'Check the fulfillment queue to stay on schedule.',
     createdAt: daysAgo(0, 9),
     read: false,
-    link: '/orders',
+    link: '/admin/orders',
   })
   notifications.push({
     id: sid('ntf'),
@@ -748,7 +748,7 @@ export function buildSeedNotifications(): AppNotification[] {
     body: 'June profit is up 12% over May. Nice work!',
     createdAt: daysAgo(1, 9),
     read: true,
-    link: '/accounting',
+    link: '/admin/accounting',
   })
   notifications.push({
     id: sid('ntf'),
@@ -757,7 +757,7 @@ export function buildSeedNotifications(): AppNotification[] {
     body: 'Shopify subscription ($39) renews in 3 days.',
     createdAt: daysAgo(1, 10),
     read: true,
-    link: '/expenses',
+    link: '/admin/expenses',
   })
   return notifications.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 }

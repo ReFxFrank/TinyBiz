@@ -71,8 +71,8 @@ export async function createCheckoutSession({ priced, ref, origin }) {
     customer_email: priced.contact.email,
     line_items,
     metadata: { ref },
-    success_url: `${origin}/store/confirmation/stripe?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${origin}/store/checkout?canceled=1`,
+    success_url: `${origin}/confirmation/stripe?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${origin}/checkout?canceled=1`,
   })
 }
 

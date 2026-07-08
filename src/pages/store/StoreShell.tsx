@@ -1,6 +1,6 @@
-// Customer-facing storefront shell — no admin chrome. Shares the workspace's
-// theme/accent so the shop matches the brand, but everything a shopper sees
-// lives under /store with its own header, footer, and cart.
+// Customer-facing storefront shell — the site's public face, served at the
+// root. Shares the workspace's theme/accent so the shop matches the brand;
+// the admin lives separately under /admin.
 
 import { Suspense, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
@@ -17,8 +17,8 @@ import { CartDrawer } from './CartDrawer'
 import { cn } from '@/lib/utils'
 
 const NAV = [
-  { path: '/store', label: 'Home', end: true },
-  { path: '/store/shop', label: 'Shop', end: false },
+  { path: '/', label: 'Home', end: true },
+  { path: '/shop', label: 'Shop', end: false },
 ]
 
 function PreviewBanner() {
@@ -35,7 +35,7 @@ function PreviewBanner() {
   return (
     <div className="flex items-center justify-center gap-3 bg-accent px-4 py-1.5 text-[13px] font-medium text-[color:var(--accent-fg)]">
       <span className="truncate">You&rsquo;re viewing your live storefront — customers don&rsquo;t see this bar.</span>
-      <Link to="/" className="flex shrink-0 items-center gap-1 underline underline-offset-2 hover:opacity-80">
+      <Link to="/admin" className="flex shrink-0 items-center gap-1 underline underline-offset-2 hover:opacity-80">
         <ArrowLeft className="h-3.5 w-3.5" /> Back to TinyBiz
       </Link>
       <button
@@ -61,7 +61,7 @@ function StoreHeader() {
       style={{ backgroundColor: 'color-mix(in srgb, var(--surface) 82%, transparent)' }}
     >
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-6 px-4 sm:px-6">
-        <Link to="/store" className="flex min-w-0 items-center gap-2.5">
+        <Link to="/" className="flex min-w-0 items-center gap-2.5">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl brand-gradient text-lg shadow-pop">
             {shop?.logoEmoji ?? '🛍️'}
           </span>
@@ -124,9 +124,9 @@ function StoreFooter() {
             <div>
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-3">Shop</div>
               <div className="space-y-1.5">
-                <Link to="/store" className="block text-ink-2 hover:text-ink">Home</Link>
-                <Link to="/store/shop" className="block text-ink-2 hover:text-ink">All products</Link>
-                <Link to="/store/track" className="block text-ink-2 hover:text-ink">Track your order</Link>
+                <Link to="/" className="block text-ink-2 hover:text-ink">Home</Link>
+                <Link to="/shop" className="block text-ink-2 hover:text-ink">All products</Link>
+                <Link to="/track" className="block text-ink-2 hover:text-ink">Track your order</Link>
               </div>
             </div>
             <div>

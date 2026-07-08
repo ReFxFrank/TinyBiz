@@ -1,8 +1,14 @@
 import { lazy } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { AuthGate } from '@/components/auth/AuthGate'
 import { StoreShell } from '@/pages/store/StoreShell'
+
+/** Legacy /store/* links (bookmarks, old emails) → the same page at the root */
+function LegacyStoreRedirect() {
+  const { pathname, search } = useLocation()
+  return <Navigate to={pathname.replace(/^\/store\/?/, '/') + search} replace />
+}
 
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
 const Orders = lazy(() => import('@/pages/Orders'))
@@ -36,44 +42,54 @@ const StoreTrack = lazy(() => import('@/pages/store/StoreTrack'))
 export default function App() {
   return (
     <Routes>
-      <Route path="/store" element={<StoreShell />}>
+      {/* The shop IS the site — customers land here */}
+      <Route path="/" element={<StoreShell />}>
         <Route index element={<StoreHome />} />
         <Route path="shop" element={<StoreShop />} />
         <Route path="product/:id" element={<StoreProduct />} />
         <Route path="checkout" element={<StoreCheckout />} />
         <Route path="confirmation/:orderId" element={<StoreConfirmation />} />
         <Route path="track" element={<StoreTrack />} />
-        <Route path="*" element={<Navigate to="/store" replace />} />
       </Route>
+
+      {/* Old /store/* links keep working */}
+      <Route path="/store/*" element={<LegacyStoreRedirect />} />
+      <Route path="/store" element={<Navigate to="/" replace />} />
+
+      {/* Owner's workspace — sign-in required, reachable only at /admin */}
       <Route
+        path="/admin"
         element={
           <AuthGate>
             <AppShell />
           </AuthGate>
         }
       >
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/orders" element={<Orders />} />
-        <Route path="/inventory" element={<Inventory />} />
-        <Route path="/products" element={<Products />} />
-        <Route path="/customers" element={<Customers />} />
-        <Route path="/suppliers" element={<Suppliers />} />
-        <Route path="/expenses" element={<Expenses />} />
-        <Route path="/income" element={<Income />} />
-        <Route path="/accounting" element={<Accounting />} />
-        <Route path="/shipping" element={<Shipping />} />
-        <Route path="/manufacturing" element={<Manufacturing />} />
-        <Route path="/analytics" element={<Analytics />} />
-        <Route path="/marketing" element={<Marketing />} />
-        <Route path="/newsletter" element={<Newsletter />} />
-        <Route path="/social" element={<SocialMedia />} />
-        <Route path="/calendar" element={<CalendarPage />} />
-        <Route path="/tasks" element={<Tasks />} />
-        <Route path="/documents" element={<Documents />} />
-        <Route path="/employees" element={<Employees />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route index element={<Dashboard />} />
+        <Route path="orders" element={<Orders />} />
+        <Route path="inventory" element={<Inventory />} />
+        <Route path="products" element={<Products />} />
+        <Route path="customers" element={<Customers />} />
+        <Route path="suppliers" element={<Suppliers />} />
+        <Route path="expenses" element={<Expenses />} />
+        <Route path="income" element={<Income />} />
+        <Route path="accounting" element={<Accounting />} />
+        <Route path="shipping" element={<Shipping />} />
+        <Route path="manufacturing" element={<Manufacturing />} />
+        <Route path="analytics" element={<Analytics />} />
+        <Route path="marketing" element={<Marketing />} />
+        <Route path="newsletter" element={<Newsletter />} />
+        <Route path="social" element={<SocialMedia />} />
+        <Route path="calendar" element={<CalendarPage />} />
+        <Route path="tasks" element={<Tasks />} />
+        <Route path="documents" element={<Documents />} />
+        <Route path="employees" element={<Employees />} />
+        <Route path="settings" element={<Settings />} />
+        <Route path="*" element={<Navigate to="/admin" replace />} />
       </Route>
+
+      {/* Anything else lands on the shop */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

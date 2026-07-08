@@ -74,11 +74,11 @@ export function Topbar() {
           }
         >
           <MenuLabel>Create</MenuLabel>
-          <MenuItem onSelect={() => navigate('/orders?new=1')}>Order</MenuItem>
-          <MenuItem onSelect={() => navigate('/products?new=1')}>Product</MenuItem>
-          <MenuItem onSelect={() => navigate('/customers?new=1')}>Customer</MenuItem>
-          <MenuItem onSelect={() => navigate('/expenses?new=1')}>Expense</MenuItem>
-          <MenuItem onSelect={() => navigate('/tasks?new=1')}>Task</MenuItem>
+          <MenuItem onSelect={() => navigate('/admin/orders?new=1')}>Order</MenuItem>
+          <MenuItem onSelect={() => navigate('/admin/products?new=1')}>Product</MenuItem>
+          <MenuItem onSelect={() => navigate('/admin/customers?new=1')}>Customer</MenuItem>
+          <MenuItem onSelect={() => navigate('/admin/expenses?new=1')}>Expense</MenuItem>
+          <MenuItem onSelect={() => navigate('/admin/tasks?new=1')}>Task</MenuItem>
         </Menu>
 
         <Menu
@@ -121,7 +121,7 @@ export function Topbar() {
           }
         >
           <MenuLabel>{settings.businessName}</MenuLabel>
-          <MenuItem icon={<SettingsIcon />} onSelect={() => navigate('/settings')}>
+          <MenuItem icon={<SettingsIcon />} onSelect={() => navigate('/admin/settings')}>
             Settings
           </MenuItem>
           <MenuSeparator />

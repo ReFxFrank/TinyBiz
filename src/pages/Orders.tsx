@@ -277,14 +277,14 @@ export default function Orders() {
               value={moneyCompact(stats.monthRevenue)}
               icon={<Wallet />}
               clickHint="Open accounting for the monthly P&L"
-              onClick={() => navigate('/accounting')}
+              onClick={() => navigate('/admin/accounting')}
             />
             <Stat
               label="Average order value"
               value={money(stats.aov)}
               icon={<Receipt />}
               clickHint="Open analytics for order trends"
-              onClick={() => navigate('/analytics')}
+              onClick={() => navigate('/admin/analytics')}
             />
           </div>
 

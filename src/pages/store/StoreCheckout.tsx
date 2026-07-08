@@ -91,7 +91,7 @@ export default function StoreCheckout() {
         return
       }
       clear()
-      navigate(`/store/confirmation/${res.orderId}`)
+      navigate(`/confirmation/${res.orderId}`)
     } catch (err) {
       setSubmitting(false)
       if (err instanceof ApiError && err.code === 'promo') {
@@ -132,7 +132,7 @@ export default function StoreCheckout() {
           title="Your cart is empty"
           description="Add something you love from the shop, then come back to check out."
           action={
-            <Link to="/store/shop">
+            <Link to="/shop">
               <Button>Browse the shop</Button>
             </Link>
           }
@@ -146,7 +146,7 @@ export default function StoreCheckout() {
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
       <Link
-        to="/store/shop"
+        to="/shop"
         className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-3 transition-colors hover:text-ink"
       >
         <ArrowLeft className="h-3.5 w-3.5" /> Continue shopping

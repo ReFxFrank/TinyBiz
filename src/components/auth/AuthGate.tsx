@@ -245,7 +245,7 @@ export async function signOut(): Promise<void> {
   try {
     await api.logout()
   } finally {
-    window.location.assign('/')
+    window.location.assign('/admin')
   }
 }
 

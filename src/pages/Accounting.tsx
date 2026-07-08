@@ -316,7 +316,7 @@ export default function Accounting() {
           value={money0(t.revenue)}
           delta={{ pct: pctDelta(t.revenue, prev.revenue), vs }}
           clickHint="Open income to see every revenue entry"
-          onClick={() => navigate('/income')}
+          onClick={() => navigate('/admin/income')}
         />
         <Stat
           label={`Gross profit · ${pct(grossMargin, 0)} margin`}
@@ -362,7 +362,7 @@ export default function Accounting() {
           value={money0(t.expenses)}
           note={`${pct(marginPct(t.expenses, t.revenue), 0)} of revenue this period`}
           clickHint="Open expenses to see where the money went"
-          onClick={() => navigate('/expenses')}
+          onClick={() => navigate('/admin/expenses')}
         />
       </div>
 

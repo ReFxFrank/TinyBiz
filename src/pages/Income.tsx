@@ -336,7 +336,7 @@ export default function Income() {
               label="Sales revenue this month"
               value={money0(month.revenue)}
               clickHint="Open orders — the source of sales revenue"
-              onClick={() => navigate('/orders')}
+              onClick={() => navigate('/admin/orders')}
             />
             <Stat
               label="Other income this month"

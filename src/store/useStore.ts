@@ -246,7 +246,7 @@ export const useStore = create<StoreState>()(
             type: 'low-stock',
             title: `Low stock: ${item.name}`,
             body: `Now at ${after} — reorder point is ${reorder}.`,
-            link: '/inventory',
+            link: '/admin/inventory',
           })
         }
       },

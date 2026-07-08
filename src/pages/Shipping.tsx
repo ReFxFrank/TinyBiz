@@ -333,7 +333,7 @@ export default function Shipping() {
         onClose={() => setSelectedId(null)}
         onViewOrder={(orderNumber) => {
           setSelectedId(null)
-          navigate(`/orders?q=${encodeURIComponent(orderNumber)}`)
+          navigate(`/admin/orders?q=${encodeURIComponent(orderNumber)}`)
         }}
         onMarkDelivered={(s) => {
           const now = new Date().toISOString()

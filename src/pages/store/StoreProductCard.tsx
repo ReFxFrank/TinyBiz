@@ -38,7 +38,7 @@ export function StoreProductCard({ product, badge }: { product: Product; badge?:
 
   return (
     <Link
-      to={`/store/product/${product.id}`}
+      to={`/product/${product.id}`}
       className="group card flex flex-col gap-3 p-3 transition-all hover:-translate-y-0.5 hover:shadow-pop"
     >
       <div

@@ -210,7 +210,7 @@ export default function StoreTrack() {
 
       <p className="mt-8 text-center text-sm text-ink-3">
         Lost your order number?{' '}
-        <Link to="/store/shop" className="font-medium text-ink-2 underline underline-offset-2 hover:text-ink">
+        <Link to="/shop" className="font-medium text-ink-2 underline underline-offset-2 hover:text-ink">
           Keep browsing
         </Link>{' '}
         — it's in your confirmation email.

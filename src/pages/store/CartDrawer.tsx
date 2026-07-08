@@ -53,7 +53,7 @@ export function CartDrawer() {
 
   const goToCheckout = () => {
     setOpen(false)
-    navigate('/store/checkout')
+    navigate('/checkout')
   }
 
   return (
@@ -106,7 +106,7 @@ export function CartDrawer() {
           title="Your cart is empty"
           description="Browse the shop and add something you love."
           action={
-            <Link to="/store/shop" onClick={() => setOpen(false)}>
+            <Link to="/shop" onClick={() => setOpen(false)}>
               <Button variant="secondary">Browse the shop</Button>
             </Link>
           }
@@ -149,7 +149,7 @@ export function CartDrawer() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <Link
-                          to={`/store/product/${l.product.id}`}
+                          to={`/product/${l.product.id}`}
                           onClick={() => setOpen(false)}
                           className="block truncate text-sm font-medium text-ink hover:underline"
                         >

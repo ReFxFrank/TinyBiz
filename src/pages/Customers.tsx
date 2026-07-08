@@ -354,7 +354,7 @@ function CustomerDrawer({
               {theirOrders.map((o: Order) => (
                 <li key={o.id}>
                   <button
-                    onClick={() => navigate(`/orders?q=${encodeURIComponent(o.number)}`)}
+                    onClick={() => navigate(`/admin/orders?q=${encodeURIComponent(o.number)}`)}
                     className="flex w-full items-center gap-3 rounded-lg px-1 py-2.5 text-left transition-colors hover:bg-sunken/60"
                   >
                     <span className="font-mono text-xs font-medium text-ink">{o.number}</span>
@@ -569,7 +569,7 @@ export default function Customers() {
                 label="Repeat rate"
                 value={pct(repeatRate)}
                 clickHint="Open analytics for repeat purchase trends"
-                onClick={() => navigate('/analytics')}
+                onClick={() => navigate('/admin/analytics')}
               />
               <Stat
                 label="Average lifetime value"

@@ -343,7 +343,7 @@ export default function Products() {
               }
               icon={<AlertTriangle />}
               clickHint="Open inventory to review stock levels"
-              onClick={() => navigate('/inventory')}
+              onClick={() => navigate('/admin/inventory')}
             />
           </div>
 

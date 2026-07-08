@@ -196,7 +196,7 @@ export default function ProductDrawer({ product, onClose, onEdit, onDuplicated, 
                   size="sm"
                   icon={<SlidersHorizontal />}
                   className="ml-auto"
-                  onClick={() => navigate(`/inventory?q=${encodeURIComponent(p.name)}`)}
+                  onClick={() => navigate(`/admin/inventory?q=${encodeURIComponent(p.name)}`)}
                 >
                   Adjust
                 </Button>
@@ -273,7 +273,7 @@ export default function ProductDrawer({ product, onClose, onEdit, onDuplicated, 
                   <FlaskConical className="h-4 w-4 shrink-0" aria-hidden />
                   <span>
                     No recipe —{' '}
-                    <Link to="/manufacturing" className="font-medium text-accent hover:underline">
+                    <Link to="/admin/manufacturing" className="font-medium text-accent hover:underline">
                       create one in Manufacturing
                     </Link>{' '}
                     to track materials per unit.

@@ -206,7 +206,7 @@ export const finalizeOrder = db.transaction(({ contact, promo, totals }) => {
     body: `${contact.name} — $${totals.total.toFixed(2)}`,
     createdAt: now,
     read: false,
-    link: '/orders',
+    link: '/admin/orders',
   })
 
   bumpRev()

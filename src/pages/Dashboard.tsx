@@ -282,19 +282,19 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" icon={<ShoppingCart />} onClick={() => navigate('/orders?new=1')}>
+          <Button variant="outline" size="sm" icon={<ShoppingCart />} onClick={() => navigate('/admin/orders?new=1')}>
             New order
           </Button>
-          <Button variant="outline" size="sm" icon={<Box />} onClick={() => navigate('/products?new=1')}>
+          <Button variant="outline" size="sm" icon={<Box />} onClick={() => navigate('/admin/products?new=1')}>
             New product
           </Button>
-          <Button variant="outline" size="sm" icon={<Receipt />} onClick={() => navigate('/expenses?new=1')}>
+          <Button variant="outline" size="sm" icon={<Receipt />} onClick={() => navigate('/admin/expenses?new=1')}>
             New expense
           </Button>
-          <Button variant="outline" size="sm" icon={<ClipboardList />} onClick={() => navigate('/tasks?new=1')}>
+          <Button variant="outline" size="sm" icon={<ClipboardList />} onClick={() => navigate('/admin/tasks?new=1')}>
             New task
           </Button>
-          <Button variant="outline" size="sm" icon={<BarChart3 />} onClick={() => navigate('/analytics')}>
+          <Button variant="outline" size="sm" icon={<BarChart3 />} onClick={() => navigate('/admin/analytics')}>
             View analytics
           </Button>
         </div>
@@ -311,7 +311,7 @@ export default function Dashboard() {
             delta={{ pct: pctDelta(todayPoint?.revenue ?? 0, yesterdayPoint?.revenue ?? 0), vs: 'yesterday' }}
             trend={daily12.map((p) => p.revenue)}
             clickHint="Open orders to see today's sales"
-            onClick={() => navigate('/orders')}
+            onClick={() => navigate('/admin/orders')}
           />
           <Stat
             label="Revenue this month"
@@ -319,7 +319,7 @@ export default function Dashboard() {
             delta={{ pct: pctDelta(thisMonth?.revenue ?? 0, lastMonth?.revenue ?? 0), vs: 'last month' }}
             trend={months12.map((p) => p.revenue)}
             clickHint="Open income for the full revenue picture"
-            onClick={() => navigate('/income')}
+            onClick={() => navigate('/admin/income')}
           />
           <Stat
             label="Net profit this month"
@@ -327,7 +327,7 @@ export default function Dashboard() {
             delta={{ pct: pctDelta(thisMonth?.net ?? 0, lastMonth?.net ?? 0), vs: 'last month', upIsGood: true }}
             trend={months12.map((p) => p.net)}
             clickHint="Open accounting for the monthly P&L"
-            onClick={() => navigate('/accounting')}
+            onClick={() => navigate('/admin/accounting')}
           />
           <Stat
             label="Expenses this month"
@@ -335,7 +335,7 @@ export default function Dashboard() {
             delta={{ pct: pctDelta(thisMonth?.expenses ?? 0, lastMonth?.expenses ?? 0), vs: 'last month', upIsGood: false }}
             trend={months12.map((p) => p.expenses)}
             clickHint="Open expenses to see where the money went"
-            onClick={() => navigate('/expenses')}
+            onClick={() => navigate('/admin/expenses')}
           />
         </motion.div>
       )}
@@ -397,7 +397,7 @@ export default function Dashboard() {
                   ))}
                 </ul>
               )}
-              <ViewAllLink to="/orders">View all orders</ViewAllLink>
+              <ViewAllLink to="/admin/orders">View all orders</ViewAllLink>
             </Card>
 
             {/* Low stock */}
@@ -418,7 +418,7 @@ export default function Dashboard() {
                   ))}
                 </ul>
               )}
-              <ViewAllLink to="/inventory">Go to inventory</ViewAllLink>
+              <ViewAllLink to="/admin/inventory">Go to inventory</ViewAllLink>
             </Card>
           </div>
         </motion.div>
@@ -435,7 +435,7 @@ export default function Dashboard() {
                 title="No orders yet"
                 description="When orders come in they'll show up here."
                 action={
-                  <Button size="sm" onClick={() => navigate('/orders?new=1')}>
+                  <Button size="sm" onClick={() => navigate('/admin/orders?new=1')}>
                     New order
                   </Button>
                 }
@@ -445,7 +445,7 @@ export default function Dashboard() {
                 {recentOrders.map((o) => (
                   <li key={o.id}>
                     <button
-                      onClick={() => navigate(`/orders?q=${encodeURIComponent(o.number)}`)}
+                      onClick={() => navigate(`/admin/orders?q=${encodeURIComponent(o.number)}`)}
                       className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 -mx-2 text-left transition-colors hover:bg-sunken/60"
                     >
                       <div className="min-w-0 flex-1">
@@ -486,7 +486,7 @@ export default function Dashboard() {
                   }
                 })}
                 valueFormatter={(v) => moneyCompact(v)}
-                onItemClick={(item) => navigate(`/products?q=${encodeURIComponent(item.label)}`)}
+                onItemClick={(item) => navigate(`/admin/products?q=${encodeURIComponent(item.label)}`)}
               />
             )}
           </Card>
@@ -514,7 +514,7 @@ export default function Dashboard() {
                 ))}
               </ul>
             )}
-            <ViewAllLink to="/calendar">Open calendar</ViewAllLink>
+            <ViewAllLink to="/admin/calendar">Open calendar</ViewAllLink>
           </Card>
 
           <Card>
@@ -539,7 +539,7 @@ export default function Dashboard() {
                 })}
               </ul>
             )}
-            <ViewAllLink to="/tasks">Go to tasks</ViewAllLink>
+            <ViewAllLink to="/admin/tasks">Go to tasks</ViewAllLink>
           </Card>
 
           <Card>
@@ -550,7 +550,7 @@ export default function Dashboard() {
                 title="No expenses yet this month"
                 description="Log purchases to see where the money goes."
                 action={
-                  <Button size="sm" variant="secondary" onClick={() => navigate('/expenses?new=1')}>
+                  <Button size="sm" variant="secondary" onClick={() => navigate('/admin/expenses?new=1')}>
                     New expense
                   </Button>
                 }

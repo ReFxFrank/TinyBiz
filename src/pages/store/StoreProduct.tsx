@@ -40,7 +40,7 @@ export default function StoreProduct() {
           title="This product is no longer available"
           description="It may have sold out for good or been retired. There's plenty more to explore in the shop."
           action={
-            <Link to="/store/shop">
+            <Link to="/shop">
               <Button>Back to the shop</Button>
             </Link>
           }
@@ -114,12 +114,12 @@ function ProductView({ product }: { product: Product }) {
       className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6"
     >
       <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-xs text-ink-3">
-        <Link to="/store/shop" className="transition-colors hover:text-ink">
+        <Link to="/shop" className="transition-colors hover:text-ink">
           Shop
         </Link>
         <span aria-hidden>/</span>
         <Link
-          to={`/store/shop?cat=${encodeURIComponent(product.category)}`}
+          to={`/shop?cat=${encodeURIComponent(product.category)}`}
           className="transition-colors hover:text-ink"
         >
           {product.category}

@@ -627,7 +627,7 @@ export default function Manufacturing() {
                   </label>
                 ) : (
                   <Tip content="Set up a printer bridge in Settings to sync live status">
-                    <Button size="sm" variant="ghost" onClick={() => navigate('/settings')}>
+                    <Button size="sm" variant="ghost" onClick={() => navigate('/admin/settings')}>
                       Set up sync
                     </Button>
                   </Tip>

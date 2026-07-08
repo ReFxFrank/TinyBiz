@@ -102,7 +102,7 @@ export default function StoreConfirmation() {
           title="We couldn’t find that order"
           description="The link may be out of date — but the shop is always open."
           action={
-            <Link to="/store/shop">
+            <Link to="/shop">
               <Button>Back to the shop</Button>
             </Link>
           }
@@ -240,20 +240,20 @@ export default function StoreConfirmation() {
 
         {/* Actions */}
         <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
-          <Link to="/store/shop" className="sm:w-auto">
+          <Link to="/shop" className="sm:w-auto">
             <Button size="lg" className="w-full">
               Continue shopping
             </Button>
           </Link>
           <Link
-            to={`/store/track?number=${encodeURIComponent(order.number)}&email=${encodeURIComponent(order.email)}`}
+            to={`/track?number=${encodeURIComponent(order.number)}&email=${encodeURIComponent(order.email)}`}
             className="sm:w-auto"
           >
             <Button size="lg" variant="secondary" className="w-full">
               Track this order
             </Button>
           </Link>
-          <Link to="/store" className="sm:w-auto">
+          <Link to="/" className="sm:w-auto">
             <Button size="lg" variant="ghost" className="w-full">
               Back to home
             </Button>

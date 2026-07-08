@@ -66,7 +66,7 @@ function Hero({ heroEmojis }: { heroEmojis: string[] }) {
           mass-produced.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <Link to="/store/shop">
+          <Link to="/shop">
             <Button size="lg" icon={<ShoppingBag />}>Shop the collection</Button>
           </Link>
           <a href="#best-sellers">
@@ -115,7 +115,7 @@ function SectionHeading({ title, subtitle, viewAll }: { title: string; subtitle:
       </div>
       {viewAll && (
         <Link
-          to="/store/shop"
+          to="/shop"
           className="flex shrink-0 items-center gap-1 text-sm font-medium text-accent-strong hover:underline dark:text-accent"
         >
           View all <ArrowRight className="h-4 w-4" />
@@ -275,7 +275,7 @@ export default function StoreHome() {
             {categories.map((c) => (
               <Link
                 key={c.name}
-                to={`/store/shop?cat=${encodeURIComponent(c.name)}`}
+                to={`/shop?cat=${encodeURIComponent(c.name)}`}
                 className="group card flex flex-col items-center gap-1 p-4 text-center transition-all hover:-translate-y-0.5 hover:shadow-pop"
               >
                 <span

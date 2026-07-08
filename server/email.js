@@ -100,6 +100,139 @@ export function buildOrderConfirmationText(order, settings) {
   return lines.join('\n')
 }
 
+// Public tracking pages per carrier — mirrors src/pages/store/StoreTrack.tsx
+const CARRIER_URLS = {
+  'Canada Post': (tn) =>
+    `https://www.canadapost-postescanada.ca/track-reperage/en#/search?searchFor=${encodeURIComponent(tn)}`,
+  USPS: (tn) => `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(tn)}`,
+  UPS: (tn) => `https://www.ups.com/track?tracknum=${encodeURIComponent(tn)}`,
+  FedEx: (tn) => `https://www.fedex.com/fedextrack/?trknbr=${encodeURIComponent(tn)}`,
+  DHL: (tn) => `https://www.dhl.com/ca-en/home/tracking.html?tracking-id=${encodeURIComponent(tn)}`,
+}
+
+function trackingUrl(order) {
+  const tn = String(order.trackingNumber || '').trim()
+  if (!tn) return null
+  const build = CARRIER_URLS[order.carrier]
+  return build ? build(tn) : null
+}
+
+/** "Your order is on its way" — sent when the owner ships / adds tracking */
+export function buildOrderShippedHtml(order, settings) {
+  const shopName = settings?.businessName || 'Our shop'
+  const tn = String(order.trackingNumber || '').trim()
+  const url = trackingUrl(order)
+  const items = order.items
+    .map(
+      (i) => `
+      <tr>
+        <td style="padding:8px 0;border-bottom:1px solid #eee;color:#111;font-size:14px;">${esc(i.name)}<span style="color:#999;"> × ${i.quantity}</span></td>
+      </tr>`,
+    )
+    .join('')
+  const a = order.shippingAddress
+  const trackingBlock = tn
+    ? `
+        <tr><td style="padding:6px 32px 0;">
+          <div style="background:#fafaf9;border:1px solid #eee;border-radius:12px;padding:14px 16px;">
+            <div style="color:#777;font-size:12px;">${esc(order.carrier || 'Carrier')} tracking number</div>
+            <div style="color:#111;font-size:16px;font-weight:700;font-family:ui-monospace,Menlo,Consolas,monospace;margin-top:2px;">${esc(tn)}</div>
+            ${url ? `<a href="${esc(url)}" style="display:inline-block;margin-top:12px;background:#5f6f2d;color:#fff;text-decoration:none;border-radius:10px;padding:10px 18px;font-size:14px;font-weight:700;">Track your package</a>` : ''}
+          </div>
+        </td></tr>`
+    : ''
+
+  return `<!doctype html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Order ${esc(order.number)} shipped</title></head>
+<body style="margin:0;padding:0;background:#f4f4f2;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f2;padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:20px;overflow:hidden;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+        <tr><td style="padding:30px 32px 0;">
+          <div style="font-size:32px;line-height:1;">${esc(settings?.logoEmoji || '🛍️')}</div>
+          <div style="color:#111;font-size:19px;font-weight:700;margin-top:8px;">${esc(shopName)}</div>
+        </td></tr>
+        <tr><td style="padding:22px 32px 0;">
+          <div style="display:inline-block;background:#eef2df;color:#5f6f2d;border-radius:999px;padding:6px 14px;font-size:13px;font-weight:700;">📦 On its way</div>
+          <h1 style="margin:14px 0 6px;color:#111;font-size:22px;">Your order shipped, ${esc(order.customerName.split(' ')[0])}!</h1>
+          <p style="margin:0 0 4px;color:#555;font-size:15px;line-height:1.6;">
+            Order <strong style="color:#111;">${esc(order.number)}</strong> just left the studio${order.carrier ? ` with ${esc(order.carrier)}` : ''}.
+          </p>
+        </td></tr>
+        ${trackingBlock}
+        <tr><td style="padding:16px 32px 8px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${items}</table>
+        </td></tr>
+        <tr><td style="padding:8px 32px 26px;">
+          <div style="color:#777;font-size:13px;line-height:1.6;">
+            Heading to ${esc(a.line1)}, ${esc(a.city)}, ${esc(a.state)} ${esc(a.zip)}.
+          </div>
+        </td></tr>
+        <tr><td style="padding:18px 32px;background:#fafaf9;border-top:1px solid #eee;color:#999;font-size:12px;line-height:1.6;">
+          Questions? Just reply to this email${settings?.email ? ` or write to ${esc(settings.email)}` : ''}.
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
+export function buildOrderShippedText(order, settings) {
+  const tn = String(order.trackingNumber || '').trim()
+  const url = trackingUrl(order)
+  return [
+    `${settings?.businessName || 'Our shop'} — order ${order.number} is on its way!`,
+    '',
+    ...order.items.map((i) => `${i.name} × ${i.quantity}`),
+    ...(tn ? ['', `${order.carrier || 'Carrier'} tracking: ${tn}`, ...(url ? [url] : [])] : []),
+  ].join('\n')
+}
+
+/** Send through the shared bridge plumbing. Never throws. */
+async function sendViaBridge(kind, order, subject, html, text) {
+  try {
+    const ns = getMeta('newsletterSettings')
+    const settings = getMeta('settings')
+    const base = String(ns?.mailBridgeUrl || '').trim().replace(/\/$/, '')
+    if (!base) return // no bridge configured — skip silently
+
+    const res = await fetch(`${base}/send-one`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(8000),
+      body: JSON.stringify({
+        token: ns?.mailBridgeToken || 'demo',
+        to: order.email,
+        toName: order.customerName,
+        subject,
+        html,
+        text,
+        from: { name: ns?.fromName || settings?.businessName || 'Shop', email: ns?.fromEmail || settings?.email || '' },
+        replyTo: ns?.replyTo || undefined,
+      }),
+    })
+    if (!res.ok) throw new Error(`bridge responded ${res.status}`)
+    console.log(`[tinybiz-api] ${kind} email for ${order.number} → ${order.email}`)
+  } catch (err) {
+    console.warn(`[tinybiz-api] ${kind} email for ${order.number} skipped: ${err.message}`)
+  }
+}
+
+/** Fired when an order transitions to Shipped (or gains a tracking number). */
+export async function sendOrderShipped(order) {
+  if (!order?.email || !Array.isArray(order.items)) return
+  const settings = getMeta('settings')
+  await sendViaBridge(
+    'shipped',
+    order,
+    `Your order ${order.number} is on its way! — ${settings?.businessName || ''}`.trim().replace(/ —$/, ''),
+    buildOrderShippedHtml(order, settings),
+    buildOrderShippedText(order, settings),
+  )
+}
+
 /**
  * Send the confirmation through the mail bridge, if one is configured.
  * Never throws — checkout already succeeded by the time this runs.

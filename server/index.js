@@ -7,7 +7,7 @@
 // In dev, Vite proxies /api here; in production, nginx does.
 
 import express from 'express'
-import { currentRev } from './db.js'
+import { currentRev, getCollection } from './db.js'
 import { authRouter, teamRouter, sessionMiddleware, requireAuth, requireOwner } from './auth.js'
 import { stateRouter } from './state.js'
 import { storeRouter, webhookRouter } from './store-api.js'
@@ -40,6 +40,25 @@ app.use(express.json({ limit: '15mb' })) // localStorage imports can be chunky
 app.use(sessionMiddleware)
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, rev: currentRev(), stripe: stripeEnabled() }))
+
+// SEO endpoints — nginx proxies these two root paths here. Origin comes from
+// the request (trust proxy is on), so no domain configuration is needed.
+const xmlEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+app.get('/robots.txt', (req, res) => {
+  const origin = `${req.protocol}://${req.get('host')}`
+  res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /admin\n\nSitemap: ${origin}/sitemap.xml\n`)
+})
+app.get('/sitemap.xml', (req, res) => {
+  const origin = `${req.protocol}://${req.get('host')}`
+  const urls = ['/', '/shop', '/track', '/policies']
+  for (const p of getCollection('products')) {
+    if (p.active) urls.push(`/product/${p.id}`)
+  }
+  const body = urls.map((u) => `  <url><loc>${xmlEsc(origin + u)}</loc></url>`).join('\n')
+  res
+    .type('application/xml')
+    .send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`)
+})
 app.get('/api/stripe/status', requireAuth, (_req, res) => res.json({ enabled: stripeEnabled() }))
 
 app.use('/api/auth', authRouter)

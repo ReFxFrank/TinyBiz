@@ -135,8 +135,9 @@ function ProductView({ product }: { product: Product }) {
       <div className="mt-6 grid gap-8 lg:grid-cols-2 lg:gap-10">
         {/* Artwork */}
         <div className="relative">
-          {/* Faint aurora bloom behind the tile — decorative only */}
-          <div className="pointer-events-none absolute -inset-8 overflow-hidden rounded-3xl" aria-hidden>
+          {/* Faint aurora bloom behind the tile — decorative only. Inset stays
+              inside the page's 16px mobile padding to avoid horizontal scroll. */}
+          <div className="pointer-events-none absolute -inset-4 overflow-hidden rounded-3xl sm:-inset-8" aria-hidden>
             <div
               className="aurora-orb left-[-8%] top-[-10%] h-64 w-64"
               style={{ background: 'var(--accent)', opacity: 0.28 }}

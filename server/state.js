@@ -7,9 +7,10 @@
 // their writable set (the client's sync engine drops those first anyway).
 
 import { Router } from 'express'
-import { COLLECTIONS, db, getCollection, getMeta, currentRev, bumpRev, upsertItem, deleteItem, setMeta, importState } from './db.js'
+import { COLLECTIONS, db, getCollection, getItem, getMeta, currentRev, bumpRev, upsertItem, deleteItem, setMeta, importState } from './db.js'
 import { requireAuth, requireOwner } from './auth.js'
 import { computeAccess } from './perms.js'
+import { sendOrderShipped } from './email.js'
 
 export const stateRouter = Router()
 stateRouter.use(requireAuth)
@@ -34,8 +35,22 @@ stateRouter.get('/state', (req, res) => {
   res.json({ rev, state: visibleState(req.user) })
 })
 
+/**
+ * Did this upsert put the order "in the mail"? Fires when it transitions to
+ * Shipped, or when a tracking number lands on an already-shipped order (the
+ * customer wants that link even if the status flip came first).
+ */
+function shippedTransition(oldOrder, newOrder) {
+  if (newOrder.status !== 'Shipped') return false
+  const becameShipped = oldOrder?.status !== 'Shipped'
+  const hadTracking = Boolean(String(oldOrder?.trackingNumber || '').trim())
+  const hasTracking = Boolean(String(newOrder.trackingNumber || '').trim())
+  return becameShipped || (hasTracking && !hadTracking)
+}
+
 const applyOps = db.transaction((ops, access) => {
   let skipped = 0
+  const shipped = [] // orders that just shipped — emailed after the tx commits
   const allowed = (collection, meta) => {
     if (access.all) return true
     if (meta === 'settings') return access.canWriteSettings
@@ -45,6 +60,9 @@ const applyOps = db.transaction((ops, access) => {
   for (const op of ops) {
     if (op.op === 'upsert' && COLLECTIONS.includes(op.collection) && op.item && op.item.id != null) {
       if (!allowed(op.collection)) { skipped++; continue }
+      if (op.collection === 'orders' && shippedTransition(getItem('orders', op.item.id), op.item)) {
+        shipped.push(op.item)
+      }
       upsertItem(op.collection, op.item)
     } else if (op.op === 'delete' && COLLECTIONS.includes(op.collection) && op.id != null) {
       if (!allowed(op.collection)) { skipped++; continue }
@@ -59,7 +77,7 @@ const applyOps = db.transaction((ops, access) => {
       throw Object.assign(new Error('bad op'), { status: 400, error: 'bad_op' })
     }
   }
-  return { rev: bumpRev(), skipped }
+  return { rev: bumpRev(), skipped, shipped }
 })
 
 stateRouter.post('/ops', (req, res) => {
@@ -67,7 +85,9 @@ stateRouter.post('/ops', (req, res) => {
   if (!Array.isArray(ops) || ops.length === 0 || ops.length > 2000) {
     return res.status(400).json({ error: 'bad_ops' })
   }
-  const { rev, skipped } = applyOps(ops, computeAccess(req.user))
+  const { rev, skipped, shipped } = applyOps(ops, computeAccess(req.user))
+  // Fire-and-forget after the tx commits — email must never block the sync
+  for (const order of shipped) void sendOrderShipped(order)
   res.json({ rev, ...(skipped ? { skipped } : {}) })
 })
 

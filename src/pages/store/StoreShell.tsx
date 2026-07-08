@@ -5,7 +5,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { MotionConfig } from 'framer-motion'
-import { ArrowLeft, ShoppingBag, X } from 'lucide-react'
+import { ArrowLeft, Facebook, Instagram, ShoppingBag, X } from 'lucide-react'
 import { Toaster } from '@/components/ui/Toaster'
 import { ErrorState } from '@/components/ui/EmptyState'
 import { useUI } from '@/store/useUI'
@@ -101,9 +101,33 @@ function StoreHeader() {
   )
 }
 
+// lucide-react has no TikTok/Etsy marks, so these two are inlined (simple-icons paths)
+function TikTokIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
+      <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" />
+    </svg>
+  )
+}
+
+function EtsyIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
+      <path d="M8.559 2.445c0-.325.033-.52.59-.52h7.465c1.3 0 2.02 1.11 2.54 3.193l.42 1.666h1.27c.23-4.728.43-6.784.43-6.784s-3.196.36-5.09.36H6.635L1.521.196v1.37l1.725.326c1.21.24 1.5.496 1.6 1.606 0 0 .11 3.27.11 8.64 0 5.385-.09 8.61-.09 8.61 0 .973-.39 1.333-1.59 1.573l-1.722.33V24l5.13-.165h8.55c1.935 0 6.39.165 6.39.165.105-1.17.75-6.48.855-7.064h-1.2l-1.284 2.91c-1.005 2.28-2.476 2.445-4.11 2.445h-4.906c-1.63 0-2.415-.64-2.415-2.05V12.8s3.62 0 4.79.096c.912.064 1.463.325 1.76 1.598l.39 1.695h1.41l-.09-4.278.192-4.305h-1.391l-.45 1.89c-.283 1.244-.48 1.47-1.754 1.6-1.666.17-4.815.14-4.815.14V2.45h-.05z" />
+    </svg>
+  )
+}
+
 function StoreFooter() {
   const shop = useCatalog((s) => s.shop)
   if (!shop) return null
+  // Only profiles the owner actually filled in — no socials, no row
+  const socials = [
+    { href: shop.social.instagram, label: 'Instagram', Icon: Instagram },
+    { href: shop.social.tiktok, label: 'TikTok', Icon: TikTokIcon },
+    { href: shop.social.facebook, label: 'Facebook', Icon: Facebook },
+    { href: shop.social.etsy, label: 'Etsy', Icon: EtsyIcon },
+  ].filter((s) => s.href)
   return (
     <footer className="border-t border-hairline bg-surface">
       <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
@@ -114,6 +138,22 @@ function StoreFooter() {
               <span className="text-[15px] font-semibold text-ink">{shop.businessName}</span>
             </div>
             <p className="mt-3 text-sm leading-relaxed text-ink-3">{shop.tagline}</p>
+            {socials.length > 0 && (
+              <div className="mt-4 flex items-center gap-1">
+                {socials.map(({ href, label, Icon }) => (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={label}
+                    className="rounded-lg p-1.5 text-ink-3 transition-colors hover:text-ink"
+                  >
+                    <Icon className="h-[18px] w-[18px]" />
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex gap-12 text-sm">
             <div>
@@ -122,6 +162,7 @@ function StoreFooter() {
                 <Link to="/" className="block text-ink-2 hover:text-ink">Home</Link>
                 <Link to="/shop" className="block text-ink-2 hover:text-ink">All products</Link>
                 <Link to="/track" className="block text-ink-2 hover:text-ink">Track your order</Link>
+                <Link to="/policies" className="block text-ink-2 hover:text-ink">Policies</Link>
               </div>
             </div>
             <div>

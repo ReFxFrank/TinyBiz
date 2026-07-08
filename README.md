@@ -60,6 +60,8 @@ The admin signs in, and all business data lives in SQLite on the server at `/var
 
 **Backups**: the deploy installs a nightly cron (3:17 AM) that snapshots the database with SQLite's online backup API, gzips it into `/var/lib/tinybiz/backups/`, and keeps the newest 14. The owner can also grab one on demand — `GET /api/backup` while signed in downloads a fresh snapshot. Sign-in, checkout, tracking, and subscribe endpoints are rate-limited per IP against brute force.
 
+**Customer emails**: with the mail bridge configured (Settings → Newsletter), customers get an order confirmation at checkout and a "your order is on its way" email — with the carrier tracking link — the moment an order is marked shipped or gains a tracking number. **SEO**: `/robots.txt` and `/sitemap.xml` are generated from the live catalog; the storefront's policies live at `/policies`, editable under Settings → Store policies.
+
 **Redeploying**: the first run installs a `redeploy` command on the server, so pulling the latest code, rebuilding, and publishing is just:
 
 ```bash

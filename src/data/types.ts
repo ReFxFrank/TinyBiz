@@ -494,6 +494,21 @@ export interface StorefrontContent {
   newsletterFinePrint: string
 }
 
+/** Store policy text — blank fields fall back to sensible defaults */
+export interface PolicyContent {
+  shippingPolicy: string
+  returnsPolicy: string
+  privacyPolicy: string
+}
+
+/** Social profile links shown in the storefront footer (full URLs) */
+export interface SocialLinks {
+  instagram?: string
+  tiktok?: string
+  facebook?: string
+  etsy?: string
+}
+
 export interface Settings {
   businessName: string
   ownerName: string
@@ -515,6 +530,10 @@ export interface Settings {
   storefront?: Partial<StorefrontContent>
   /** Storefront shipping configuration */
   shipping?: ShippingConfig
+  /** Store policy overrides — see PolicyContent */
+  policies?: Partial<PolicyContent>
+  /** Social profile links for the storefront footer */
+  social?: SocialLinks
 }
 
 export interface ShippingConfig {

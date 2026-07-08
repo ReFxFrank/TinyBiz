@@ -1,7 +1,5 @@
-import { lazy } from 'react'
+import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { AppShell } from '@/components/layout/AppShell'
-import { AuthGate } from '@/components/auth/AuthGate'
 import { StoreShell } from '@/pages/store/StoreShell'
 
 /** Legacy /store/* links (bookmarks, old emails) → the same page at the root */
@@ -9,6 +7,9 @@ function LegacyStoreRedirect() {
   const { pathname, search } = useLocation()
   return <Navigate to={pathname.replace(/^\/store\/?/, '/') + search} replace />
 }
+
+// Admin shells load on demand so the storefront entry chunk stays lean
+const AdminApp = lazy(() => import('@/AdminApp'))
 
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
 const Orders = lazy(() => import('@/pages/Orders'))
@@ -38,6 +39,7 @@ const StoreProduct = lazy(() => import('@/pages/store/StoreProduct'))
 const StoreCheckout = lazy(() => import('@/pages/store/StoreCheckout'))
 const StoreConfirmation = lazy(() => import('@/pages/store/StoreConfirmation'))
 const StoreTrack = lazy(() => import('@/pages/store/StoreTrack'))
+const StorePolicies = lazy(() => import('@/pages/store/StorePolicies'))
 
 export default function App() {
   return (
@@ -50,6 +52,7 @@ export default function App() {
         <Route path="checkout" element={<StoreCheckout />} />
         <Route path="confirmation/:orderId" element={<StoreConfirmation />} />
         <Route path="track" element={<StoreTrack />} />
+        <Route path="policies" element={<StorePolicies />} />
       </Route>
 
       {/* Old /store/* links keep working */}
@@ -60,9 +63,9 @@ export default function App() {
       <Route
         path="/admin"
         element={
-          <AuthGate>
-            <AppShell />
-          </AuthGate>
+          <Suspense fallback={<div className="min-h-screen bg-page" />}>
+            <AdminApp />
+          </Suspense>
         }
       >
         <Route index element={<Dashboard />} />

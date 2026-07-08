@@ -158,6 +158,22 @@ configure_nginx() {
 ' "$site"
       nginx -t
     fi
+    if ! grep -q "location = /sitemap.xml" "$site"; then
+      echo "──> Adding robots/sitemap proxies to the existing nginx config…"
+      sed -i '/location \/assets\/ {/i\
+    location = /robots.txt {\
+        proxy_pass http://127.0.0.1:4000;\
+        proxy_set_header Host $host;\
+        proxy_set_header X-Forwarded-Proto $scheme;\
+    }\
+    location = /sitemap.xml {\
+        proxy_pass http://127.0.0.1:4000;\
+        proxy_set_header Host $host;\
+        proxy_set_header X-Forwarded-Proto $scheme;\
+    }\
+' "$site"
+      nginx -t
+    fi
     return
   fi
   echo "──> Configuring nginx…"
@@ -188,6 +204,18 @@ server {
         proxy_pass http://127.0.0.1:4000;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
+    }
+
+    # SEO: the API renders these from live catalog data
+    location = /robots.txt {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+    location = /sitemap.xml {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
     # Hashed build assets never change — cache hard

@@ -30,6 +30,8 @@ function shopInfo() {
     shippingCountry: shippingConfig(s).country,
     shippingRegion: shippingConfig(s).region,
     storefront: s.storefront && typeof s.storefront === 'object' ? s.storefront : {},
+    policies: s.policies && typeof s.policies === 'object' ? s.policies : {},
+    social: s.social && typeof s.social === 'object' ? s.social : {},
   }
 }
 

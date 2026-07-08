@@ -23,6 +23,8 @@ import { cn, useLoaded } from '@/lib/utils'
 import { bestTextOn, contrastRatio, isValidHex, normalizeHex, type AccentTokens } from '@/lib/color'
 import { AccountCard, TeamAccess } from '@/pages/settings/TeamAccess'
 import { StorefrontContentCard } from '@/pages/settings/StorefrontContent'
+import { PoliciesCard } from '@/pages/settings/PoliciesCard'
+import { SocialLinksCard } from '@/pages/settings/SocialLinksCard'
 
 // ── Business profile ─────────────────────────────────────────────────────────
 
@@ -837,6 +839,8 @@ export default function Settings() {
           <AppearanceCard />
           <NotificationsCard />
           <StorefrontContentCard />
+          <PoliciesCard />
+          <SocialLinksCard />
           <AccountCard />
           <TeamAccess />
           <PrinterSyncCard />

@@ -16,7 +16,7 @@ const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).cat
 function shopInfo() {
   const s = getMeta('settings') || {}
   return {
-    businessName: s.businessName || 'TinyBiz Shop',
+    businessName: s.businessName || 'The Tiny Magic Studio',
     tagline: s.tagline || '',
     logoEmoji: s.logoEmoji || '🛍️',
     email: s.email || '',

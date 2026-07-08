@@ -35,7 +35,7 @@ function PreviewBanner() {
     <div className="flex items-center justify-center gap-3 bg-accent px-4 py-1.5 text-[13px] font-medium text-[color:var(--accent-fg)]">
       <span className="truncate">You&rsquo;re viewing your live storefront — customers don&rsquo;t see this bar.</span>
       <Link to="/admin" className="flex shrink-0 items-center gap-1 underline underline-offset-2 hover:opacity-80">
-        <ArrowLeft className="h-3.5 w-3.5" /> Back to TinyBiz
+        <ArrowLeft className="h-3.5 w-3.5" /> Back to admin
       </Link>
       <button
         onClick={() => setDismissed(true)}
@@ -137,9 +137,7 @@ function StoreFooter() {
           <span>
             © {new Date().getFullYear()} {shop.businessName}
           </span>
-          <span>
-            Powered by <span className="font-semibold text-ink-2">TinyBiz</span>
-          </span>
+          <span>Made in Canada 🍁</span>
         </div>
       </div>
     </footer>

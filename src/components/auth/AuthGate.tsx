@@ -40,7 +40,7 @@ function BrandHeader({ subtitle }: { subtitle: string }) {
   return (
     <div className="mb-6 text-center">
       <img src="/brand/logo.png" alt="" className="mx-auto h-16 w-16 rounded-full ring-2 ring-white/15 shadow-pop" />
-      <h1 className="mt-4 text-2xl font-bold tracking-tight text-ink">TinyBiz</h1>
+      <h1 className="mt-4 text-2xl font-bold tracking-tight text-ink">The Tiny Magic Studio</h1>
       <p className="mt-1 text-sm text-ink-3">{subtitle}</p>
     </div>
   )

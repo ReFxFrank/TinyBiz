@@ -31,6 +31,7 @@ const StoreShop = lazy(() => import('@/pages/store/StoreShop'))
 const StoreProduct = lazy(() => import('@/pages/store/StoreProduct'))
 const StoreCheckout = lazy(() => import('@/pages/store/StoreCheckout'))
 const StoreConfirmation = lazy(() => import('@/pages/store/StoreConfirmation'))
+const StoreTrack = lazy(() => import('@/pages/store/StoreTrack'))
 
 export default function App() {
   return (
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="product/:id" element={<StoreProduct />} />
         <Route path="checkout" element={<StoreCheckout />} />
         <Route path="confirmation/:orderId" element={<StoreConfirmation />} />
+        <Route path="track" element={<StoreTrack />} />
         <Route path="*" element={<Navigate to="/store" replace />} />
       </Route>
       <Route

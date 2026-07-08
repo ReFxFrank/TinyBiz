@@ -10,6 +10,7 @@ import { useApplyTheme } from '@/components/layout/AppShell'
 import { Toaster } from '@/components/ui/Toaster'
 import { ErrorState } from '@/components/ui/EmptyState'
 import { useUI } from '@/store/useUI'
+import { api } from '@/lib/api'
 import { useCatalog } from '@/store/useCatalog'
 import { useCart, useCartDetails } from '@/store/useCart'
 import { CartDrawer } from './CartDrawer'
@@ -22,10 +23,18 @@ const NAV = [
 
 function PreviewBanner() {
   const [dismissed, setDismissed] = useState(false)
-  if (dismissed) return null
+  // Only the signed-in owner sees this bar — customers get a clean shop
+  const [isOwner, setIsOwner] = useState(false)
+  useEffect(() => {
+    api
+      .me()
+      .then((r) => setIsOwner(Boolean(r.user)))
+      .catch(() => setIsOwner(false))
+  }, [])
+  if (dismissed || !isOwner) return null
   return (
     <div className="flex items-center justify-center gap-3 bg-accent px-4 py-1.5 text-[13px] font-medium text-[color:var(--accent-fg)]">
-      <span className="truncate">Storefront prototype — this is what your customers will see.</span>
+      <span className="truncate">You&rsquo;re viewing your live storefront — customers don&rsquo;t see this bar.</span>
       <Link to="/" className="flex shrink-0 items-center gap-1 underline underline-offset-2 hover:opacity-80">
         <ArrowLeft className="h-3.5 w-3.5" /> Back to TinyBiz
       </Link>
@@ -117,6 +126,7 @@ function StoreFooter() {
               <div className="space-y-1.5">
                 <Link to="/store" className="block text-ink-2 hover:text-ink">Home</Link>
                 <Link to="/store/shop" className="block text-ink-2 hover:text-ink">All products</Link>
+                <Link to="/store/track" className="block text-ink-2 hover:text-ink">Track your order</Link>
               </div>
             </div>
             <div>

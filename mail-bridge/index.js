@@ -509,6 +509,48 @@ function startServer(config) {
       }
     }
 
+    // ── Send one (transactional — order confirmations etc.) ─────────────────
+    // A single email, no campaign, no tracking. Used by the TinyBiz API server.
+    if (req.method === 'POST' && url === '/send-one') {
+      let body
+      try {
+        body = await readJsonBody(req)
+      } catch (err) {
+        return sendJson(res, err.status || 400, { ok: false, error: err.error || 'Bad request' })
+      }
+
+      const expected = config.token || 'demo'
+      if (!demo && (!body.token || body.token !== expected)) {
+        return sendJson(res, 401, { ok: false, error: 'Unauthorized' })
+      }
+
+      const from = body.from || {}
+      if (!body.to || !body.subject || !body.html || !from.email) {
+        return sendJson(res, 400, { ok: false, error: 'Missing required fields: to, subject, html, from.email' })
+      }
+
+      const message = { email: body.to, name: body.toName, subject: body.subject, html: body.html, text: body.text }
+
+      if (demo) {
+        console.log('')
+        console.log(`── Transactional email (demo — not sent) ─────────────────────`)
+        console.log(`   To:      ${body.to}${body.toName ? ` (${body.toName})` : ''}`)
+        console.log(`   Subject: ${body.subject}`)
+        console.log(`   From:    ${from.name || ''} <${from.email}>`)
+        console.log(`───────────────────────────────────────────────────────────────`)
+        return sendJson(res, 200, { ok: true, demo: true, sent: 1 })
+      }
+
+      try {
+        await realSendAll(config, from, body.replyTo, [message])
+        console.log(`Sent transactional "${body.subject}" to ${body.to}.`)
+        return sendJson(res, 200, { ok: true, sent: 1 })
+      } catch (err) {
+        console.error(`Transactional send failed: ${err.message}`)
+        return sendJson(res, 502, { ok: false, error: err.message })
+      }
+    }
+
     sendJson(res, 404, { ok: false, error: 'Not found' })
   })
 

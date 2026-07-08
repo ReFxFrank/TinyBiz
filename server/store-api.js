@@ -6,6 +6,7 @@ import { Router } from 'express'
 import { db, uid, getCollection, getMeta, upsertItem, bumpRev } from './db.js'
 import { buildLines, computeTotals, promoUsable, nextOrderNumber, FREE_SHIPPING_OVER, FLAT_SHIPPING } from './store-math.js'
 import { stripeEnabled, createCheckoutSession, getCheckoutSession, verifyWebhookSignature } from './stripe.js'
+import { sendOrderConfirmation } from './email.js'
 
 export const storeRouter = Router()
 
@@ -216,8 +217,9 @@ storeRouter.post('/checkout', wrap(async (req, res) => {
   const priced = priceCheckout(req.body)
 
   if (!stripeEnabled()) {
-    // Prototype/mock mode: no payment collected, order lands immediately
+    // Preview mode: no payment collected, order lands immediately
     const order = finalizeOrder(priced)
+    void sendOrderConfirmation(order)
     return res.json({ mode: 'mock', orderId: order.id, number: order.number })
   }
 
@@ -241,6 +243,7 @@ function publicOrder(o) {
     number: o.number,
     customerName: o.customerName,
     email: o.email,
+    status: o.status,
     items: o.items,
     shippingCharged: o.shippingCharged,
     taxCollected: o.taxCollected,
@@ -248,8 +251,28 @@ function publicOrder(o) {
     notes: o.notes,
     placedAt: o.placedAt,
     shipBy: o.shipBy,
+    trackingNumber: o.trackingNumber,
+    carrier: o.carrier,
+    shippedAt: o.shippedAt,
+    deliveredAt: o.deliveredAt,
   }
 }
+
+storeRouter.post('/track', (req, res) => {
+  const rawNumber = String(req.body?.number || '').trim().toUpperCase()
+  const email = String(req.body?.email || '').trim().toLowerCase()
+  const digits = rawNumber.replace(/\D/g, '')
+  if (!rawNumber || !email) return res.status(400).json({ error: 'bad_request' })
+  const order = getCollection('orders').find((o) => {
+    if (o.email.trim().toLowerCase() !== email) return false
+    const num = String(o.number || '').toUpperCase()
+    return num === rawNumber || (digits.length > 0 && num.replace(/\D/g, '') === digits)
+  })
+  if (!order) {
+    return res.status(404).json({ error: 'not_found', message: 'No order matches that number and email.' })
+  }
+  res.json({ order: publicOrder(order) })
+})
 
 storeRouter.get('/order/:id', (req, res) => {
   const order = getCollection('orders').find((o) => o.id === req.params.id)
@@ -264,6 +287,7 @@ function finalizePending(pendingId) {
   if (row.order_id) return row.order_id
   const order = finalizeOrder(JSON.parse(row.payload))
   db.prepare('UPDATE pending_checkouts SET order_id = ? WHERE id = ?').run(order.id, pendingId)
+  void sendOrderConfirmation(order)
   return order.id
 }
 

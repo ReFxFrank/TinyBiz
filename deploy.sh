@@ -25,7 +25,7 @@
 set -euo pipefail
 
 REPO="https://github.com/ReFxFrank/TinyBiz.git"
-BRANCH="claude/small-business-manager-app-7d4twa"
+BRANCH="main"
 APP_DIR="/opt/tinybiz"
 DOMAIN_FILE="/etc/tinybiz-domain"
 LOCK_FILE="/var/lock/tinybiz-deploy.lock"
@@ -242,6 +242,10 @@ main() {
 
   install_shim
 
+  # The clone may be --single-branch on an older branch — make sure the
+  # deploy branch is fetchable before any rev-parse against origin/${BRANCH}.
+  [ -d "$APP_DIR/.git" ] && git -C "$APP_DIR" remote set-branches origin "$BRANCH"
+
   # Cron fast path: exit silently when there is nothing new to deploy
   if [ "$FORCE" -eq 0 ] && [ -d "$APP_DIR/.git" ] && [ -f "$APP_DIR/dist/index.html" ]; then
     git -C "$APP_DIR" fetch -q origin "$BRANCH" || { echo "[$(date '+%F %T')] fetch failed"; exit 1; }
@@ -263,7 +267,8 @@ main() {
   echo "──> Fetching TinyBiz (${BRANCH})…"
   if [ -d "$APP_DIR/.git" ]; then
     git -C "$APP_DIR" fetch origin "$BRANCH"
-    git -C "$APP_DIR" checkout "$BRANCH"
+    # -B: create/reset the local branch — handles switching deploy branches
+    git -C "$APP_DIR" checkout -B "$BRANCH" "origin/${BRANCH}"
     git -C "$APP_DIR" reset --hard "origin/${BRANCH}"
   else
     git clone --branch "$BRANCH" --single-branch "$REPO" "$APP_DIR"

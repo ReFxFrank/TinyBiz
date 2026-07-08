@@ -245,6 +245,14 @@ export default function StoreConfirmation() {
               Continue shopping
             </Button>
           </Link>
+          <Link
+            to={`/store/track?number=${encodeURIComponent(order.number)}&email=${encodeURIComponent(order.email)}`}
+            className="sm:w-auto"
+          >
+            <Button size="lg" variant="secondary" className="w-full">
+              Track this order
+            </Button>
+          </Link>
           <Link to="/store" className="sm:w-auto">
             <Button size="lg" variant="ghost" className="w-full">
               Back to home

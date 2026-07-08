@@ -58,10 +58,11 @@ export interface ShopInfo {
   flatShipping: number
 }
 
-/** The sanitized order shape the public confirmation endpoint returns */
+/** The sanitized order shape the public confirmation/track endpoints return */
 export type PublicOrder = Pick<
   Order,
-  'id' | 'number' | 'customerName' | 'email' | 'items' | 'shippingCharged' | 'taxCollected' | 'shippingAddress' | 'notes' | 'placedAt' | 'shipBy'
+  | 'id' | 'number' | 'customerName' | 'email' | 'status' | 'items' | 'shippingCharged' | 'taxCollected'
+  | 'shippingAddress' | 'notes' | 'placedAt' | 'shipBy' | 'trackingNumber' | 'carrier' | 'shippedAt' | 'deliveredAt'
 >
 
 export interface CheckoutPayload {
@@ -106,6 +107,8 @@ export const api = {
   checkout: (payload: CheckoutPayload) =>
     request<CheckoutResponse>('/api/store/checkout', { method: 'POST', body: JSON.stringify(payload) }),
   order: (id: string) => request<{ order: PublicOrder }>(`/api/store/order/${encodeURIComponent(id)}`),
+  track: (number: string, email: string) =>
+    request<{ order: PublicOrder }>('/api/store/track', { method: 'POST', body: JSON.stringify({ number, email }) }),
   orderBySession: (sid: string) =>
     request<{ order?: PublicOrder; pending?: true }>(`/api/store/order/by-session/${encodeURIComponent(sid)}`),
   subscribe: (email: string) =>

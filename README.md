@@ -50,10 +50,10 @@ The first visit shows a one-time setup screen: create the owner sign-in, then st
 
 ```bash
 # Serve on the server's IP over http
-curl -fsSL https://raw.githubusercontent.com/ReFxFrank/TinyBiz/claude/small-business-manager-app-7d4twa/deploy.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/ReFxFrank/TinyBiz/main/deploy.sh | sudo bash
 
 # Or with a domain + automatic HTTPS (point your DNS A record at the VPS first)
-curl -fsSL https://raw.githubusercontent.com/ReFxFrank/TinyBiz/claude/small-business-manager-app-7d4twa/deploy.sh | sudo bash -s -- shop.example.com
+curl -fsSL https://raw.githubusercontent.com/ReFxFrank/TinyBiz/main/deploy.sh | sudo bash -s -- shop.example.com
 ```
 
 The admin signs in, and all business data lives in SQLite on the server at `/var/lib/tinybiz/tinybiz.db` — the first visit shows a one-time setup screen (create the owner account, then choose sample data, import the browser's existing data, or start empty). Storefront orders and newsletter subscribers land in the server database from any customer's browser. Backups are one file: copy `/var/lib/tinybiz/tinybiz.db`.

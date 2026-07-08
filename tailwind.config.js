@@ -53,7 +53,7 @@ export default {
       boxShadow: {
         soft: '0 1px 2px rgba(11,11,11,0.04), 0 4px 16px rgba(11,11,11,0.05)',
         lifted: '0 2px 4px rgba(11,11,11,0.06), 0 12px 32px rgba(11,11,11,0.10)',
-        pop: '0 8px 30px rgba(42,120,214,0.18)',
+        pop: '0 8px 30px color-mix(in srgb, var(--accent) 28%, transparent)',
       },
       keyframes: {
         'fade-in': { from: { opacity: '0' }, to: { opacity: '1' } },

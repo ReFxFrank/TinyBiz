@@ -1,7 +1,7 @@
 // Typed fetch layer for the TinyBiz API server. Same-origin (/api is proxied
 // by Vite in dev and nginx in production), cookie-authenticated.
 
-import type { CurrencyCode, Order, Product } from '@/data/types'
+import type { CurrencyCode, Order, Product, StorefrontContent } from '@/data/types'
 
 export class ApiError extends Error {
   status: number
@@ -89,6 +89,7 @@ export interface ShopInfo {
   taxRate: number
   freeShippingOver: number
   flatShipping: number
+  storefront: Partial<StorefrontContent>
 }
 
 /** The sanitized order shape the public confirmation/track endpoints return */

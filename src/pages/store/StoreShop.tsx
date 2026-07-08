@@ -96,13 +96,6 @@ export default function StoreShop() {
       className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6"
     >
       <div className="relative">
-        {/* Slim aurora wash behind the page header — decorative only */}
-        <div className="pointer-events-none absolute -inset-x-6 -top-16 h-48 overflow-hidden" aria-hidden>
-          <div
-            className="aurora-orb left-[4%] top-[10%] h-44 w-[26rem]"
-            style={{ background: 'var(--accent)', opacity: 0.16 }}
-          />
-        </div>
         <div className="relative flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent-strong dark:text-accent">

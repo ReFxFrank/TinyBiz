@@ -312,8 +312,8 @@ input[type='number'] {
 .aurora-orb {
   position: absolute;
   border-radius: 9999px;
-  filter: blur(70px);
-  opacity: 0.45;
+  filter: blur(85px);
+  opacity: 0.28;
   pointer-events: none;
   animation: tb-drift 16s ease-in-out infinite;
   will-change: transform;

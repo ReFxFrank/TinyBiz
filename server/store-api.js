@@ -27,6 +27,7 @@ function shopInfo() {
     taxRate: Number(s.taxRate) || 0,
     freeShippingOver: FREE_SHIPPING_OVER,
     flatShipping: FLAT_SHIPPING,
+    storefront: s.storefront && typeof s.storefront === 'object' ? s.storefront : {},
   }
 }
 

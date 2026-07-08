@@ -12,6 +12,7 @@ import { useCatalog } from '@/store/useCatalog'
 import { FREE_SHIPPING_OVER } from '@/store/useCart'
 import { toast } from '@/store/useUI'
 import { api, ApiError } from '@/lib/api'
+import { resolveStorefrontCopy } from '@/lib/storefrontCopy'
 import { money } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { Product } from '@/data/types'
@@ -20,6 +21,20 @@ import type { Product } from '@/data/types'
 const tileGradient = (p: Product) => ({
   background: `linear-gradient(135deg, hsl(${p.imageHue}, 70%, 92%), hsl(${(p.imageHue + 40) % 360}, 60%, 86%))`,
 })
+
+/** The owner-editable wording, resolved against the live shop identity */
+function useStorefrontCopy() {
+  const shop = useCatalog((s) => s.shop)
+  return useMemo(
+    () =>
+      resolveStorefrontCopy(shop?.storefront, {
+        businessName: shop?.businessName ?? 'Our shop',
+        ownerName: shop?.ownerName ?? '',
+        city: shop?.city ?? '',
+      }),
+    [shop],
+  )
+}
 
 /** Shared whileInView reveal for section-level entrances */
 const REVEAL = {
@@ -43,6 +58,8 @@ const HERO_SPOTS: { pos: string; size: string; rot: string; delay: string }[] = 
 
 function Hero({ heroEmojis }: { heroEmojis: string[] }) {
   const shop = useCatalog((s) => s.shop)
+  const hasProducts = useCatalog((s) => s.products.some((p) => p.active))
+  const copy = useStorefrontCopy()
   if (!shop) return null
   return (
     <section className="tb-noise relative overflow-hidden rounded-3xl border border-hairline bg-surface px-6 py-20 sm:px-12 sm:py-28">
@@ -54,8 +71,8 @@ function Hero({ heroEmojis }: { heroEmojis: string[] }) {
           style={{ background: 'var(--pop)', animationDelay: '-6s' }}
         />
         <div
-          className="aurora-orb bottom-[-34%] left-[32%] h-64 w-64 opacity-30"
-          style={{ background: 'hsl(28, 90%, 55%)', animationDelay: '-11s' }}
+          className="aurora-orb bottom-[-34%] left-[32%] h-64 w-64 opacity-[0.14]"
+          style={{ background: 'var(--pop)', animationDelay: '-11s' }}
         />
       </div>
 
@@ -80,7 +97,7 @@ function Hero({ heroEmojis }: { heroEmojis: string[] }) {
       >
         <span className="inline-flex items-center gap-2 rounded-full border border-hairline bg-raised/70 px-4 py-1.5 text-xs font-medium tracking-wide text-ink-2 backdrop-blur">
           <span aria-hidden className="text-accent">✦</span>
-          Small-batch · 3D-printed · Hand-finished
+          {copy.heroBadge}
         </span>
 
         <div className="mt-7">
@@ -96,10 +113,7 @@ function Hero({ heroEmojis }: { heroEmojis: string[] }) {
           <span className="shimmer-text">{shop.businessName}</span>
         </h1>
         <p className="mt-4 text-lg font-medium text-ink-2 sm:text-xl">{shop.tagline}</p>
-        <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-ink-3">
-          Every piece is designed, 3D-printed, and hand-finished in our {shop.city} studio — in small batches, never
-          mass-produced.
-        </p>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-ink-3">{copy.heroSubtext}</p>
 
         <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
           <span className="glow-halo inline-flex rounded-xl">
@@ -107,11 +121,13 @@ function Hero({ heroEmojis }: { heroEmojis: string[] }) {
               <Button size="lg" icon={<ShoppingBag />}>Shop the collection</Button>
             </Link>
           </span>
-          <a href="#best-sellers">
-            <Button size="lg" variant="outline" className="bg-transparent backdrop-blur hover:bg-raised">
-              Best sellers
-            </Button>
-          </a>
+          {hasProducts && (
+            <a href="#best-sellers">
+              <Button size="lg" variant="outline" className="bg-transparent backdrop-blur hover:bg-raised">
+                Best sellers
+              </Button>
+            </a>
+          )}
         </div>
       </motion.div>
     </section>
@@ -285,6 +301,7 @@ function StatsBand({ designs, collections, threshold }: { designs: number; colle
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function NewsletterSignup() {
+  const copy = useStorefrontCopy()
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -315,9 +332,9 @@ function NewsletterSignup() {
     <motion.section {...REVEAL}>
       <div className="tb-noise relative overflow-hidden rounded-3xl border border-hairline bg-surface px-6 py-14 sm:px-12 sm:py-16">
         <div aria-hidden className="pointer-events-none absolute inset-0">
-          <div className="aurora-orb left-[-10%] top-[-40%] h-72 w-72" style={{ background: 'var(--pop)' }} />
+          <div className="aurora-orb left-[-10%] top-[-40%] h-72 w-72 opacity-[0.18]" style={{ background: 'var(--pop)' }} />
           <div
-            className="aurora-orb bottom-[-50%] right-[-8%] h-72 w-72"
+            className="aurora-orb bottom-[-50%] right-[-8%] h-72 w-72 opacity-[0.16]"
             style={{ background: 'var(--accent)', animationDelay: '-7s' }}
           />
         </div>
@@ -325,9 +342,9 @@ function NewsletterSignup() {
           <span aria-hidden className="inline-flex h-11 w-11 items-center justify-center rounded-xl brand-gradient text-[color:var(--accent-fg)] shadow-pop">
             <Mail className="h-5 w-5" />
           </span>
-          <h2 className="mt-4 text-2xl font-bold tracking-tight text-ink sm:text-3xl">Get first dibs on new drops</h2>
+          <h2 className="mt-4 text-2xl font-bold tracking-tight text-ink sm:text-3xl">{copy.newsletterHeading}</h2>
           <p className="mt-2 text-sm text-ink-2">
-            New designs land in small batches and sell out fast — subscribers always hear first.
+            {copy.newsletterSubtext}
           </p>
           <form onSubmit={onSubmit} noValidate className="mx-auto mt-7 flex max-w-md flex-col gap-2 sm:flex-row">
             <Input
@@ -353,7 +370,7 @@ function NewsletterSignup() {
           <p id="newsletter-error" aria-live="polite" className="mt-2 min-h-[18px] text-xs font-medium text-critical">
             {error ?? ''}
           </p>
-          <p className="text-xs text-ink-3">No spam, ever — just new pieces, restocks, and the odd discount.</p>
+          <p className="text-xs text-ink-3">{copy.newsletterFinePrint}</p>
         </div>
       </div>
     </motion.section>
@@ -364,6 +381,7 @@ function NewsletterSignup() {
 
 export default function StoreHome() {
   const shop = useCatalog((s) => s.shop)
+  const copy = useStorefrontCopy()
   const products = useCatalog((s) => s.products)
   const bestSellerIds = useCatalog((s) => s.bestSellerIds)
   const threshold = useCatalog((s) => s.shop?.freeShippingOver ?? FREE_SHIPPING_OVER)
@@ -412,7 +430,8 @@ export default function StoreHome() {
           <TrustStrip />
         </div>
 
-        {/* Best sellers */}
+        {/* Best sellers — hidden until the catalog has products */}
+        {featured.length > 0 && (
         <section id="best-sellers" className="scroll-mt-24">
           <motion.div {...REVEAL}>
             <SectionHeading
@@ -441,11 +460,15 @@ export default function StoreHome() {
             ))}
           </div>
         </section>
+        )}
 
         {/* By the numbers — straight from the live catalog */}
-        <StatsBand designs={activeProducts.length} collections={categories.length} threshold={threshold} />
+        {activeProducts.length > 0 && (
+          <StatsBand designs={activeProducts.length} collections={categories.length} threshold={threshold} />
+        )}
 
         {/* Shop by category */}
+        {categories.length > 0 && (
         <section>
           <motion.div {...REVEAL}>
             <SectionHeading kicker="Browse" title="Shop by category" subtitle="Find your kind of delightful." />
@@ -473,6 +496,7 @@ export default function StoreHome() {
             ))}
           </div>
         </section>
+        )}
 
         {/* About the maker */}
         <motion.section {...REVEAL}>
@@ -480,8 +504,8 @@ export default function StoreHome() {
             <div aria-hidden className="pointer-events-none absolute inset-0">
               <div className="aurora-orb left-[-6%] top-[-50%] h-64 w-64 opacity-30" style={{ background: 'var(--accent)' }} />
               <div
-                className="aurora-orb bottom-[-60%] right-[-6%] h-64 w-64 opacity-25"
-                style={{ background: 'hsl(28, 90%, 55%)', animationDelay: '-9s' }}
+                className="aurora-orb bottom-[-60%] right-[-6%] h-64 w-64 opacity-[0.18]"
+                style={{ background: 'var(--pop)', animationDelay: '-9s' }}
               />
             </div>
             <div className="relative grid sm:grid-cols-[260px_1fr]">
@@ -497,18 +521,11 @@ export default function StoreHome() {
                 <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent-strong dark:text-accent">
                   About the maker
                 </div>
-                <h2 className="mt-2 text-xl font-bold tracking-tight text-ink sm:text-2xl">
-                  Hi, I&rsquo;m {shop?.ownerName} — the maker behind {shop?.businessName}
-                </h2>
-                <p className="mt-3 text-sm leading-relaxed text-ink-2">
-                  {shop?.businessName} started with a single printer on a kitchen table and a stubborn belief that
-                  everyday objects should be a little more delightful. Every design is still modeled in-house, printed on
-                  our own machines in small batches, and hand-finished one piece at a time.
-                </p>
-                <p className="mt-3 text-sm leading-relaxed text-ink-2">
-                  Nothing here sits in a warehouse. When you order, your piece comes from a fresh batch — or is printed
-                  just for you — then quality-checked and packed with care before it heads your way.
-                </p>
+                <h2 className="mt-2 text-xl font-bold tracking-tight text-ink sm:text-2xl">{copy.aboutHeading}</h2>
+                <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-ink-2">{copy.aboutBody1}</p>
+                {copy.aboutBody2 && (
+                  <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-ink-2">{copy.aboutBody2}</p>
+                )}
               </div>
             </div>
           </div>

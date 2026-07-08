@@ -61,11 +61,7 @@ function StoreHeader() {
     >
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-6 px-4 sm:px-6">
         <Link to="/" className="flex min-w-0 items-center gap-2.5">
-          <img
-            src="/brand/logo.png"
-            alt=""
-            className="h-9 w-9 shrink-0 rounded-full ring-1 ring-white/15 shadow-pop"
-          />
+          <img src="/brand/logo.png" alt="" className="h-9 w-9 shrink-0 rounded-full ring-1 ring-white/15" />
           <span className="truncate text-[15px] font-semibold text-ink">{shop?.businessName ?? 'Shop'}</span>
         </Link>
 
@@ -131,10 +127,8 @@ function StoreFooter() {
             <div>
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-3">Contact</div>
               <div className="space-y-1.5 text-ink-2">
-                <div>{shop.email}</div>
-                <div>
-                  {shop.city}, {shop.state}
-                </div>
+                {shop.email && <a href={`mailto:${shop.email}`} className="block hover:text-ink">{shop.email}</a>}
+                {(shop.city || shop.state) && <div>{[shop.city, shop.state].filter(Boolean).join(', ')}</div>}
               </div>
             </div>
           </div>

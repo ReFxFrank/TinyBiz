@@ -480,6 +480,18 @@ export interface AppNotification {
 
 export type CurrencyCode = 'USD' | 'EUR' | 'GBP' | 'CAD' | 'AUD'
 
+/** Owner-editable wording on the storefront — blank fields use defaults */
+export interface StorefrontContent {
+  heroBadge: string
+  heroSubtext: string
+  aboutHeading: string
+  aboutBody1: string
+  aboutBody2: string
+  newsletterHeading: string
+  newsletterSubtext: string
+  newsletterFinePrint: string
+}
+
 export interface Settings {
   businessName: string
   ownerName: string
@@ -497,4 +509,6 @@ export interface Settings {
   weeklyReports: boolean
   /** Base URL of the TinyBiz printer bridge, e.g. http://192.168.1.50:7070 */
   printerBridgeUrl: string
+  /** Storefront wording overrides — see StorefrontContent */
+  storefront?: Partial<StorefrontContent>
 }

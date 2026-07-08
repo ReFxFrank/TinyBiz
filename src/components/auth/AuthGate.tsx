@@ -7,6 +7,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { KeyRound, Rocket, ServerOff } from 'lucide-react'
 import { Button, Field, Input } from '@/components/ui'
 import { api, ApiError } from '@/lib/api'
+import { useAuth } from '@/store/useAuth'
 import { hydrate, startSync } from '@/store/sync'
 import { seedCollections, useStore } from '@/store/useStore'
 import { useApplyTheme } from '@/components/layout/AppShell'
@@ -202,6 +203,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [phase, setPhase] = useState<Phase>('checking')
 
   const enter = async () => {
+    // Re-fetch /me so the freshly-created session's perms are in hand before
+    // hydrating — the sync engine and UI gates read them from useAuth.
+    const me = await api.me()
+    useAuth.getState().setUser(me.user)
     await hydrate()
     startSync()
     setPhase('ready')
@@ -212,8 +217,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
     try {
       const me = await api.me()
       if (me.needsSetup) setPhase('setup')
-      else if (me.user) await enter()
-      else setPhase('login')
+      else if (me.user) {
+        useAuth.getState().setUser(me.user)
+        await enter()
+      } else setPhase('login')
     } catch {
       setPhase('offline')
     }

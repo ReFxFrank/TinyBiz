@@ -1,10 +1,13 @@
 import { Suspense, useEffect, useState, Component, type ReactNode } from 'react'
-import { useLocation, useNavigate, useOutlet } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate, useOutlet } from 'react-router-dom'
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { CommandPalette } from './CommandPalette'
-import { ALL_NAV_ITEMS } from './nav'
+import { ALL_NAV_ITEMS, SETTINGS_ITEM } from './nav'
+import { useAuth, canOpen, pathPerm } from '@/store/useAuth'
+import { signOut } from '@/components/auth/AuthGate'
+import { Lock } from 'lucide-react'
 import { useUI, isDark } from '@/store/useUI'
 import { applyCustomAccentStyle } from '@/lib/color'
 import { TooltipProvider } from '@/components/ui/Tooltip'
@@ -57,7 +60,8 @@ function useGlobalShortcuts() {
       if (pendingG) {
         pendingG = false
         clearTimeout(timer)
-        const item = ALL_NAV_ITEMS.find((n) => n.shortcut === e.key.toLowerCase())
+        const me = useAuth.getState().user
+        const item = ALL_NAV_ITEMS.find((n) => n.shortcut === e.key.toLowerCase() && canOpen(me, pathPerm(n.path)))
         if (item) {
           e.preventDefault()
           navigate(item.path)
@@ -111,6 +115,48 @@ function FrozenOutlet() {
   return frozen
 }
 
+/** First section this account may open — where /admin lands for staff */
+export function firstAllowedPath(user: ReturnType<typeof useAuth.getState>['user']): string | null {
+  for (const item of [...ALL_NAV_ITEMS, SETTINGS_ITEM]) {
+    if (canOpen(user, pathPerm(item.path))) return item.path
+  }
+  return null
+}
+
+function AccessDenied() {
+  const user = useAuth((s) => s.user)
+  const fallback = firstAllowedPath(user)
+  const navigate = useNavigate()
+  return (
+    <div className="card mx-auto mt-10 flex max-w-md flex-col items-center px-6 py-12 text-center">
+      <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sunken text-ink-3">
+        <Lock className="h-6 w-6" />
+      </span>
+      <h2 className="mt-4 text-[15px] font-semibold text-ink">You don&rsquo;t have access to this section</h2>
+      <p className="mt-1 max-w-sm text-[13px] leading-relaxed text-ink-3">
+        Ask the owner to grant it under Settings → Team &amp; access.
+      </p>
+      <div className="mt-5 flex gap-2">
+        {fallback ? (
+          <button
+            onClick={() => navigate(fallback)}
+            className="rounded-xl bg-accent px-4 py-2 text-sm font-medium text-[color:var(--accent-fg)] hover:bg-accent-strong"
+          >
+            Go to your workspace
+          </button>
+        ) : (
+          <button
+            onClick={() => void signOut()}
+            className="rounded-xl bg-sunken px-4 py-2 text-sm font-medium text-ink hover:bg-hairline"
+          >
+            Sign out
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function PageFallback() {
   return (
     <div className="space-y-4 animate-fade-in">
@@ -127,6 +173,14 @@ export function AppShell() {
   const collapsed = useUI((s) => s.sidebarCollapsed)
   const reduceMotion = useUI((s) => s.reduceMotion)
   const location = useLocation()
+  const user = useAuth((s) => s.user)
+
+  // Staff without dashboard access land on their first permitted section
+  const allowed = canOpen(user, pathPerm(location.pathname))
+  if (!allowed && (location.pathname === '/admin' || location.pathname === '/admin/')) {
+    const fallback = firstAllowedPath(user)
+    if (fallback) return <Navigate to={fallback} replace />
+  }
 
   return (
     <MotionConfig reducedMotion={reduceMotion ? 'always' : 'user'}>
@@ -146,7 +200,7 @@ export function AppShell() {
                   transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
                 >
                   <Suspense fallback={<PageFallback />}>
-                    <FrozenOutlet key={location.pathname} />
+                    {allowed ? <FrozenOutlet key={location.pathname} /> : <AccessDenied />}
                   </Suspense>
                 </motion.div>
               </AnimatePresence>

@@ -21,6 +21,7 @@ import {
 import { useStore } from '@/store/useStore'
 import { useUI } from '@/store/useUI'
 import { ALL_NAV_ITEMS } from './nav'
+import { useAuth, canOpen, pathPerm } from '@/store/useAuth'
 import { Kbd } from '@/components/ui/Misc'
 import { money } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -70,13 +71,17 @@ export function CommandPalette() {
     navigate(path)
   }
 
+  const user = useAuth((s) => s.user)
+  const navItems = ALL_NAV_ITEMS.filter((n) => canOpen(user, pathPerm(n.path)))
+  const quickActions = QUICK_ACTIONS.filter((a) => canOpen(user, pathPerm(a.path)))
+
   const results = useMemo<Result[]>(() => {
     const q = query.trim().toLowerCase()
     const out: Result[] = []
     const match = (...fields: Array<string | undefined>) => fields.some((f) => f?.toLowerCase().includes(q))
 
     if (!q) {
-      for (const item of ALL_NAV_ITEMS) {
+      for (const item of navItems) {
         out.push({
           id: `nav-${item.path}`,
           icon: item.icon,
@@ -86,7 +91,7 @@ export function CommandPalette() {
           action: () => go(item.path),
         })
       }
-      for (const qa of QUICK_ACTIONS) {
+      for (const qa of quickActions) {
         out.push({
           id: `qa-${qa.path}`,
           icon: Plus,
@@ -98,10 +103,10 @@ export function CommandPalette() {
       return out
     }
 
-    for (const item of ALL_NAV_ITEMS.filter((n) => match(n.label))) {
+    for (const item of navItems.filter((n) => match(n.label))) {
       out.push({ id: `nav-${item.path}`, icon: item.icon, title: item.label, section: 'Go to', action: () => go(item.path) })
     }
-    for (const qa of QUICK_ACTIONS.filter((a) => match(a.label))) {
+    for (const qa of quickActions.filter((a) => match(a.label))) {
       out.push({ id: `qa-${qa.path}`, icon: Plus, title: qa.label, section: 'Quick actions', action: () => go(qa.path) })
     }
     for (const p of products.filter((p) => match(p.name, p.sku, ...p.tags)).slice(0, 5)) {
@@ -175,7 +180,7 @@ export function CommandPalette() {
       })
     }
     return out
-  }, [query, products, orders, customers, expenses, materials, tasks, documents])
+  }, [query, products, orders, customers, expenses, materials, tasks, documents, navItems, quickActions])
 
   useEffect(() => setActive(0), [query])
 

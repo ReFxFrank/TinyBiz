@@ -58,6 +58,23 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_pending_session ON pending_checkouts(session_id);
 `)
 
+// Migration: staff accounts — pre-existing users tables lack these columns.
+// The first account ever created is the owner; anything else defaults staff.
+{
+  const cols = db.prepare("PRAGMA table_info('users')").all().map((c) => c.name)
+  if (!cols.includes('role')) {
+    db.exec(`
+      ALTER TABLE users ADD COLUMN name TEXT NOT NULL DEFAULT '';
+      ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'staff';
+      ALTER TABLE users ADD COLUMN perms TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0;
+    `)
+    db.prepare(
+      "UPDATE users SET role = 'owner' WHERE id = (SELECT id FROM users ORDER BY created_at ASC LIMIT 1)",
+    ).run()
+  }
+}
+
 // ── Collections ───────────────────────────────────────────────────────────────
 
 const stmtAll = db.prepare('SELECT data FROM kv WHERE collection = ?')

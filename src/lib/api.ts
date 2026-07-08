@@ -33,9 +33,42 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 // ── Shapes ────────────────────────────────────────────────────────────────────
 
+/** Admin sections an account can be granted (mirrors the sidebar) */
+export type PermKey =
+  | 'dashboard' | 'orders' | 'inventory' | 'products' | 'customers' | 'suppliers'
+  | 'expenses' | 'income' | 'accounting' | 'shipping' | 'manufacturing' | 'analytics'
+  | 'marketing' | 'newsletter' | 'social' | 'calendar' | 'tasks' | 'documents'
+  | 'employees' | 'settings'
+
+export interface AccountAccess {
+  all: boolean
+  readable?: string[]
+  writable?: string[]
+  canWriteSettings?: boolean
+  canWriteNewsletterSettings?: boolean
+}
+
+export interface AuthUser {
+  email: string
+  name: string
+  role: 'owner' | 'staff'
+  perms: PermKey[]
+  access: AccountAccess
+}
+
 export interface MeResponse {
   needsSetup: boolean
-  user: { email: string } | null
+  user: AuthUser | null
+}
+
+export interface TeamMember {
+  id: string
+  email: string
+  name: string
+  role: 'owner' | 'staff'
+  perms: PermKey[]
+  disabled: boolean
+  createdAt: string
 }
 
 export type SyncOp =
@@ -87,6 +120,18 @@ export const api = {
   login: (email: string, password: string) =>
     request<{ ok: true }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
+  changePassword: (current: string, next: string) =>
+    request<{ ok: true }>('/api/auth/password', { method: 'POST', body: JSON.stringify({ current, next }) }),
+
+  // team management (owner only)
+  team: {
+    list: () => request<{ users: TeamMember[] }>('/api/team/'),
+    create: (input: { email: string; name: string; password: string; perms: PermKey[] }) =>
+      request<{ user: TeamMember }>('/api/team/', { method: 'POST', body: JSON.stringify(input) }),
+    update: (id: string, patch: { name?: string; perms?: PermKey[]; password?: string; disabled?: boolean }) =>
+      request<{ user: TeamMember }>(`/api/team/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+    remove: (id: string) => request<{ ok: true }>(`/api/team/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  },
 
   // owner state sync
   state: (since?: number) =>

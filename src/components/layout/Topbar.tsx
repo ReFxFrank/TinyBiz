@@ -3,6 +3,7 @@ import { LogOut, Menu as MenuIcon, Moon, Monitor, Plus, Search, Settings as Sett
 import { useUI, type Theme } from '@/store/useUI'
 import { useStore } from '@/store/useStore'
 import { useSyncStatus, type SyncPhase } from '@/store/sync'
+import { useAuth, canOpen } from '@/store/useAuth'
 import { signOut } from '@/components/auth/AuthGate'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from '@/components/ui/Menu'
@@ -42,6 +43,8 @@ export function Topbar() {
   const theme = useUI((s) => s.theme)
   const setTheme = useUI((s) => s.setTheme)
   const settings = useStore((s) => s.settings)
+  const user = useAuth((s) => s.user)
+  const displayName = user?.role === 'staff' ? user.name || user.email : settings.ownerName
   const navigate = useNavigate()
   const ThemeIcon = themeIcons[theme]
 
@@ -74,11 +77,11 @@ export function Topbar() {
           }
         >
           <MenuLabel>Create</MenuLabel>
-          <MenuItem onSelect={() => navigate('/admin/orders?new=1')}>Order</MenuItem>
-          <MenuItem onSelect={() => navigate('/admin/products?new=1')}>Product</MenuItem>
-          <MenuItem onSelect={() => navigate('/admin/customers?new=1')}>Customer</MenuItem>
-          <MenuItem onSelect={() => navigate('/admin/expenses?new=1')}>Expense</MenuItem>
-          <MenuItem onSelect={() => navigate('/admin/tasks?new=1')}>Task</MenuItem>
+          {canOpen(user, 'orders') && <MenuItem onSelect={() => navigate('/admin/orders?new=1')}>Order</MenuItem>}
+          {canOpen(user, 'products') && <MenuItem onSelect={() => navigate('/admin/products?new=1')}>Product</MenuItem>}
+          {canOpen(user, 'customers') && <MenuItem onSelect={() => navigate('/admin/customers?new=1')}>Customer</MenuItem>}
+          {canOpen(user, 'expenses') && <MenuItem onSelect={() => navigate('/admin/expenses?new=1')}>Expense</MenuItem>}
+          {canOpen(user, 'tasks') && <MenuItem onSelect={() => navigate('/admin/tasks?new=1')}>Task</MenuItem>}
         </Menu>
 
         <Menu
@@ -112,18 +115,20 @@ export function Topbar() {
               className="ml-1 flex items-center gap-2 rounded-xl p-1 pr-2 transition-colors hover:bg-sunken"
               aria-label="Account menu"
             >
-              <Avatar name={settings.ownerName} size="sm" hue={262} />
+              <Avatar name={displayName} size="sm" hue={262} />
               <span className="hidden max-w-[120px] truncate text-[13px] font-medium text-ink md:block">
-                {settings.ownerName}
+                {displayName}
               </span>
               <SyncDot />
             </button>
           }
         >
           <MenuLabel>{settings.businessName}</MenuLabel>
-          <MenuItem icon={<SettingsIcon />} onSelect={() => navigate('/admin/settings')}>
-            Settings
-          </MenuItem>
+          {canOpen(user, 'settings') && (
+            <MenuItem icon={<SettingsIcon />} onSelect={() => navigate('/admin/settings')}>
+              Settings
+            </MenuItem>
+          )}
           <MenuSeparator />
           <MenuItem icon={<LogOut />} onSelect={() => void signOut()}>
             Sign out

@@ -8,7 +8,7 @@
 
 import express from 'express'
 import { currentRev } from './db.js'
-import { authRouter, sessionMiddleware } from './auth.js'
+import { authRouter, teamRouter, sessionMiddleware } from './auth.js'
 import { stateRouter } from './state.js'
 import { storeRouter, webhookRouter } from './store-api.js'
 import { stripeEnabled } from './stripe.js'
@@ -29,6 +29,7 @@ app.get('/api/health', (_req, res) => res.json({ ok: true, rev: currentRev(), st
 app.get('/api/stripe/status', requireAuth, (_req, res) => res.json({ enabled: stripeEnabled() }))
 
 app.use('/api/auth', authRouter)
+app.use('/api/team', teamRouter)
 app.use('/api/store', storeRouter)
 // Mounted last: stateRouter guards everything that reaches it with requireAuth
 app.use('/api', stateRouter)

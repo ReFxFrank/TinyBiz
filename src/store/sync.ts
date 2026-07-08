@@ -11,6 +11,7 @@
 
 import { create } from 'zustand'
 import { useStore } from '@/store/useStore'
+import { useAuth, canWriteCollection, canWriteMeta } from '@/store/useAuth'
 import { api, type SyncOp } from '@/lib/api'
 import type { Settings, NewsletterSettings } from '@/data/types'
 
@@ -56,13 +57,26 @@ function takeSnapshot(): Snapshot {
   return snap
 }
 
-/** Pull the full server state into the local store */
+/**
+ * Staff accounts receive a FILTERED state — collections outside their access
+ * are absent. Blank those locally so stale seed/cache data never leaks into
+ * aggregates, and never overwrite settings blobs with undefined.
+ */
+function toStorePatch(state: Record<string, unknown>): Record<string, unknown> {
+  const patch: Record<string, unknown> = {}
+  for (const name of SYNC_COLLECTIONS) patch[name] = state[name] ?? []
+  if (state.settings) patch.settings = state.settings
+  if (state.newsletterSettings) patch.newsletterSettings = state.newsletterSettings
+  return patch
+}
+
+/** Pull the (visible) server state into the local store */
 export async function hydrate(): Promise<void> {
   const res = await api.state()
   serverRev = res.rev
   applyingRemote = true
   try {
-    useStore.setState(res.state as never)
+    useStore.setState(toStorePatch(res.state ?? {}) as never)
   } finally {
     applyingRemote = false
   }
@@ -70,6 +84,12 @@ export async function hydrate(): Promise<void> {
 }
 
 function enqueue(op: SyncOp) {
+  const user = useAuth.getState().user
+  if (op.op === 'upsert' || op.op === 'delete') {
+    if (!canWriteCollection(user, op.collection)) return
+  } else if (!canWriteMeta(user, op.op)) {
+    return
+  }
   const key =
     op.op === 'upsert' ? `${op.collection}::${op.item.id}` : op.op === 'delete' ? `${op.collection}::${op.id}` : op.op
   queue.set(key, op)
@@ -143,7 +163,7 @@ async function poll() {
     if (queue.size > 0) return // an edit raced the fetch — skip this merge
     applyingRemote = true
     try {
-      useStore.setState(res.state as never)
+      useStore.setState(toStorePatch(res.state) as never)
     } finally {
       applyingRemote = false
     }

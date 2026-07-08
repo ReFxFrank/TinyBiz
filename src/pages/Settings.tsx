@@ -21,6 +21,7 @@ import {
 } from '@/components/ui'
 import { cn, useLoaded } from '@/lib/utils'
 import { bestTextOn, contrastRatio, isValidHex, normalizeHex, type AccentTokens } from '@/lib/color'
+import { AccountCard, TeamAccess } from '@/pages/settings/TeamAccess'
 
 // ── Business profile ─────────────────────────────────────────────────────────
 
@@ -738,6 +739,8 @@ export default function Settings() {
           <PreferencesCard />
           <AppearanceCard />
           <NotificationsCard />
+          <AccountCard />
+          <TeamAccess />
           <PrinterSyncCard />
           <IntegrationsCard />
           <ShortcutsCard />

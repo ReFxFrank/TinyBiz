@@ -4,6 +4,7 @@ import { PanelLeftClose, PanelLeftOpen, Store, X } from 'lucide-react'
 import { NAV_GROUPS, SETTINGS_ITEM, type NavItem } from './nav'
 import { useUI } from '@/store/useUI'
 import { useStore } from '@/store/useStore'
+import { useAuth, canOpen, pathPerm } from '@/store/useAuth'
 import { Tip } from '@/components/ui/Tooltip'
 import { cn } from '@/lib/utils'
 
@@ -75,6 +76,10 @@ function StorefrontRow({ collapsed, onNavigate }: { collapsed: boolean; onNaviga
 function SidebarContent({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
   const settings = useStore((s) => s.settings)
   const toggleSidebar = useUI((s) => s.toggleSidebar)
+  const user = useAuth((s) => s.user)
+  const groups = NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => canOpen(user, pathPerm(i.path))) })).filter(
+    (g) => g.items.length > 0,
+  )
 
   return (
     <div className="flex h-full flex-col">
@@ -91,7 +96,7 @@ function SidebarContent({ collapsed, onNavigate }: { collapsed: boolean; onNavig
       </div>
 
       <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-3" aria-label="Primary">
-        {NAV_GROUPS.map((group, gi) => (
+        {groups.map((group, gi) => (
           <div key={group.label ?? gi}>
             {group.label && !collapsed && (
               <div className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wide text-ink-3">
@@ -110,7 +115,7 @@ function SidebarContent({ collapsed, onNavigate }: { collapsed: boolean; onNavig
 
       <div className="space-y-0.5 border-t border-edge px-3 py-3">
         <StorefrontRow collapsed={collapsed} onNavigate={onNavigate} />
-        <NavRow item={SETTINGS_ITEM} collapsed={collapsed} onNavigate={onNavigate} />
+        {canOpen(user, 'settings') && <NavRow item={SETTINGS_ITEM} collapsed={collapsed} onNavigate={onNavigate} />}
         <button
           onClick={toggleSidebar}
           className={cn(

@@ -1,6 +1,7 @@
-// Storefront product detail — big artwork, variant picker, quantity stepper,
-// add-to-cart, specs, and related products. Keyed by product id so state
-// (variant, qty) resets cleanly when a shopper hops between related items.
+// Storefront product detail — big artwork (photo gallery when the product has
+// photos, emoji tile otherwise), variant picker, quantity stepper, add-to-cart,
+// specs, and related products. Keyed by product id so state (variant, qty,
+// selected photo) resets cleanly when a shopper hops between related items.
 
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -49,20 +50,23 @@ export default function StoreProduct() {
     )
   }
 
-  // Key resets variant + qty state whenever the shopper navigates to another product
+  // Key resets variant + qty + gallery state whenever the shopper navigates to another product
   return <ProductView key={product.id} product={product} />
 }
 
 function ProductView({ product }: { product: Product }) {
   const products = useCatalog((s) => s.products)
+  const freeShippingOver = useCatalog((s) => s.shop?.freeShippingOver ?? FREE_SHIPPING_OVER)
   const add = useCart((s) => s.add)
   const setDrawerOpen = useCart((s) => s.setDrawerOpen)
 
   const hasVariants = product.variants.length > 0
+  const photos = product.photos ?? []
   const [selectedVariantId, setSelectedVariantId] = useState<string | undefined>(
     () => product.variants.find((v) => v.stock > 0)?.id,
   )
   const [qty, setQty] = useState(1)
+  const [photoIdx, setPhotoIdx] = useState(0)
 
   const selectedVariant = hasVariants ? product.variants.find((v) => v.id === selectedVariantId) : undefined
   const available = hasVariants ? (selectedVariant?.stock ?? 0) : product.stock
@@ -146,13 +150,44 @@ function ProductView({ product }: { product: Product }) {
             className="glow-card tb-noise group relative flex aspect-square items-center justify-center overflow-hidden rounded-2xl border border-hairline"
             style={{ background: tileGradient(product.imageHue) }}
           >
-            <span
-              className="text-8xl transition-transform duration-300 group-hover:scale-105 sm:text-9xl"
-              aria-hidden
-            >
-              {product.image}
-            </span>
+            {photos.length > 0 ? (
+              <img
+                src={photos[Math.min(photoIdx, photos.length - 1)]}
+                alt={product.name}
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+            ) : (
+              <span
+                className="text-8xl transition-transform duration-300 group-hover:scale-105 sm:text-9xl"
+                aria-hidden
+              >
+                {product.image}
+              </span>
+            )}
           </div>
+          {photos.length > 1 && (
+            <div className="relative mt-3 flex flex-wrap gap-2">
+              {photos.map((url, i) => {
+                const selected = i === photoIdx
+                return (
+                  <button
+                    key={`${url}-${i}`}
+                    onClick={() => setPhotoIdx(i)}
+                    aria-label={`View photo ${i + 1} of ${photos.length}`}
+                    aria-current={selected}
+                    className={cn(
+                      'h-16 w-16 shrink-0 overflow-hidden rounded-xl border transition-all',
+                      selected
+                        ? 'border-accent ring-1 ring-accent'
+                        : 'border-hairline opacity-70 hover:opacity-100',
+                    )}
+                  >
+                    <img src={url} alt="" loading="lazy" className="h-full w-full object-cover" />
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* Details */}
@@ -264,7 +299,7 @@ function ProductView({ product }: { product: Product }) {
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-wash text-accent-strong dark:text-accent">
                 <Truck className="h-4 w-4" aria-hidden />
               </span>
-              Free shipping on orders over {money(FREE_SHIPPING_OVER)}
+              Free shipping on orders over {money(freeShippingOver)}
             </li>
             <li className="flex items-center gap-3">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-wash text-accent-strong dark:text-accent">

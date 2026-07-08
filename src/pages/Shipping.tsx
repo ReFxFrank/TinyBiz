@@ -29,11 +29,12 @@ import {
 import { fmtDateShort, fmtDateTime, money, num, grams } from '@/lib/format'
 import { cn, downloadFile, uid, useLoaded } from '@/lib/utils'
 
-const CARRIERS: Carrier[] = ['USPS', 'UPS', 'FedEx', 'DHL']
+const CARRIERS: Carrier[] = ['Canada Post', 'USPS', 'UPS', 'FedEx', 'DHL']
 
 const SHIPMENT_STATUSES: ShipmentStatus[] = ['Label created', 'In transit', 'Out for delivery', 'Delivered', 'Needs attention']
 
 const SERVICES: Record<Carrier, string[]> = {
+  'Canada Post': ['Regular Parcel', 'Expedited Parcel', 'Xpresspost'],
   USPS: ['Ground Advantage', 'Priority'],
   UPS: ['Ground'],
   FedEx: ['Home Delivery'],

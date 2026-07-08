@@ -153,7 +153,9 @@ function LoginScreen({ onDone }: { onDone: () => Promise<void> }) {
       setError(
         err instanceof ApiError && err.status === 401
           ? 'Wrong email or password.'
-          : 'Could not sign in — is the server running?',
+          : err instanceof ApiError && err.status === 429
+            ? err.message // rate limited — the server says how long to wait
+            : 'Could not sign in — is the server running?',
       )
       setBusy(false)
     }

@@ -138,13 +138,22 @@ export function CartDrawer() {
               const atMax = l.item.qty >= stock
               return (
                 <li key={`${l.item.productId}::${l.item.variantId ?? ''}`} className="flex gap-3">
-                  <div
-                    className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl text-3xl"
-                    style={{ background: tileGradient(l.product.imageHue) }}
-                    aria-hidden
-                  >
-                    {l.product.image}
-                  </div>
+                  {l.product.photos?.[0] ? (
+                    <img
+                      src={l.product.photos[0]}
+                      alt={l.product.name}
+                      loading="lazy"
+                      className="h-16 w-16 shrink-0 rounded-xl object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl text-3xl"
+                      style={{ background: tileGradient(l.product.imageHue) }}
+                      aria-hidden
+                    >
+                      {l.product.image}
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">

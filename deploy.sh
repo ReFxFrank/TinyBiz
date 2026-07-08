@@ -30,6 +30,7 @@ APP_DIR="/opt/tinybiz"
 DOMAIN_FILE="/etc/tinybiz-domain"
 LOCK_FILE="/var/lock/tinybiz-deploy.lock"
 CRON_FILE="/etc/cron.d/tinybiz-deploy"
+BACKUP_CRON_FILE="/etc/cron.d/tinybiz-backup"
 LOG_FILE="/var/log/tinybiz-deploy.log"
 SHIM_FILE="/usr/local/bin/redeploy"
 API_SERVICE="tinybiz-api"
@@ -109,6 +110,20 @@ UNIT
   systemctl enable --now "$API_SERVICE"
   # Restart on every deploy — the process must pick up the freshly built code
   systemctl restart "$API_SERVICE"
+
+  # Nightly database backup (server/backup.js gzips a consistent snapshot
+  # into <db dir>/backups and keeps the newest 14)
+  local backup_cron
+  backup_cron="$(cat <<CRON
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+17 3 * * * root sh -c 'set -a; . ${ENV_FILE}; node ${APP_DIR}/server/backup.js' >>/var/log/tinybiz-backup.log 2>&1
+CRON
+)"
+  if [ ! -f "$BACKUP_CRON_FILE" ] || [ "$(cat "$BACKUP_CRON_FILE")" != "$backup_cron" ]; then
+    echo "──> Installing nightly backup cron (3:17 AM, keeps 14 days)…"
+    printf '%s\n' "$backup_cron" > "$BACKUP_CRON_FILE"
+    chmod 644 "$BACKUP_CRON_FILE"
+  fi
 }
 
 configure_nginx() {
@@ -128,6 +143,17 @@ configure_nginx() {
         proxy_set_header Host $host;\
         proxy_set_header X-Real-IP $remote_addr;\
         proxy_set_header X-Forwarded-Proto $scheme;\
+    }\
+' "$site"
+      nginx -t
+    fi
+    if ! grep -q "location /uploads/" "$site"; then
+      echo "──> Adding the /uploads proxy to the existing nginx config…"
+      sed -i '/location \/assets\/ {/i\
+    location /uploads/ {\
+        proxy_pass http://127.0.0.1:4000;\
+        proxy_http_version 1.1;\
+        proxy_set_header Host $host;\
     }\
 ' "$site"
       nginx -t
@@ -155,6 +181,13 @@ server {
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # Product photos live next to the database, served by the API
+    location /uploads/ {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
     }
 
     # Hashed build assets never change — cache hard

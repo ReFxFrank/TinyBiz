@@ -12,6 +12,8 @@ import { cn } from '@/lib/utils'
 import type { Carrier, OrderStatus } from '@/data/types'
 
 const CARRIER_URLS: Record<Carrier, (tn: string) => string> = {
+  'Canada Post': (tn) =>
+    `https://www.canadapost-postescanada.ca/track-reperage/en#/search?searchFor=${encodeURIComponent(tn)}`,
   USPS: (tn) => `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(tn)}`,
   UPS: (tn) => `https://www.ups.com/track?tracknum=${encodeURIComponent(tn)}`,
   FedEx: (tn) => `https://www.fedex.com/fedextrack/?trknbr=${encodeURIComponent(tn)}`,

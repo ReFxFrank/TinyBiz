@@ -176,7 +176,11 @@ export default function Products() {
       header: 'Product',
       render: (p) => (
         <div className={cn('flex min-w-0 items-center gap-3', !p.active && 'opacity-60')}>
-          <ProductTile emoji={p.image} hue={p.imageHue} size="sm" />
+          {p.photos && p.photos.length > 0 ? (
+            <img src={p.photos[0]} alt="" loading="lazy" className="h-8 w-8 shrink-0 rounded-xl object-cover" />
+          ) : (
+            <ProductTile emoji={p.image} hue={p.imageHue} size="sm" />
+          )}
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="truncate font-medium text-ink">{p.name}</span>

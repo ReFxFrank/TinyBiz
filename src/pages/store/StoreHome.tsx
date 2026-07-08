@@ -169,8 +169,13 @@ function EmojiMarquee({ products: allProducts }: { products: Product[] }) {
 
 function TrustStrip() {
   const threshold = useCatalog((s) => s.shop?.freeShippingOver ?? FREE_SHIPPING_OVER)
+  const region = useCatalog((s) => s.shop?.shippingRegion)
   const props = [
-    { icon: Truck, title: 'Free US shipping', body: `On every order over ${money(threshold)}` },
+    {
+      icon: Truck,
+      title: region ? `Free shipping across ${region}` : 'Free shipping',
+      body: `On every order over ${money(threshold)}`,
+    },
     { icon: Sparkles, title: 'Made to order', body: 'Printed in-house in small batches' },
     { icon: HeartHandshake, title: 'Easy returns', body: '30-day returns & friendly support' },
   ]

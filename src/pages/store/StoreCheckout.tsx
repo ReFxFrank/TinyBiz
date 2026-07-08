@@ -26,6 +26,10 @@ export default function StoreCheckout() {
   const clear = useCart((s) => s.clear)
   const setPromo = useCart((s) => s.setPromo)
   const reloadCatalog = useCatalog((s) => s.load)
+  // Where the shop ships (Settings → Shipping & delivery) — flips the address
+  // wording between Canadian (province/postal code) and US (state/ZIP) forms
+  const country = useCatalog((s) => s.shop?.shippingCountry) || 'Canada'
+  const isCanada = /canada/i.test(country)
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -201,31 +205,32 @@ export default function StoreCheckout() {
                     value={form.city}
                     onChange={update('city')}
                     autoComplete="address-level2"
-                    placeholder="Portland"
+                    placeholder={isCanada ? 'Vancouver' : 'Portland'}
                   />
                 </Field>
-                <Field label="State" required error={errors.state}>
+                <Field label={isCanada ? 'Province' : 'State'} required error={errors.state}>
                   <Input
                     ref={stateRef}
                     value={form.state}
                     onChange={update('state')}
                     autoComplete="address-level1"
-                    placeholder="OR"
+                    placeholder={isCanada ? 'BC' : 'OR'}
                   />
                 </Field>
-                <Field label="ZIP" required error={errors.zip}>
+                <Field label={isCanada ? 'Postal code' : 'ZIP'} required error={errors.zip}>
                   <Input
                     ref={zipRef}
                     value={form.zip}
                     onChange={update('zip')}
                     autoComplete="postal-code"
-                    inputMode="numeric"
-                    placeholder="97201"
+                    inputMode={isCanada ? undefined : 'numeric'}
+                    placeholder={isCanada ? 'V5K 0A1' : '97201'}
                   />
                 </Field>
               </div>
               <p className="text-[13px] text-ink-3">
-                Country: <span className="font-medium text-ink-2">United States</span> — we currently ship US-only.
+                Country: <span className="font-medium text-ink-2">{country}</span> — we currently ship within{' '}
+                {country} only.
               </p>
             </div>
           </Card>
@@ -281,13 +286,22 @@ export default function StoreCheckout() {
             <ul className="space-y-3">
               {lines.map((l) => (
                 <li key={`${l.item.productId}::${l.item.variantId ?? ''}`} className="flex items-center gap-3">
-                  <div
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-xl"
-                    style={{ background: tileGradient(l.product.imageHue) }}
-                    aria-hidden
-                  >
-                    {l.product.image}
-                  </div>
+                  {l.product.photos?.[0] ? (
+                    <img
+                      src={l.product.photos[0]}
+                      alt={l.product.name}
+                      loading="lazy"
+                      className="h-11 w-11 shrink-0 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-xl"
+                      style={{ background: tileGradient(l.product.imageHue) }}
+                      aria-hidden
+                    >
+                      {l.product.image}
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[13px] font-medium text-ink">{l.name}</div>
                     <div className="text-xs text-ink-3">

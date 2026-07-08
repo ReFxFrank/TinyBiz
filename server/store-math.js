@@ -2,8 +2,21 @@
 // useCartDetails exactly (per-UNIT promo rounding so the stored order re-sums
 // to the quoted total, free shipping threshold, 2dp tax). Keep in lockstep.
 
+// Fallbacks when the owner hasn't configured Settings → Shipping & delivery
 export const FREE_SHIPPING_OVER = 50
 export const FLAT_SHIPPING = 4.99
+export const DEFAULT_SHIPPING = { flatRate: FLAT_SHIPPING, freeOver: FREE_SHIPPING_OVER, country: 'Canada', region: 'Canada' }
+
+/** The owner's shipping config merged over defaults */
+export function shippingConfig(settings) {
+  const c = settings?.shipping
+  return {
+    flatRate: Number.isFinite(Number(c?.flatRate)) ? Number(c.flatRate) : DEFAULT_SHIPPING.flatRate,
+    freeOver: Number.isFinite(Number(c?.freeOver)) ? Number(c.freeOver) : DEFAULT_SHIPPING.freeOver,
+    country: typeof c?.country === 'string' && c.country.trim() ? c.country.trim() : DEFAULT_SHIPPING.country,
+    region: typeof c?.region === 'string' ? c.region.trim() : DEFAULT_SHIPPING.region,
+  }
+}
 
 export const round2 = (n) => Math.round(n * 100) / 100
 
@@ -60,14 +73,14 @@ export function promoUsable(promo) {
   )
 }
 
-/** Totals from validated lines + optional promo pct + tax rate */
-export function computeTotals(lines, discountPct, taxRate) {
+/** Totals from validated lines + optional promo pct + tax rate + shipping config */
+export function computeTotals(lines, discountPct, taxRate, ship = DEFAULT_SHIPPING) {
   const pct = discountPct || 0
   const priced = lines.map((l) => ({ ...l, discountedUnitPrice: round2(l.unitPrice * (1 - pct / 100)) }))
   const subtotal = round2(priced.reduce((a, l) => a + l.unitPrice * l.qty, 0))
   const discountedSubtotal = round2(priced.reduce((a, l) => a + l.discountedUnitPrice * l.qty, 0))
   const discount = round2(subtotal - discountedSubtotal)
-  const shipping = priced.length === 0 || discountedSubtotal >= FREE_SHIPPING_OVER ? 0 : FLAT_SHIPPING
+  const shipping = priced.length === 0 || discountedSubtotal >= ship.freeOver ? 0 : ship.flatRate
   const tax = round2((discountedSubtotal * (taxRate || 0)) / 100)
   const total = round2(discountedSubtotal + shipping + tax)
   return { lines: priced, subtotal, discountedSubtotal, discount, shipping, tax, total }

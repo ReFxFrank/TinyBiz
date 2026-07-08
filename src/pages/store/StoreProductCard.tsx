@@ -47,9 +47,18 @@ export function StoreProductCard({ product, badge }: { product: Product; badge?:
           background: `linear-gradient(135deg, hsl(${product.imageHue}, 70%, 92%), hsl(${(product.imageHue + 40) % 360}, 60%, 86%))`,
         }}
       >
-        <span className="text-6xl transition-transform duration-300 group-hover:scale-110" aria-hidden>
-          {product.image}
-        </span>
+        {product.photos?.[0] ? (
+          <img
+            src={product.photos[0]}
+            alt={product.name}
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <span className="text-6xl transition-transform duration-300 group-hover:scale-110" aria-hidden>
+            {product.image}
+          </span>
+        )}
         {badge && <div className="absolute left-2 top-2">{badge}</div>}
         {soldOut && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">

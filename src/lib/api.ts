@@ -89,6 +89,8 @@ export interface ShopInfo {
   taxRate: number
   freeShippingOver: number
   flatShipping: number
+  shippingCountry: string
+  shippingRegion: string
   storefront: Partial<StorefrontContent>
 }
 
@@ -132,6 +134,26 @@ export const api = {
     update: (id: string, patch: { name?: string; perms?: PermKey[]; password?: string; disabled?: boolean }) =>
       request<{ user: TeamMember }>(`/api/team/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) }),
     remove: (id: string) => request<{ ok: true }>(`/api/team/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  },
+
+  // product photo upload — raw image bytes, server returns the hosted URL
+  upload: async (blob: Blob) => {
+    let res: Response
+    try {
+      res = await fetch('/api/uploads', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': blob.type || 'image/jpeg' },
+        body: blob,
+      })
+    } catch {
+      throw new ApiError(0, 'network', 'Could not reach the TinyBiz server.')
+    }
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      throw new ApiError(res.status, data?.error || 'server_error', data?.message || `Upload failed (${res.status})`)
+    }
+    return data as { url: string }
   },
 
   // owner state sync

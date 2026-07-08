@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Check, Pipette, RotateCcw, Save } from 'lucide-react'
-import type { CurrencyCode, Settings as SettingsType } from '@/data/types'
+import { DEFAULT_SHIPPING, type CurrencyCode, type Settings as SettingsType } from '@/data/types'
 import { useStore } from '@/store/useStore'
 import { useUI, toast, ACCENTS, ACCENT_META, type Accent, type Radius, type Theme, type UIScale } from '@/store/useUI'
 import {
@@ -209,6 +209,101 @@ function PreferencesCard() {
             />
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-ink-3">%</span>
           </div>
+        </Field>
+      </div>
+    </Card>
+  )
+}
+
+// ── Shipping & delivery ──────────────────────────────────────────────────────
+
+function ShippingCard() {
+  const settings = useStore((s) => s.settings)
+  const updateSettings = useStore((s) => s.updateSettings)
+  const saved = { ...DEFAULT_SHIPPING, ...settings.shipping }
+  const [flatRate, setFlatRate] = useState(String(saved.flatRate))
+  const [freeOver, setFreeOver] = useState(String(saved.freeOver))
+  const [country, setCountry] = useState(saved.country)
+  const [region, setRegion] = useState(saved.region)
+
+  const parsedFlat = Number(flatRate)
+  const parsedFree = Number(freeOver)
+  const flatValid = flatRate.trim() !== '' && Number.isFinite(parsedFlat) && parsedFlat >= 0
+  const freeValid = freeOver.trim() !== '' && Number.isFinite(parsedFree) && parsedFree >= 0
+  const dirty =
+    parsedFlat !== saved.flatRate ||
+    parsedFree !== saved.freeOver ||
+    country.trim() !== saved.country ||
+    region.trim() !== saved.region
+
+  const save = () => {
+    updateSettings({
+      shipping: {
+        flatRate: Math.round(parsedFlat * 100) / 100,
+        freeOver: Math.round(parsedFree * 100) / 100,
+        country: country.trim() || DEFAULT_SHIPPING.country,
+        region: region.trim(),
+      },
+    })
+    toast('Shipping settings saved', { tone: 'success' })
+  }
+
+  return (
+    <Card>
+      <CardHeader
+        title="Shipping & delivery"
+        subtitle="What the storefront charges for shipping and where you deliver."
+        actions={
+          <Button size="sm" icon={<Save />} disabled={!dirty || !flatValid || !freeValid} onClick={save}>
+            Save
+          </Button>
+        }
+      />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field
+          label="Flat shipping rate"
+          hint="Charged on storefront orders below the free-shipping threshold."
+          error={flatValid ? undefined : 'Enter an amount of 0 or more'}
+        >
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-ink-3">$</span>
+            <Input
+              type="number"
+              step={0.01}
+              min={0}
+              value={flatRate}
+              onChange={(e) => setFlatRate(e.target.value)}
+              className="pl-7 tnum"
+              aria-label="Flat shipping rate"
+            />
+          </div>
+        </Field>
+        <Field
+          label="Free shipping over"
+          hint="Orders at or above this (after discounts) ship free. Set to 0 for free shipping on everything."
+          error={freeValid ? undefined : 'Enter an amount of 0 or more'}
+        >
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-ink-3">$</span>
+            <Input
+              type="number"
+              step={1}
+              min={0}
+              value={freeOver}
+              onChange={(e) => setFreeOver(e.target.value)}
+              className="pl-7 tnum"
+              aria-label="Free shipping threshold"
+            />
+          </div>
+        </Field>
+        <Field label="Ship-to country" hint="Shown at checkout — the storefront ships to this country only.">
+          <Input value={country} onChange={(e) => setCountry(e.target.value)} placeholder={DEFAULT_SHIPPING.country} />
+        </Field>
+        <Field
+          label="Region wording"
+          hint='Finishes the storefront banner "Free shipping across …". Leave blank for plain "Free shipping".'
+        >
+          <Input value={region} onChange={(e) => setRegion(e.target.value)} placeholder={DEFAULT_SHIPPING.region} />
         </Field>
       </div>
     </Card>
@@ -738,6 +833,7 @@ export default function Settings() {
         >
           <BusinessProfileCard />
           <PreferencesCard />
+          <ShippingCard />
           <AppearanceCard />
           <NotificationsCard />
           <StorefrontContentCard />

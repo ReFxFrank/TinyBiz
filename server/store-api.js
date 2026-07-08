@@ -4,7 +4,7 @@
 
 import { Router } from 'express'
 import { db, uid, getCollection, getMeta, upsertItem, bumpRev } from './db.js'
-import { buildLines, computeTotals, promoUsable, nextOrderNumber, FREE_SHIPPING_OVER, FLAT_SHIPPING } from './store-math.js'
+import { buildLines, computeTotals, promoUsable, nextOrderNumber, shippingConfig } from './store-math.js'
 import { stripeEnabled, createCheckoutSession, getCheckoutSession, verifyWebhookSignature } from './stripe.js'
 import { sendOrderConfirmation } from './email.js'
 
@@ -25,8 +25,10 @@ function shopInfo() {
     state: s.address?.state || '',
     currency: s.currency || 'USD',
     taxRate: Number(s.taxRate) || 0,
-    freeShippingOver: FREE_SHIPPING_OVER,
-    flatShipping: FLAT_SHIPPING,
+    freeShippingOver: shippingConfig(s).freeOver,
+    flatShipping: shippingConfig(s).flatRate,
+    shippingCountry: shippingConfig(s).country,
+    shippingRegion: shippingConfig(s).region,
     storefront: s.storefront && typeof s.storefront === 'object' ? s.storefront : {},
   }
 }
@@ -80,7 +82,7 @@ storeRouter.post('/subscribe', (req, res) => {
 
 // ── Checkout ─────────────────────────────────────────────────────────────────
 
-function validateContact(body) {
+function validateContact(body, country) {
   const name = String(body?.contact?.name || '').trim()
   const email = String(body?.contact?.email || '').trim()
   const a = body?.address || {}
@@ -89,7 +91,7 @@ function validateContact(body) {
     city: String(a.city || '').trim(),
     state: String(a.state || '').trim(),
     zip: String(a.zip || '').trim(),
-    country: 'United States',
+    country,
   }
   if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !address.line1 || !address.city || !address.state || !address.zip) {
     throw { status: 400, error: 'bad_form', message: 'Please fill in your contact and shipping details.' }
@@ -99,7 +101,9 @@ function validateContact(body) {
 
 /** Price + validate a checkout request against live data. Throws on problems. */
 function priceCheckout(body) {
-  const contact = validateContact(body)
+  const settings = getMeta('settings')
+  const ship = shippingConfig(settings)
+  const contact = validateContact(body, ship.country)
   const products = getCollection('products')
   const lines = buildLines(body?.items, products)
 
@@ -114,8 +118,8 @@ function priceCheckout(body) {
     promo = { id: found.id, code: found.code, discountPct: found.discountPct }
   }
 
-  const taxRate = Number(getMeta('settings')?.taxRate) || 0
-  const totals = computeTotals(lines, promo?.discountPct, taxRate)
+  const taxRate = Number(settings?.taxRate) || 0
+  const totals = computeTotals(lines, promo?.discountPct, taxRate, ship)
   return { contact, promo, totals }
 }
 

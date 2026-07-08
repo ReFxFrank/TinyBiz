@@ -39,6 +39,8 @@ export interface Product {
   image: string
   /** Hue (0–360) for the artwork tile's soft gradient background */
   imageHue: number
+  /** Uploaded photo URLs — first one is the cover; emoji is the fallback */
+  photos?: string[]
   tags: string[]
   variants: ProductVariant[]
   weightGrams: number
@@ -115,7 +117,7 @@ export interface OrderItem {
   unitCost: number
 }
 
-export type Carrier = 'USPS' | 'UPS' | 'FedEx' | 'DHL'
+export type Carrier = 'Canada Post' | 'USPS' | 'UPS' | 'FedEx' | 'DHL'
 
 export interface Order {
   id: ID
@@ -511,4 +513,24 @@ export interface Settings {
   printerBridgeUrl: string
   /** Storefront wording overrides — see StorefrontContent */
   storefront?: Partial<StorefrontContent>
+  /** Storefront shipping configuration */
+  shipping?: ShippingConfig
+}
+
+export interface ShippingConfig {
+  /** Flat rate charged under the free-shipping threshold */
+  flatRate: number
+  /** Order value (after discounts) that unlocks free shipping */
+  freeOver: number
+  /** Country orders ship to/from — shown at checkout, stamped on orders */
+  country: string
+  /** Region wording for the trust strip, e.g. "Canada" → "Free shipping across Canada" */
+  region: string
+}
+
+export const DEFAULT_SHIPPING: ShippingConfig = {
+  flatRate: 4.99,
+  freeOver: 50,
+  country: 'Canada',
+  region: 'Canada',
 }

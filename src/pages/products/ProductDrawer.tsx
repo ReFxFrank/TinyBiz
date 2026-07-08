@@ -151,13 +151,34 @@ export default function ProductDrawer({ product, onClose, onEdit, onDuplicated, 
           <div className="space-y-6">
             {/* ── Identity ── */}
             <div className="flex items-start gap-4">
-              <ProductTile emoji={p.image} hue={p.imageHue} size="xl" />
+              {p.photos && p.photos.length > 0 ? (
+                <img
+                  src={p.photos[0]}
+                  alt={p.name}
+                  className="h-24 w-24 shrink-0 rounded-2xl border border-hairline object-cover"
+                />
+              ) : (
+                <ProductTile emoji={p.image} hue={p.imageHue} size="xl" />
+              )}
               <div className="min-w-0 flex-1 space-y-1.5">
                 <div className="text-lg font-semibold leading-tight text-ink">{p.name}</div>
                 <div className="font-mono text-xs text-ink-3">{p.sku}</div>
                 <Badge>{p.category}</Badge>
               </div>
             </div>
+            {p.photos && p.photos.length > 1 && (
+              <div className="flex flex-wrap gap-2">
+                {p.photos.slice(1).map((url, i) => (
+                  <img
+                    key={url}
+                    src={url}
+                    alt={`${p.name} photo ${i + 2}`}
+                    loading="lazy"
+                    className="h-16 w-16 rounded-xl border border-hairline object-cover"
+                  />
+                ))}
+              </div>
+            )}
             <Toggle
               checked={p.active}
               onChange={(active) => updateItem('products', p.id, { active })}

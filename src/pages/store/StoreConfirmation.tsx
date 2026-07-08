@@ -165,15 +165,25 @@ export default function StoreConfirmation() {
           <ul className="mt-4 space-y-3">
             {order.items.map((it, idx) => {
               const product = products.find((p) => p.id === it.productId)
+              const cover = product?.photos?.[0]
               return (
                 <li key={`${it.productId}-${idx}`} className="flex items-center gap-3">
-                  <div
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-xl"
-                    style={{ background: tileGradient(product?.imageHue ?? 220) }}
-                    aria-hidden
-                  >
-                    {product?.image ?? '📦'}
-                  </div>
+                  {cover ? (
+                    <img
+                      src={cover}
+                      alt={it.name}
+                      loading="lazy"
+                      className="h-11 w-11 shrink-0 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-xl"
+                      style={{ background: tileGradient(product?.imageHue ?? 220) }}
+                      aria-hidden
+                    >
+                      {product?.image ?? '📦'}
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[13px] font-medium text-ink">{it.name}</div>
                     <div className="text-xs text-ink-3">

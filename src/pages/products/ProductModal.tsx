@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ImagePlus, Plus, Trash2, X } from 'lucide-react'
 import { Button, Field, IconButton, Input, Modal, ProductTile, Select, Textarea } from '@/components/ui'
 import { useStore } from '@/store/useStore'
 import type { Product, ProductCategory, ProductVariant } from '@/data/types'
+import { api, ApiError } from '@/lib/api'
+import { prepareImageForUpload } from '@/lib/image'
 import { uid } from '@/lib/utils'
 import { toast } from '@/store/useUI'
 
@@ -52,6 +54,9 @@ export default function ProductModal({ open, onClose, product }: ProductModalPro
   const [productionTimeMin, setProductionTimeMin] = useState('0')
   const [image, setImage] = useState('📦')
   const [imageHue, setImageHue] = useState(200)
+  const [photos, setPhotos] = useState<string[]>([])
+  const [uploading, setUploading] = useState(false)
+  const photoInputRef = useRef<HTMLInputElement>(null)
   const [tags, setTags] = useState('')
   const [description, setDescription] = useState('')
   const [variants, setVariants] = useState<VariantDraft[]>([])
@@ -73,6 +78,7 @@ export default function ProductModal({ open, onClose, product }: ProductModalPro
     setProductionTimeMin(String(product?.productionTimeMin ?? 0))
     setImage(product?.image ?? '📦')
     setImageHue(product?.imageHue ?? 200)
+    setPhotos(product?.photos ?? [])
     setTags(product?.tags.join(', ') ?? '')
     setDescription(product?.description ?? '')
     setVariants(
@@ -89,6 +95,28 @@ export default function ProductModal({ open, onClose, product }: ProductModalPro
 
   const setVariant = (id: string, patch: Partial<VariantDraft>) =>
     setVariants((vs) => vs.map((v) => (v.id === id ? { ...v, ...patch } : v)))
+
+  // Upload picked files one at a time; only server URLs ever land in state,
+  // and appends are functional so nothing gets dropped mid-flight.
+  const addPhotos = async (files: File[]) => {
+    setUploading(true)
+    try {
+      for (const file of files) {
+        try {
+          const blob = await prepareImageForUpload(file)
+          const { url } = await api.upload(blob)
+          setPhotos((ps) => [...ps, url])
+        } catch (err) {
+          toast(`Couldn’t upload ${file.name}`, {
+            description: err instanceof ApiError ? err.message : 'Could not read that image.',
+            tone: 'error',
+          })
+        }
+      }
+    } finally {
+      setUploading(false)
+    }
+  }
 
   const priceNum = Number(price)
   const canSubmit =
@@ -117,6 +145,7 @@ export default function ProductModal({ open, onClose, product }: ProductModalPro
       reorderPoint: Math.max(0, Math.round(Number(reorderPoint) || 0)),
       image: image.trim() || '📦',
       imageHue,
+      photos,
       tags: tags
         .split(',')
         .map((t) => t.trim())
@@ -250,6 +279,74 @@ export default function ProductModal({ open, onClose, product }: ProductModalPro
             <span className="tnum w-10 shrink-0 text-right text-xs text-ink-3">{imageHue}°</span>
           </div>
         </Field>
+        {/* ── Photos ── */}
+        <div className="sm:col-span-2">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-[13px] font-medium text-ink-2">Photos</span>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<ImagePlus />}
+              disabled={uploading}
+              onClick={() => photoInputRef.current?.click()}
+            >
+              {uploading ? 'Uploading…' : 'Add photos'}
+            </Button>
+          </div>
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? [])
+              e.target.value = '' // allow re-picking the same file
+              if (files.length > 0) void addPhotos(files)
+            }}
+          />
+          {photos.length === 0 ? (
+            <p className="rounded-xl bg-sunken px-3 py-2.5 text-[13px] text-ink-3">
+              No photos — the emoji tile stands in until you add some. The first photo is the cover.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {photos.map((url, i) => (
+                <div key={url} className="group relative h-20 w-20">
+                  <img
+                    src={url}
+                    alt={`${name.trim() || 'Product'} photo ${i + 1}`}
+                    loading="lazy"
+                    className="h-full w-full rounded-xl border border-hairline object-cover"
+                  />
+                  {i === 0 ? (
+                    <span className="absolute bottom-1 left-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                      Cover
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      aria-label={`Make photo ${i + 1} the cover`}
+                      onClick={() => setPhotos((ps) => [url, ...ps.filter((u) => u !== url)])}
+                      className="absolute bottom-1 left-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white opacity-0 transition-opacity hover:bg-black/75 focus-visible:opacity-100 group-hover:opacity-100"
+                    >
+                      Make cover
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    aria-label={`Remove photo ${i + 1}`}
+                    onClick={() => setPhotos((ps) => ps.filter((u) => u !== url))}
+                    className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-md bg-black/55 text-white transition-colors hover:bg-black/75"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <Field label="Tags" hint="Comma separated, e.g. fidget, dragon, bestseller" className="sm:col-span-2">
           <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="fidget, dragon" />
         </Field>

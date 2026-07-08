@@ -56,7 +56,9 @@ curl -fsSL https://raw.githubusercontent.com/ReFxFrank/TinyBiz/main/deploy.sh | 
 curl -fsSL https://raw.githubusercontent.com/ReFxFrank/TinyBiz/main/deploy.sh | sudo bash -s -- shop.example.com
 ```
 
-The admin signs in, and all business data lives in SQLite on the server at `/var/lib/tinybiz/tinybiz.db` — the first visit to `/admin` shows a one-time setup screen (create the owner account, then choose sample data, import the browser's existing data, or start empty). Storefront orders and newsletter subscribers land in the server database from any customer's browser. Backups are one file: copy `/var/lib/tinybiz/tinybiz.db`.
+The admin signs in, and all business data lives in SQLite on the server at `/var/lib/tinybiz/tinybiz.db` — the first visit to `/admin` shows a one-time setup screen (create the owner account, then choose sample data, import the browser's existing data, or start empty). Storefront orders and newsletter subscribers land in the server database from any customer's browser. Product photos uploaded from the admin are stored next to the database in `/var/lib/tinybiz/uploads/` and served at `/uploads/…`.
+
+**Backups**: the deploy installs a nightly cron (3:17 AM) that snapshots the database with SQLite's online backup API, gzips it into `/var/lib/tinybiz/backups/`, and keeps the newest 14. The owner can also grab one on demand — `GET /api/backup` while signed in downloads a fresh snapshot. Sign-in, checkout, tracking, and subscribe endpoints are rate-limited per IP against brute force.
 
 **Redeploying**: the first run installs a `redeploy` command on the server, so pulling the latest code, rebuilding, and publishing is just:
 

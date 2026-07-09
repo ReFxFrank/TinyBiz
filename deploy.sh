@@ -90,7 +90,32 @@ migrate_legacy() {
     migrated=1
   fi
   if [ -f "$DATA_DIR/tinybiz.db" ] && [ ! -f "$DATA_DIR/tinymagic.db" ]; then
+    # The -wal/-shm companions hold recent commits — they MUST move with the db
     mv "$DATA_DIR/tinybiz.db" "$DATA_DIR/tinymagic.db"
+    if [ -f "$DATA_DIR/tinybiz.db-wal" ]; then mv "$DATA_DIR/tinybiz.db-wal" "$DATA_DIR/tinymagic.db-wal"; fi
+    if [ -f "$DATA_DIR/tinybiz.db-shm" ]; then mv "$DATA_DIR/tinybiz.db-shm" "$DATA_DIR/tinymagic.db-shm"; fi
+  fi
+  # Repair boxes migrated by the earlier script that left the companions
+  # behind. Only swaps automatically when the new WAL is frameless (bare
+  # header) — anything bigger means the new API already wrote data, and a
+  # human should reconcile instead of a script. Nothing is ever deleted.
+  if [ -f "$DATA_DIR/tinybiz.db-wal" ] && [ -f "$DATA_DIR/tinymagic.db" ]; then
+    local new_wal_size=0
+    if [ -f "$DATA_DIR/tinymagic.db-wal" ]; then new_wal_size=$(stat -c%s "$DATA_DIR/tinymagic.db-wal"); fi
+    if [ "$new_wal_size" -lt 1000 ]; then
+      echo "──> Restoring the database's stranded WAL companion…"
+      systemctl stop tinymagic-api 2>/dev/null || true
+      cp -a "$DATA_DIR/tinymagic.db" "$DATA_DIR/tinymagic.db.pre-repair"
+      if [ -f "$DATA_DIR/tinymagic.db-wal" ]; then mv "$DATA_DIR/tinymagic.db-wal" "$DATA_DIR/tinymagic.db-wal.empty"; fi
+      rm -f "$DATA_DIR/tinymagic.db-shm"
+      mv "$DATA_DIR/tinybiz.db-wal" "$DATA_DIR/tinymagic.db-wal"
+      rm -f "$DATA_DIR/tinybiz.db-shm"
+      migrated=1
+    else
+      echo "!! Found BOTH an old stranded WAL and a new WAL with data — not auto-merging."
+      echo "   Old: $DATA_DIR/tinybiz.db-wal   New: $DATA_DIR/tinymagic.db-wal"
+      echo "   The API keeps running; reconcile manually before deleting anything."
+    fi
   fi
 
   if [ -f /etc/tinybiz.env ] && [ ! -f "$ENV_FILE" ]; then
@@ -106,13 +131,13 @@ migrate_legacy() {
     migrated=1
   fi
 
-  [ -f /etc/tinybiz-domain ] && [ ! -f "$DOMAIN_FILE" ] && mv /etc/tinybiz-domain "$DOMAIN_FILE"
+  if [ -f /etc/tinybiz-domain ] && [ ! -f "$DOMAIN_FILE" ]; then mv /etc/tinybiz-domain "$DOMAIN_FILE"; fi
   rm -f /etc/cron.d/tinybiz-backup
   if [ -f /etc/cron.d/tinybiz-deploy ]; then
     rm -f /etc/cron.d/tinybiz-deploy
     INSTALL_CRON=1 # keep auto-deploy alive under the new name
   fi
-  [ -f /var/log/tinybiz-deploy.log ] && [ ! -f "$LOG_FILE" ] && mv /var/log/tinybiz-deploy.log "$LOG_FILE"
+  if [ -f /var/log/tinybiz-deploy.log ] && [ ! -f "$LOG_FILE" ]; then mv /var/log/tinybiz-deploy.log "$LOG_FILE"; fi
 
   if [ -f /etc/nginx/sites-available/tinybiz ]; then
     sed 's|/opt/tinybiz|/opt/tinymagic|g' /etc/nginx/sites-available/tinybiz > /etc/nginx/sites-available/tinymagic

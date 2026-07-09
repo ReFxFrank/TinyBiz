@@ -39,10 +39,11 @@ export const uploadsStatic = express.static(UPLOADS_DIR, {
 export const uploadsRouter = Router()
 uploadsRouter.use(requireAuth)
 
-// Anyone who can edit products can add photos
+// Anyone who can edit products (product photos) or newsletters (email images)
+// can add photos
 uploadsRouter.use((req, res, next) => {
   const access = computeAccess(req.user)
-  if (access.all || access.writable.has('products')) return next()
+  if (access.all || access.writable.has('products') || access.writable.has('newsletters')) return next()
   res.status(403).json({ error: 'forbidden' })
 })
 

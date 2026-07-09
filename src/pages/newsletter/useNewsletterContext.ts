@@ -25,6 +25,7 @@ export function useNewsletterContext(): NewsletterContext {
       accent: currentAccentHex(),
       logoEmoji: settings.logoEmoji,
       businessName: settings.businessName,
+      origin: typeof window === 'undefined' ? undefined : window.location.origin,
     }),
     [products, orders, promoCodes, settings.logoEmoji, settings.businessName],
   )

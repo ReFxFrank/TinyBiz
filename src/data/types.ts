@@ -416,13 +416,48 @@ export interface Subscriber {
 export type NewsletterCadence = 'one-time' | 'weekly' | 'monthly'
 export type NewsletterStatus = 'draft' | 'scheduled' | 'sent'
 
+export type NewsletterBlockType = 'text' | 'image' | 'button' | 'divider'
+
+/** One piece of newsletter content — the body is an ordered list of these */
+export interface NewsletterBlock {
+  id: ID
+  type: NewsletterBlockType
+  /** text: the copy (merge tags OK) · image: caption · button: label */
+  text?: string
+  /** image: the photo URL (/uploads/…) · button: the link */
+  url?: string
+  /** image: optional click-through link */
+  linkUrl?: string
+  /** image: rendered width as a % of the email column (40–100, default 100) */
+  widthPct?: number
+  /** image/button alignment (default center) */
+  align?: 'left' | 'center' | 'right'
+}
+
+/** Per-campaign look overrides — everything falls back to the brand defaults */
+export interface NewsletterStyle {
+  /** Header/button/promo color (hex); default is the brand accent */
+  accent?: string
+  /** Page background behind the card (hex); default #f4f4f2 */
+  background?: string
+  /** 'banner' = colored header block · 'light' = white header with colored shop name */
+  header?: 'banner' | 'light'
+  /** Card corner rounding in px (0–24); default 20 */
+  radius?: number
+}
+
 export interface Newsletter {
   id: ID
   subject: string
   /** Short preview text shown after the subject in inboxes */
   preheader?: string
-  /** Main body copy (plain text, rendered into the template) */
+  /** Main body copy (plain text, rendered into the template) — legacy;
+   *  campaigns with `blocks` use those instead */
   intro: string
+  /** Rich body: ordered content blocks (text, photos, buttons, dividers) */
+  blocks?: NewsletterBlock[]
+  /** Look overrides for this campaign — see NewsletterStyle */
+  style?: NewsletterStyle
   /** Undefined = everyone subscribed; otherwise only subscribers with this tag */
   audienceTag?: string
   cadence: NewsletterCadence

@@ -2,8 +2,9 @@
 // document that renders in email clients, plus a plain-text fallback. The same
 // output feeds the in-app preview AND the mail bridge, so what you see is sent.
 
-import type { Newsletter, NewsletterSettings, Product, PromoCode, Subscriber } from '@/data/types'
+import type { Newsletter, NewsletterBlock, NewsletterSettings, Product, PromoCode, Subscriber } from '@/data/types'
 import { money } from '@/lib/format'
+import { uid } from '@/lib/utils'
 import type { SellerStat } from '@/lib/metrics'
 
 export interface NewsletterContext {
@@ -16,6 +17,8 @@ export interface NewsletterContext {
   businessName: string
   /** First name used to render {{first_name}} in previews; sends fall back to "there" */
   sampleFirstName?: string
+  /** Site origin for absolutizing /uploads photo URLs (emails need full URLs) */
+  origin?: string
 }
 
 /** Replace personalization merge tags — {{first_name}}, {{name}}, {{shop}} */
@@ -75,26 +78,74 @@ export interface BuildOptions {
   forSend?: boolean
 }
 
+/** The effective body blocks: rich blocks when present, else legacy intro+CTA */
+export function effectiveBlocks(n: Newsletter): NewsletterBlock[] {
+  if (n.blocks && n.blocks.length > 0) return n.blocks
+  const legacy: NewsletterBlock[] = [{ id: uid('blk'), type: 'text', text: n.intro }]
+  if (n.ctaLabel?.trim()) legacy.push({ id: uid('blk'), type: 'button', text: n.ctaLabel, url: n.ctaUrl })
+  return legacy
+}
+
+/** A reasonable centered button block, shared by blocks and the legacy CTA */
+function buttonHtml(label: string, href: string, accent: string, align: string): string {
+  return `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 4px;"><tr><td align="${align}">
+        <a href="${esc(href)}" style="display:inline-block;background:${accent};color:#fff;text-decoration:none;font-weight:700;font-size:16px;padding:13px 30px;border-radius:12px;">${esc(label)}</a>
+      </td></tr></table>`
+}
+
+/** Render the ordered content blocks into email-safe HTML */
+function renderBlocks(
+  blocks: NewsletterBlock[],
+  accent: string,
+  merged: (t: string) => string,
+  abs: (u: string) => string,
+): string {
+  return blocks
+    .map((b) => {
+      if (b.type === 'text') {
+        return paragraphs(merged(b.text || ''))
+          .map((p) => `<p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">${esc(p)}</p>`)
+          .join('')
+      }
+      if (b.type === 'image' && b.url) {
+        const align = b.align || 'center'
+        const width = Math.min(100, Math.max(40, b.widthPct || 100))
+        const img = `<img src="${esc(abs(b.url))}" alt="${esc(b.text || '')}" style="display:inline-block;width:${width}%;max-width:100%;border-radius:12px;" />`
+        const linked = b.linkUrl?.trim() ? `<a href="${esc(b.linkUrl.trim())}">${img}</a>` : img
+        const caption = b.text?.trim()
+          ? `<div style="color:#777;font-size:13px;margin-top:6px;">${esc(merged(b.text))}</div>`
+          : ''
+        return `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 16px;"><tr><td align="${align}">
+        ${linked}${caption}
+      </td></tr></table>`
+      }
+      if (b.type === 'button' && b.text?.trim()) {
+        return buttonHtml(b.text, (b.url || '#').trim(), accent, b.align || 'center')
+      }
+      if (b.type === 'divider') {
+        return `<div style="border-top:1px solid #e8e8e3;margin:20px 0;"></div>`
+      }
+      return ''
+    })
+    .join('')
+}
+
 /** The full HTML email for a newsletter */
 export function buildNewsletterHtml(n: Newsletter, s: NewsletterSettings, ctx: NewsletterContext, opts: BuildOptions = {}): string {
-  const accent = ctx.accent
+  // Per-campaign look overrides fall back to the brand defaults
+  const accent = n.style?.accent || ctx.accent
+  const background = n.style?.background || '#f4f4f2'
+  const radius = Math.min(24, Math.max(0, n.style?.radius ?? 20))
+  const lightHeader = n.style?.header === 'light'
   const vars = { first_name: ctx.sampleFirstName || 'there', shop: ctx.businessName }
   // For send, keep tags for the bridge; for preview, resolve them now.
   const merged = (t: string) => (opts.forSend ? t : applyMergeTags(t, vars))
   const unsubHref = opts.forSend ? '{{unsubscribe}}' : '#unsubscribe'
-  const bodyParas = paragraphs(merged(n.intro))
-    .map((p) => `<p style="margin:0 0 16px;color:#333;font-size:16px;line-height:1.6;">${esc(p)}</p>`)
-    .join('')
-
-  // Call-to-action button
-  let ctaBlock = ''
-  if (n.ctaLabel && n.ctaLabel.trim()) {
-    const href = (n.ctaUrl || '#').trim()
-    ctaBlock = `
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 4px;"><tr><td align="center">
-        <a href="${esc(href)}" style="display:inline-block;background:${accent};color:#fff;text-decoration:none;font-weight:700;font-size:16px;padding:13px 30px;border-radius:12px;">${esc(n.ctaLabel)}</a>
-      </td></tr></table>`
-  }
+  // Emails need absolute URLs — /uploads photos get the site origin prefixed
+  const abs = (u: string) => (u.startsWith('/') && ctx.origin ? ctx.origin + u : u)
+  const bodyHtml = renderBlocks(effectiveBlocks(n), accent, merged, abs)
 
   // Best sellers module
   let bestSellersBlock = ''
@@ -147,24 +198,30 @@ export function buildNewsletterHtml(n: Newsletter, s: NewsletterSettings, ctx: N
     ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(n.preheader)}</div>`
     : ''
 
+  const header = lightHeader
+    ? `<tr><td style="padding:28px 32px 6px;">
+          <div style="font-size:34px;line-height:1;">${esc(ctx.logoEmoji)}</div>
+          <div style="color:${accent};font-size:20px;font-weight:700;margin-top:8px;">${esc(ctx.businessName)}</div>
+        </td></tr>`
+    : `<tr><td style="background:${accent};padding:28px 32px;">
+          <div style="font-size:34px;line-height:1;">${esc(ctx.logoEmoji)}</div>
+          <div style="color:#fff;font-size:20px;font-weight:700;margin-top:8px;">${esc(ctx.businessName)}</div>
+        </td></tr>`
+
   return `<!doctype html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(merged(n.subject))}</title></head>
-<body style="margin:0;padding:0;background:#f4f4f2;">
+<body style="margin:0;padding:0;background:${background};">
   ${preheader}
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f2;padding:24px 0;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${background};padding:24px 0;">
     <tr><td align="center">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:20px;overflow:hidden;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
-        <tr><td style="background:${accent};padding:28px 32px;">
-          <div style="font-size:34px;line-height:1;">${esc(ctx.logoEmoji)}</div>
-          <div style="color:#fff;font-size:20px;font-weight:700;margin-top:8px;">${esc(ctx.businessName)}</div>
-        </td></tr>
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:${radius}px;overflow:hidden;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+        ${header}
         <tr><td style="padding:32px;">
-          ${bodyParas}
+          ${bodyHtml}
           ${promoBlock}
           ${bestSellersBlock}
           ${newProductsBlock}
-          ${ctaBlock}
         </td></tr>
         <tr><td style="padding:24px 32px;background:#fafaf9;border-top:1px solid #eee;color:#999;font-size:12px;line-height:1.6;">
           <div style="margin-bottom:6px;color:#777;">${esc(s.footerNote)}</div>
@@ -181,9 +238,15 @@ export function buildNewsletterHtml(n: Newsletter, s: NewsletterSettings, ctx: N
 /** Plain-text fallback for the same newsletter */
 export function buildNewsletterText(n: Newsletter, s: NewsletterSettings, ctx: NewsletterContext, opts: BuildOptions = {}): string {
   const vars = { first_name: ctx.sampleFirstName || 'there', shop: ctx.businessName }
-  const intro = opts.forSend ? n.intro : applyMergeTags(n.intro, vars)
-  const lines: string[] = [ctx.businessName, '', ...paragraphs(intro)]
-  if (n.ctaLabel) lines.push('', `${n.ctaLabel}: ${n.ctaUrl || ''}`)
+  const merged = (t: string) => (opts.forSend ? t : applyMergeTags(t, vars))
+  const abs = (u: string) => (u.startsWith('/') && ctx.origin ? ctx.origin + u : u)
+  const lines: string[] = [ctx.businessName, '']
+  for (const b of effectiveBlocks(n)) {
+    if (b.type === 'text') lines.push(...paragraphs(merged(b.text || '')), '')
+    else if (b.type === 'image' && b.url) lines.push(`${b.text?.trim() ? merged(b.text) + ': ' : ''}${abs(b.url)}`, '')
+    else if (b.type === 'button' && b.text?.trim()) lines.push(`${merged(b.text)}: ${b.url || ''}`, '')
+    else if (b.type === 'divider') lines.push('———', '')
+  }
   if (n.promoCode) {
     const promo = ctx.promoCodes.find((p) => p.code === n.promoCode)
     if (promo) lines.push('', `${promo.discountPct}% off your next order — code ${promo.code}`)

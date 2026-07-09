@@ -62,13 +62,16 @@ export function SettingsTab() {
   }
 
   // A real end-to-end test. Sent FROM the From address (must be on the
-  // verified domain) but TO the reply-to when set — the From address often
-  // has no real inbox behind it.
+  // verified domain) TO whatever inbox the owner wants to check — defaulting
+  // to the reply-to, since the From address often has no real inbox behind it.
   const [sendingTest, setSendingTest] = useState(false)
+  const [testTo, setTestTo] = useState('')
+  const testTarget = (testTo.trim() || draft.replyTo.trim() || draft.fromEmail).trim()
+  const testTargetValid = /\S+@\S+\.\S+/.test(testTarget)
   const sendTestEmail = async () => {
     const base = draft.mailBridgeUrl.trim().replace(/\/$/, '')
-    const to = (draft.replyTo.trim() || draft.fromEmail).trim()
-    if (!base || !emailValid) return
+    const to = testTarget
+    if (!base || !emailValid || !testTargetValid) return
     setSendingTest(true)
     setTestResult(null)
     try {
@@ -217,16 +220,32 @@ export function SettingsTab() {
             <Button variant="outline" size="sm" onClick={testBridge} disabled={!draft.mailBridgeUrl.trim() || testing}>
               {testing ? 'Testing…' : 'Test connection'}
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              icon={<MailCheck />}
-              onClick={sendTestEmail}
-              disabled={!draft.mailBridgeUrl.trim() || !emailValid || sendingTest}
-              title={!emailValid ? 'Enter a valid From email above first' : undefined}
-            >
-              {sendingTest ? 'Sending…' : 'Send me a test email'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Input
+                type="email"
+                value={testTo}
+                onChange={(e) => setTestTo(e.target.value)}
+                placeholder={draft.replyTo.trim() || draft.fromEmail.trim() || 'you@example.com'}
+                aria-label="Send test email to"
+                className="w-56"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                icon={<MailCheck />}
+                onClick={sendTestEmail}
+                disabled={!draft.mailBridgeUrl.trim() || !emailValid || !testTargetValid || sendingTest}
+                title={
+                  !emailValid
+                    ? 'Enter a valid From email above first'
+                    : !testTargetValid
+                      ? 'Enter a valid email address to send the test to'
+                      : undefined
+                }
+              >
+                {sendingTest ? 'Sending…' : 'Send test email'}
+              </Button>
+            </div>
             {testResult && (
               <span className={cn('flex items-center gap-1.5 text-[13px]', testResult.ok ? 'text-good' : 'text-critical')}>
                 {testResult.ok ? <Check className="h-4 w-4" /> : <span aria-hidden>⚠️</span>}

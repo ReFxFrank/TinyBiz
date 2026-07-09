@@ -24,6 +24,7 @@ import { bestTextOn, contrastRatio, isValidHex, normalizeHex, type AccentTokens 
 import { emojify } from '@/lib/emoji'
 import { AccountCard, TeamAccess } from '@/pages/settings/TeamAccess'
 import { StorefrontContentCard } from '@/pages/settings/StorefrontContent'
+import { PromoBannerCard } from '@/pages/settings/PromoBannerCard'
 import { PoliciesCard } from '@/pages/settings/PoliciesCard'
 import { SocialLinksCard } from '@/pages/settings/SocialLinksCard'
 
@@ -841,6 +842,7 @@ export default function Settings() {
           <AppearanceCard />
           <NotificationsCard />
           <StorefrontContentCard />
+          <PromoBannerCard />
           <PoliciesCard />
           <SocialLinksCard />
           <AccountCard />

@@ -1,7 +1,7 @@
 // Typed fetch layer for the studio's API server. Same-origin (/api is proxied
 // by Vite in dev and nginx in production), cookie-authenticated.
 
-import type { CurrencyCode, Order, PolicyContent, Product, SocialLinks, StorefrontContent } from '@/data/types'
+import type { CurrencyCode, Order, PolicyContent, Product, PromoBanner, SocialLinks, StorefrontContent } from '@/data/types'
 
 export class ApiError extends Error {
   status: number
@@ -94,6 +94,7 @@ export interface ShopInfo {
   storefront: Partial<StorefrontContent>
   policies: Partial<PolicyContent>
   social: SocialLinks
+  promoBanner: PromoBanner | null
 }
 
 /** The sanitized order shape the public confirmation/track endpoints return */

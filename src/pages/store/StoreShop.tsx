@@ -1,5 +1,5 @@
-// Storefront catalog — the full browsable shop grid with search, category
-// chips, and sorting. Category selection syncs to ?cat= so footer/category
+// Storefront catalog — the full browsable shop grid with search, a category
+// tab bar, and sorting. Category selection syncs to ?cat= so footer/category
 // links land here pre-filtered.
 
 import { useMemo, useState } from 'react'
@@ -39,6 +39,13 @@ export default function StoreShop() {
     const seen: string[] = []
     for (const p of activeProducts) if (!seen.includes(p.category)) seen.push(p.category)
     return seen
+  }, [activeProducts])
+
+  /** Active-product count per category, for the tab labels */
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const p of activeProducts) counts.set(p.category, (counts.get(p.category) ?? 0) + 1)
+    return counts
   }, [activeProducts])
 
   // The URL param is the single source of truth for the category, so external
@@ -126,22 +133,34 @@ export default function StoreShop() {
         />
       </div>
 
-      <div className="-mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
-        {['All', ...categories].map((c) => (
-          <button
-            key={c}
-            onClick={() => selectCategory(c)}
-            aria-pressed={category === c}
-            className={cn(
-              'shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-all',
-              category === c
-                ? 'bg-accent text-[color:var(--accent-fg)] shadow-pop ring-1 ring-inset ring-white/20'
-                : 'bg-sunken text-ink-2 ring-1 ring-inset ring-transparent hover:text-ink hover:ring-edge',
-            )}
-          >
-            {c}
-          </button>
-        ))}
+      {/* Category tab bar — the primary way around the catalog. Scrolls
+          horizontally on small screens without any page overflow. */}
+      <div
+        role="tablist"
+        aria-label="Product categories"
+        className="-mx-4 mt-5 flex gap-2 overflow-x-auto border-b border-hairline px-4 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:px-0"
+      >
+        {['All', ...categories].map((c) => {
+          const selected = category === c
+          const count = c === 'All' ? activeProducts.length : (categoryCounts.get(c) ?? 0)
+          return (
+            <button
+              key={c}
+              role="tab"
+              aria-selected={selected}
+              onClick={() => selectCategory(c)}
+              className={cn(
+                'shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] transition-all',
+                selected
+                  ? 'bg-accent-wash text-accent-strong ring-1 ring-inset ring-[color:color-mix(in_srgb,var(--accent)_35%,transparent)] dark:text-accent'
+                  : 'text-ink-2 ring-1 ring-inset ring-transparent hover:bg-sunken hover:text-ink',
+              )}
+            >
+              {c === 'All' ? 'All products' : c}
+              <span className={cn('tnum ml-1.5', selected ? 'opacity-70' : 'text-ink-3')}>· {count}</span>
+            </button>
+          )
+        })}
       </div>
 
       {filtered.length > 0 ? (

@@ -1,20 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ImagePlus, Plus, Trash2, X } from 'lucide-react'
 import { Button, Field, IconButton, Input, Modal, ProductTile, Select, Textarea } from '@/components/ui'
 import { useStore } from '@/store/useStore'
-import type { Product, ProductCategory, ProductVariant } from '@/data/types'
+import { DEFAULT_CATEGORIES, type Product, type ProductCategory, type ProductVariant } from '@/data/types'
 import { api, ApiError } from '@/lib/api'
 import { prepareImageForUpload } from '@/lib/image'
 import { uid } from '@/lib/utils'
 import { toast } from '@/store/useUI'
 
-export const PRODUCT_CATEGORIES: ProductCategory[] = [
-  '3D Prints',
-  'Stickers',
-  'Accessories',
-  'Home & Desk',
-  'Packaging Add-ons',
-]
+/** Kept for the Products page filter — the modal itself derives options from real data */
+export const PRODUCT_CATEGORIES: ProductCategory[] = DEFAULT_CATEGORIES
+
+/** Sentinel option that swaps the category Select for a free-text input */
+const NEW_CATEGORY = '__new__'
 
 const QUICK_EMOJI = ['🥚', '🐉', '🦎', '🪴', '📱', '🎁', '🧸', '🖨️']
 
@@ -39,10 +37,12 @@ export interface ProductModalProps {
 export default function ProductModal({ open, onClose, product }: ProductModalProps) {
   const addItem = useStore((s) => s.addItem)
   const updateItem = useStore((s) => s.updateItem)
+  const products = useStore((s) => s.products)
 
   const [name, setName] = useState('')
   const [sku, setSku] = useState('')
   const [category, setCategory] = useState('')
+  const [customCategory, setCustomCategory] = useState(false)
   const [price, setPrice] = useState('')
   const [cost, setCost] = useState('')
   const [stock, setStock] = useState('0')
@@ -67,6 +67,7 @@ export default function ProductModal({ open, onClose, product }: ProductModalPro
     setName(product?.name ?? '')
     setSku(product?.sku ?? '')
     setCategory(product?.category ?? '')
+    setCustomCategory(false)
     setPrice(product ? String(product.price) : '')
     setCost(product ? String(product.cost) : '')
     setStock(String(product?.stock ?? 0))
@@ -92,6 +93,14 @@ export default function ProductModal({ open, onClose, product }: ProductModalPro
       })) ?? [],
     )
   }, [open, product])
+
+  // Suggestions plus every category already in use plus whatever this draft says
+  const categoryOptions = useMemo(() => {
+    const all = new Set<ProductCategory>(DEFAULT_CATEGORIES)
+    for (const p of products) if (p.category) all.add(p.category)
+    if (category) all.add(category)
+    return [...all].sort((a, b) => a.localeCompare(b))
+  }, [products, category])
 
   const setVariant = (id: string, patch: Partial<VariantDraft>) =>
     setVariants((vs) => vs.map((v) => (v.id === id ? { ...v, ...patch } : v)))
@@ -120,7 +129,7 @@ export default function ProductModal({ open, onClose, product }: ProductModalPro
 
   const priceNum = Number(price)
   const canSubmit =
-    name.trim().length > 0 && sku.trim().length > 0 && category !== '' && price !== '' && !Number.isNaN(priceNum) && priceNum > 0
+    name.trim().length > 0 && sku.trim().length > 0 && category.trim() !== '' && price !== '' && !Number.isNaN(priceNum) && priceNum > 0
 
   const submit = () => {
     if (!canSubmit) return
@@ -137,7 +146,7 @@ export default function ProductModal({ open, onClose, product }: ProductModalPro
     const base = {
       name: name.trim(),
       sku: sku.trim(),
-      category: category as ProductCategory,
+      category: category.trim(),
       description: description.trim(),
       price: priceNum,
       cost: Math.max(0, Number(cost) || 0),
@@ -159,9 +168,11 @@ export default function ProductModal({ open, onClose, product }: ProductModalPro
       },
       productionTimeMin: Math.max(0, Math.round(Number(productionTimeMin) || 0)),
     }
+    const totalStock = base.stock + cleanVariants.reduce((a, v) => a + v.stock, 0)
+    const stockNote = totalStock <= 0 ? 'Heads up: with 0 stock it shows as Sold out on the storefront.' : base.name
     if (product) {
       updateItem('products', product.id, base)
-      toast('Product updated', { description: base.name, tone: 'success' })
+      toast('Product updated', { description: stockNote, tone: totalStock <= 0 ? 'default' : 'success' })
     } else {
       addItem('products', {
         ...base,
@@ -169,7 +180,7 @@ export default function ProductModal({ open, onClose, product }: ProductModalPro
         active: true,
         createdAt: new Date().toISOString(),
       })
-      toast('Product created', { description: base.name, tone: 'success' })
+      toast('Product created', { description: stockNote, tone: totalStock <= 0 ? 'default' : 'success' })
     }
     onClose()
   }
@@ -200,13 +211,39 @@ export default function ProductModal({ open, onClose, product }: ProductModalPro
           <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="NP-DRG-001" className="font-mono" />
         </Field>
         <Field label="Category" required>
-          <Select
-            aria-label="Category"
-            placeholder="Choose a category"
-            options={PRODUCT_CATEGORIES}
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          />
+          {customCategory ? (
+            <div className="flex items-center gap-2">
+              <Input
+                aria-label="New category name"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder="e.g. Keychains"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setCustomCategory(false)}
+                className="shrink-0 text-xs font-medium text-accent hover:underline"
+              >
+                Pick existing
+              </button>
+            </div>
+          ) : (
+            <Select
+              aria-label="Category"
+              placeholder="Choose a category"
+              options={[...categoryOptions, { value: NEW_CATEGORY, label: '+ New category…' }]}
+              value={category}
+              onChange={(e) => {
+                if (e.target.value === NEW_CATEGORY) {
+                  setCategory('')
+                  setCustomCategory(true)
+                } else {
+                  setCategory(e.target.value)
+                }
+              }}
+            />
+          )}
         </Field>
         <Field label="Price" required>
           <Input type="number" min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="24.00" />

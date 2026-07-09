@@ -16,11 +16,19 @@ import {
   StockBadge,
   type Column,
 } from '@/components/ui'
-import type { Product, ProductCategory } from '@/data/types'
+import type { Product, ProductVariant } from '@/data/types'
 import { money, num } from '@/lib/format'
 import { cn, useDebounced } from '@/lib/utils'
 
-const CATEGORIES: ProductCategory[] = ['3D Prints', 'Stickers', 'Accessories', 'Home & Desk', 'Packaging Add-ons']
+/** One adjustable stock line: the product itself, or one of its variants */
+interface StockRow {
+  product: Product
+  variant: ProductVariant | null
+  name: string
+  sku: string
+  stock: number
+  cost: number
+}
 
 export interface ProductsTabProps {
   products: Product[]
@@ -31,7 +39,7 @@ export interface ProductsTabProps {
   onCategoryChange: (category: string) => void
   lowOnly: boolean
   onLowOnlyChange: (low: boolean) => void
-  onAdjust: (product: Product, damaged?: boolean) => void
+  onAdjust: (product: Product, damaged?: boolean, variantId?: string) => void
 }
 
 export default function ProductsTab({
@@ -48,93 +56,111 @@ export default function ProductsTab({
 
   const q = useDebounced(query.trim().toLowerCase(), 200)
 
-  const filtered = useMemo(
-    () =>
-      products.filter((p) => {
-        if (category && p.category !== category) return false
-        if (lowOnly && p.stock > p.reorderPoint) return false
-        if (q && !`${p.name} ${p.sku}`.toLowerCase().includes(q)) return false
-        return true
-      }),
-    [products, category, lowOnly, q],
+  // Filter options come from the products themselves, so they always match reality
+  const categories = useMemo(
+    () => [...new Set(products.map((p) => p.category))].sort((a, b) => a.localeCompare(b)),
+    [products],
   )
+
+  // Variant products get one row per option so every stock level is adjustable
+  const rows = useMemo(() => {
+    const out: StockRow[] = []
+    for (const p of products) {
+      if (category && p.category !== category) continue
+      if (q && !`${p.name} ${p.sku} ${p.variants.map((v) => `${v.name} ${v.sku}`).join(' ')}`.toLowerCase().includes(q)) continue
+      const total = p.stock + p.variants.reduce((a, v) => a + v.stock, 0)
+      if (lowOnly && total > p.reorderPoint) continue
+      out.push({
+        product: p,
+        variant: null,
+        name: p.variants.length ? `${p.name} · Standard` : p.name,
+        sku: p.sku,
+        stock: p.stock,
+        cost: p.cost,
+      })
+      for (const v of p.variants) {
+        out.push({ product: p, variant: v, name: `${p.name} · ${v.name}`, sku: v.sku, stock: v.stock, cost: v.cost })
+      }
+    }
+    return out
+  }, [products, category, lowOnly, q])
 
   const hasFilters = Boolean(q || category || lowOnly)
 
-  const columns: Array<Column<Product>> = [
+  const columns: Array<Column<StockRow>> = [
     {
       key: 'name',
       header: 'Product',
-      render: (p) => {
-        const low = p.stock <= p.reorderPoint
+      render: (r) => {
+        const low = r.stock <= r.product.reorderPoint
         return (
           <div className={cn('flex min-w-0 items-center gap-3 rounded-lg', low && '-mx-2 -my-1 bg-serious-wash/40 px-2 py-1')}>
-            <ProductTile emoji={p.image} hue={p.imageHue} size="sm" />
+            <ProductTile emoji={r.product.image} hue={r.product.imageHue} size="sm" />
             <div className="min-w-0">
-              <div className="truncate font-medium text-ink">{p.name}</div>
-              <div className="truncate font-mono text-xs text-ink-3">{p.sku}</div>
+              <div className="truncate font-medium text-ink">{r.name}</div>
+              <div className="truncate font-mono text-xs text-ink-3">{r.sku}</div>
             </div>
           </div>
         )
       },
-      sortValue: (p) => p.name,
+      sortValue: (r) => r.name,
     },
     {
       key: 'category',
       header: 'Category',
       hideBelow: 'md',
-      render: (p) => <Badge>{p.category}</Badge>,
-      sortValue: (p) => p.category,
+      render: (r) => <Badge>{r.product.category}</Badge>,
+      sortValue: (r) => r.product.category,
     },
     {
       key: 'stock',
       header: 'Stock',
-      render: (p) => <StockBadge stock={p.stock} reorderPoint={p.reorderPoint} />,
-      sortValue: (p) => p.stock,
+      render: (r) => <StockBadge stock={r.stock} reorderPoint={r.product.reorderPoint} />,
+      sortValue: (r) => r.stock,
     },
     {
       key: 'reorder',
       header: 'Reorder at',
       align: 'right',
       hideBelow: 'lg',
-      render: (p) => <span className="tnum text-ink-2">{num(p.reorderPoint)}</span>,
-      sortValue: (p) => p.reorderPoint,
+      render: (r) => <span className="tnum text-ink-2">{num(r.product.reorderPoint)}</span>,
+      sortValue: (r) => r.product.reorderPoint,
     },
     {
       key: 'cost',
       header: 'Unit cost',
       align: 'right',
       hideBelow: 'sm',
-      render: (p) => <span className="tnum text-ink-2">{money(p.cost)}</span>,
-      sortValue: (p) => p.cost,
+      render: (r) => <span className="tnum text-ink-2">{money(r.cost)}</span>,
+      sortValue: (r) => r.cost,
     },
     {
       key: 'value',
       header: 'Value',
       align: 'right',
-      render: (p) => <span className="tnum font-medium text-ink">{money(p.stock * p.cost)}</span>,
-      sortValue: (p) => p.stock * p.cost,
+      render: (r) => <span className="tnum font-medium text-ink">{money(r.stock * r.cost)}</span>,
+      sortValue: (r) => r.stock * r.cost,
     },
     {
       key: 'actions',
       header: <span className="sr-only">Actions</span>,
       align: 'right',
       width: 'w-12',
-      render: (p) => (
+      render: (r) => (
         <Menu
           trigger={
-            <IconButton label={`Actions for ${p.name}`} size="sm">
+            <IconButton label={`Actions for ${r.name}`} size="sm">
               <MoreHorizontal />
             </IconButton>
           }
         >
-          <MenuItem icon={<SlidersHorizontal />} onSelect={() => onAdjust(p)}>
+          <MenuItem icon={<SlidersHorizontal />} onSelect={() => onAdjust(r.product, false, r.variant?.id)}>
             Adjust stock
           </MenuItem>
-          <MenuItem icon={<PackageMinus />} onSelect={() => onAdjust(p, true)}>
+          <MenuItem icon={<PackageMinus />} onSelect={() => onAdjust(r.product, true, r.variant?.id)}>
             Record damaged
           </MenuItem>
-          <MenuItem icon={<ExternalLink />} onSelect={() => navigate(`/admin/products?q=${encodeURIComponent(p.name)}`)}>
+          <MenuItem icon={<ExternalLink />} onSelect={() => navigate(`/admin/products?q=${encodeURIComponent(r.product.name)}`)}>
             View product
           </MenuItem>
         </Menu>
@@ -155,7 +181,7 @@ export default function ProductsTab({
         <Select
           aria-label="Filter by category"
           placeholder="All categories"
-          options={CATEGORIES}
+          options={categories}
           value={category}
           onChange={(e) => onCategoryChange(e.target.value)}
           className="w-44"
@@ -174,8 +200,8 @@ export default function ProductsTab({
 
       <DataTable
         columns={columns}
-        rows={filtered}
-        rowKey={(p) => p.id}
+        rows={rows}
+        rowKey={(r) => `${r.product.id}:${r.variant?.id ?? 'base'}`}
         initialSort={{ key: 'name', dir: 'asc' }}
         emptyState={
           <EmptyState

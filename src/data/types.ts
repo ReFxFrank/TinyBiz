@@ -23,7 +23,9 @@ export interface ProductVariant {
   stock: number
 }
 
-export type ProductCategory = '3D Prints' | 'Stickers' | 'Accessories' | 'Home & Desk' | 'Packaging Add-ons'
+/** Owner-defined — these are just the starter suggestions */
+export type ProductCategory = string
+export const DEFAULT_CATEGORIES: ProductCategory[] = ['3D Prints', 'Stickers', 'Accessories', 'Home & Desk', 'Packaging Add-ons']
 
 export interface Product {
   id: ID
@@ -83,6 +85,8 @@ export interface StockAdjustment {
   date: string
   itemType: 'product' | 'material'
   itemId: ID
+  /** Set when the adjustment targets one variant of a product */
+  variantId?: ID
   itemName: string
   delta: number
   reason: AdjustmentReason
@@ -544,6 +548,18 @@ export interface SocialLinks {
   etsy?: string
 }
 
+/** The eye-catching announcement strip under the storefront hero */
+export interface PromoBanner {
+  enabled: boolean
+  /** e.g. "New drop: Rose Heart Dragons 🐉" or "BOGO weekend!" */
+  heading: string
+  /** Optional supporting line */
+  body?: string
+  /** Optional call-to-action */
+  linkLabel?: string
+  linkUrl?: string
+}
+
 export interface Settings {
   businessName: string
   ownerName: string
@@ -569,6 +585,8 @@ export interface Settings {
   policies?: Partial<PolicyContent>
   /** Social profile links for the storefront footer */
   social?: SocialLinks
+  /** Announcement strip under the storefront hero */
+  promoBanner?: PromoBanner
 }
 
 export interface ShippingConfig {

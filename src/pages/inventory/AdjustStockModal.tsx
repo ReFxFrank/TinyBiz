@@ -8,6 +8,8 @@ import { num } from '@/lib/format'
 export interface AdjustTarget {
   type: 'product' | 'material'
   id: string
+  /** Adjust one variant's stock instead of the product's own */
+  variantId?: string
   /** Pre-select a reason (e.g. "Damaged" for the record-damaged shortcut) */
   presetReason?: AdjustmentReason
 }
@@ -29,6 +31,13 @@ export default function AdjustStockModal({ target, onClose }: { target: AdjustTa
       : (materials.find((m) => m.id === target.id) ?? null)
   }, [target, products, materials])
 
+  const variant =
+    target?.type === 'product' && target.variantId && item && 'variants' in item
+      ? (item.variants.find((v) => v.id === target.variantId) ?? null)
+      : null
+  const currentStock = variant ? variant.stock : (item?.stock ?? 0)
+  const displayName = item ? (variant ? `${item.name} — ${variant.name}` : item.name) : undefined
+
   const unit = target?.type === 'material' && item && 'unit' in item ? item.unit : ''
 
   const [direction, setDirection] = useState<'add' | 'remove'>('add')
@@ -49,13 +58,13 @@ export default function AdjustStockModal({ target, onClose }: { target: AdjustTa
   const qtyNum = Number(qty)
   const valid = Number.isFinite(qtyNum) && qtyNum > 0
   const delta = valid ? (direction === 'remove' ? -qtyNum : qtyNum) : 0
-  const newLevel = item ? Math.max(0, item.stock + delta) : 0
+  const newLevel = item ? Math.max(0, currentStock + delta) : 0
 
   const submit = () => {
     if (!target || !item || !valid) return
-    adjustStock(target.type, target.id, delta, reason, notes.trim() || undefined)
+    adjustStock(target.type, target.id, delta, reason, notes.trim() || undefined, target.variantId)
     toast('Stock updated', {
-      description: `${item.name} is now at ${num(newLevel)}${unit ? ` ${unit}` : ''}.`,
+      description: `${displayName} is now at ${num(newLevel)}${unit ? ` ${unit}` : ''}.`,
       tone: 'success',
     })
     onClose()
@@ -66,7 +75,7 @@ export default function AdjustStockModal({ target, onClose }: { target: AdjustTa
       open={Boolean(target && item)}
       onClose={onClose}
       title="Adjust stock"
-      description={item ? item.name : undefined}
+      description={displayName}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -83,7 +92,7 @@ export default function AdjustStockModal({ target, onClose }: { target: AdjustTa
           <div className="flex items-center justify-between rounded-xl bg-sunken px-4 py-3 text-sm">
             <span className="text-ink-3">Current stock</span>
             <span className="tnum font-semibold text-ink">
-              {num(item.stock)}
+              {num(currentStock)}
               {unit ? ` ${unit}` : ''}
             </span>
           </div>
@@ -126,7 +135,7 @@ export default function AdjustStockModal({ target, onClose }: { target: AdjustTa
                 {num(newLevel)}
                 {unit ? ` ${unit}` : ''}
               </span>
-              {item.stock + delta < 0 && ' (stock cannot go below zero)'}
+              {currentStock + delta < 0 && ' (stock cannot go below zero)'}
             </p>
           )}
         </div>

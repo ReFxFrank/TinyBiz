@@ -1,17 +1,19 @@
 // Storefront home — the shop's landing page. Cinematic hero, emoji marquee,
-// trust strip, best sellers, catalog stats, category tiles, maker story, and a
-// newsletter signup that writes straight into the admin Subscribers list.
+// owner-managed announcement banner, trust strip, best sellers, catalog stats,
+// category tiles, maker story, and a newsletter signup that writes straight
+// into the admin Subscribers list.
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, useInView } from 'framer-motion'
-import { ArrowRight, HeartHandshake, Mail, ShoppingBag, Sparkles, Truck } from 'lucide-react'
+import { ArrowRight, HeartHandshake, Mail, Megaphone, ShoppingBag, Sparkles, Truck } from 'lucide-react'
 import { Button, Input } from '@/components/ui'
 import { StoreProductCard } from './StoreProductCard'
 import { useCatalog } from '@/store/useCatalog'
 import { FREE_SHIPPING_OVER } from '@/store/useCart'
 import { toast } from '@/store/useUI'
 import { api, ApiError } from '@/lib/api'
+import { emojify } from '@/lib/emoji'
 import { resolveStorefrontCopy } from '@/lib/storefrontCopy'
 import { money } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -162,6 +164,52 @@ function EmojiMarquee({ products: allProducts }: { products: Product[] }) {
         {strip(true)}
       </div>
     </div>
+  )
+}
+
+// ── Promo banner — owner-managed announcement strip under the hero ───────────
+
+function PromoBannerStrip() {
+  const banner = useCatalog((s) => s.shop?.promoBanner)
+  if (!banner?.enabled || !banner.heading.trim()) return null
+
+  const linkUrl = banner.linkUrl?.trim() ?? ''
+  const linkLabel = banner.linkLabel?.trim() ?? ''
+  const ctaButton = (
+    <Button size="sm" className="w-full sm:w-auto">
+      {linkLabel} <ArrowRight className="h-4 w-4" />
+    </Button>
+  )
+
+  return (
+    <motion.section {...REVEAL} aria-label="Announcement" className="mt-5">
+      <div className="glass relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-[color:color-mix(in_srgb,var(--accent)_35%,transparent)] px-5 py-4 shadow-pop sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        {/* Accent wash — brightest at the edges so the copy stays readable */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-r from-accent-wash via-transparent to-accent-wash" />
+        <div className="relative flex min-w-0 items-start gap-3.5 sm:items-center">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-wash text-accent-strong dark:text-accent">
+            <Megaphone className="h-[18px] w-[18px]" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-base font-bold tracking-tight text-ink">{emojify(banner.heading)}</p>
+            {banner.body?.trim() && <p className="mt-0.5 text-sm text-ink-2">{emojify(banner.body)}</p>}
+          </div>
+        </div>
+        {linkUrl && linkLabel && (
+          <div className="relative shrink-0">
+            {linkUrl.startsWith('/') ? (
+              <Link to={linkUrl} className="block">
+                {ctaButton}
+              </Link>
+            ) : (
+              <a href={linkUrl} target="_blank" rel="noopener noreferrer" className="block">
+                {ctaButton}
+              </a>
+            )}
+          </div>
+        )}
+      </div>
+    </motion.section>
   )
 }
 
@@ -432,6 +480,7 @@ export default function StoreHome() {
         <div>
           <Hero heroEmojis={heroEmojis} />
           <EmojiMarquee products={activeProducts} />
+          <PromoBannerStrip />
           <TrustStrip />
         </div>
 

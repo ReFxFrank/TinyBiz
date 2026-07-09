@@ -6,7 +6,7 @@ import { Button, PageHeader, SkeletonStats, SkeletonTable, Stat, Tabs, Tip, type
 import { useStore } from '@/store/useStore'
 import { toast } from '@/store/useUI'
 import type { Material, Product } from '@/data/types'
-import { inventoryValue, lowStockMaterials, lowStockProducts } from '@/lib/metrics'
+import { inventoryValue, lowStockMaterials, lowStockProducts, sellableStock } from '@/lib/metrics'
 import { moneyCompact, num } from '@/lib/format'
 import { sum, useLoaded } from '@/lib/utils'
 import ProductsTab from './inventory/ProductsTab'
@@ -59,12 +59,12 @@ export default function Inventory() {
 
   const stats = useMemo(() => {
     const low = lowStockProducts(products).length + lowStockMaterials(materials).length
-    const out = products.filter((p) => p.stock <= 0).length + materials.filter((m) => m.stock <= 0).length
+    const out = products.filter((p) => sellableStock(p) <= 0).length + materials.filter((m) => m.stock <= 0).length
     return {
       value: inventoryValue(products, materials),
       low,
       out,
-      units: sum(products.map((p) => p.stock)),
+      units: sum(products.map(sellableStock)),
     }
   }, [products, materials])
 
@@ -74,8 +74,8 @@ export default function Inventory() {
     { value: 'adjustments', label: 'Adjustments', count: adjustments.length },
   ]
 
-  const openAdjust = (type: 'product' | 'material') => (item: Product | Material, damaged?: boolean) =>
-    setAdjustTarget({ type, id: item.id, presetReason: damaged ? 'Damaged' : undefined })
+  const openAdjust = (type: 'product' | 'material') => (item: Product | Material, damaged?: boolean, variantId?: string) =>
+    setAdjustTarget({ type, id: item.id, variantId, presetReason: damaged ? 'Damaged' : undefined })
 
   /** Clicking a stat tile lands on the Products tab with predictable filters */
   const showProducts = (low: boolean) => {

@@ -180,8 +180,13 @@ export function monthlySeries(
 
 // ── Inventory ────────────────────────────────────────────────────────────────
 
+/** Total sellable units — the base product plus every variant */
+export function sellableStock(p: Product): number {
+  return p.stock + sum(p.variants.map((v) => v.stock))
+}
+
 export function lowStockProducts(products: Product[]): Product[] {
-  return products.filter((p) => p.active && p.stock <= p.reorderPoint)
+  return products.filter((p) => p.active && sellableStock(p) <= p.reorderPoint)
 }
 
 export function lowStockMaterials(materials: Material[]): Material[] {

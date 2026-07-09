@@ -116,7 +116,7 @@ interface StoreState extends Collections {
 
   // Inventory
   /** Change stock on a product or material and log the adjustment. */
-  adjustStock: (itemType: 'product' | 'material', itemId: ID, delta: number, reason: AdjustmentReason, notes?: string) => void
+  adjustStock: (itemType: 'product' | 'material', itemId: ID, delta: number, reason: AdjustmentReason, notes?: string, variantId?: ID) => void
 
   // Orders
   /** Transition an order's status, stamping shippedAt/deliveredAt as needed. */
@@ -214,23 +214,37 @@ export const useStore = create<StoreState>()(
         set((s) => ({ newsletterSettings: { ...s.newsletterSettings, ...patch } }))
       },
 
-      adjustStock: (itemType, itemId, delta, reason, notes) => {
+      adjustStock: (itemType, itemId, delta, reason, notes, variantId) => {
         const s = get()
         const item = itemType === 'product' ? s.products.find((p) => p.id === itemId) : s.materials.find((m) => m.id === itemId)
         if (!item) return
+        const variant =
+          itemType === 'product' && variantId ? (item as Product).variants.find((v) => v.id === variantId) : undefined
+        if (variantId && !variant) return
         // Stock never goes below zero, so log the delta that was actually applied
-        const appliedDelta = Math.max(-item.stock, delta)
+        const currentStock = variant ? variant.stock : item.stock
+        const appliedDelta = Math.max(-currentStock, delta)
         const entry: StockAdjustment = {
           id: uid('adj'),
           date: new Date().toISOString(),
           itemType,
           itemId,
-          itemName: item.name,
+          variantId: variant?.id,
+          itemName: variant ? `${item.name} — ${variant.name}` : item.name,
           delta: appliedDelta,
           reason,
           notes,
         }
-        if (itemType === 'product') {
+        if (itemType === 'product' && variant) {
+          set((st) => ({
+            products: st.products.map((p) =>
+              p.id === itemId
+                ? { ...p, variants: p.variants.map((v) => (v.id === variant.id ? { ...v, stock: Math.max(0, v.stock + delta) } : v)) }
+                : p,
+            ),
+            adjustments: [entry, ...st.adjustments],
+          }))
+        } else if (itemType === 'product') {
           set((st) => ({
             products: st.products.map((p) => (p.id === itemId ? { ...p, stock: Math.max(0, p.stock + delta) } : p)),
             adjustments: [entry, ...st.adjustments],
@@ -242,13 +256,19 @@ export const useStore = create<StoreState>()(
           }))
         }
         // Low-stock notification when a deduction crosses the reorder point
-        const after = (itemType === 'product' ? get().products.find((p) => p.id === itemId)?.stock : get().materials.find((m) => m.id === itemId)?.stock) ?? 0
+        const freshProduct = itemType === 'product' ? get().products.find((p) => p.id === itemId) : undefined
+        const after =
+          (variant
+            ? freshProduct?.variants.find((v) => v.id === variant.id)?.stock
+            : itemType === 'product'
+              ? freshProduct?.stock
+              : get().materials.find((m) => m.id === itemId)?.stock) ?? 0
         const reorder = itemType === 'product' ? (item as Product).reorderPoint : (item as Material).reorderPoint
-        const before = ('stock' in item ? item.stock : 0) as number
+        const before = currentStock
         if (get().settings.notifyLowStock && delta < 0 && before > reorder && after <= reorder) {
           get().addNotification({
             type: 'low-stock',
-            title: `Low stock: ${item.name}`,
+            title: `Low stock: ${entry.itemName}`,
             body: `Now at ${after} — reorder point is ${reorder}.`,
             link: '/admin/inventory',
           })

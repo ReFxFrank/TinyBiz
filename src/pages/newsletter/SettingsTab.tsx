@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, Save } from 'lucide-react'
+import { Check, MailCheck, Save } from 'lucide-react'
 import { Button, Card, CardHeader, Field, Input, Select } from '@/components/ui'
 import { useStore } from '@/store/useStore'
 import { toast } from '@/store/useUI'
@@ -47,11 +47,61 @@ export function SettingsTab() {
     try {
       const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(6000) })
       const data = await res.json()
-      setTestResult({ ok: true, msg: `Connected — bridge is running (${data.mode ?? 'ready'}).` })
+      setTestResult({
+        ok: true,
+        msg:
+          data.mode === 'demo'
+            ? 'Connected, but the bridge is in DEMO mode — emails are only logged. Add SMTP credentials on the server to send for real.'
+            : `Connected — bridge is running (${data.mode ?? 'ready'}).`,
+      })
     } catch {
       setTestResult({ ok: false, msg: 'Could not reach the mail bridge. Check the URL and that it is running.' })
     } finally {
       setTesting(false)
+    }
+  }
+
+  // A real end-to-end test: sends an actual email to the From address
+  const [sendingTest, setSendingTest] = useState(false)
+  const sendTestEmail = async () => {
+    const base = draft.mailBridgeUrl.trim().replace(/\/$/, '')
+    const to = draft.fromEmail.trim()
+    if (!base || !emailValid) return
+    setSendingTest(true)
+    setTestResult(null)
+    try {
+      const res = await fetch(`${base}/send-one`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(15000),
+        body: JSON.stringify({
+          token: draft.mailBridgeToken || 'demo',
+          to,
+          toName: draft.fromName || to,
+          subject: 'Test email — your newsletter setup works ✨',
+          html: `<div style="font-family:sans-serif;font-size:16px;color:#333;line-height:1.6;padding:24px;">
+            <p><strong>It works!</strong></p>
+            <p>This test email left your mail bridge and was delivered by your email provider.
+            Newsletters, order confirmations, and shipping updates will all travel this same road.</p>
+            <p style="color:#999;font-size:13px;">Sent from the newsletter settings page.</p></div>`,
+          text: 'It works! This test email left your mail bridge and was delivered by your email provider.',
+          from: { name: draft.fromName || 'Test', email: to },
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.ok) throw new Error(data.error || `bridge responded ${res.status}`)
+      setTestResult(
+        data.demo
+          ? { ok: true, msg: 'The bridge accepted it but is in DEMO mode — nothing was really sent. Add SMTP credentials on the server.' }
+          : { ok: true, msg: `Test email sent to ${to} — check your inbox (and spam, the first time).` },
+      )
+    } catch (err) {
+      setTestResult({
+        ok: false,
+        msg: `Could not send: ${err instanceof Error ? err.message : 'unknown error'}. Check the token and the server's mail credentials.`,
+      })
+    } finally {
+      setSendingTest(false)
     }
   }
 
@@ -123,8 +173,22 @@ export function SettingsTab() {
       </Card>
 
       <Card>
-        <CardHeader title="Email delivery" subtitle="Connect a mail bridge to actually send newsletters." />
+        <CardHeader
+          title="Email delivery"
+          subtitle="Connect a mail bridge to actually send newsletters."
+          actions={
+            <Button size="sm" icon={<Save />} disabled={!canSave} onClick={save}>
+              Save
+            </Button>
+          }
+        />
         <div className="space-y-3">
+          {dirty && !canSave && (
+            <p className="rounded-xl bg-sunken px-3 py-2 text-[13px] text-warn">
+              To save, also fill in the From name, a valid From email, and the mailing address in the Sending identity
+              card above — everything on this page saves together.
+            </p>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Mail bridge URL" hint="Where your mail bridge runs — e.g. http://192.168.1.50:7071.">
               <Input
@@ -147,9 +211,19 @@ export function SettingsTab() {
               />
             </Field>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button variant="outline" size="sm" onClick={testBridge} disabled={!draft.mailBridgeUrl.trim() || testing}>
               {testing ? 'Testing…' : 'Test connection'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<MailCheck />}
+              onClick={sendTestEmail}
+              disabled={!draft.mailBridgeUrl.trim() || !emailValid || sendingTest}
+              title={!emailValid ? 'Enter a valid From email above first' : undefined}
+            >
+              {sendingTest ? 'Sending…' : 'Send me a test email'}
             </Button>
             {testResult && (
               <span className={cn('flex items-center gap-1.5 text-[13px]', testResult.ok ? 'text-good' : 'text-critical')}>

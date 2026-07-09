@@ -9,21 +9,22 @@ import { useStore } from '@/store/useStore'
 import { toast } from '@/store/useUI'
 import { defaultStorefrontCopy, STOREFRONT_FIELDS } from '@/lib/storefrontCopy'
 import { emojify } from '@/lib/emoji'
-import type { StorefrontContent as Content } from '@/data/types'
+import { DEFAULT_SHIPPING, type StorefrontContent as Content } from '@/data/types'
 
 export function StorefrontContentCard() {
   const settings = useStore((s) => s.settings)
   const updateSettings = useStore((s) => s.updateSettings)
 
-  const defaults = useMemo(
-    () =>
-      defaultStorefrontCopy({
-        businessName: settings.businessName,
-        ownerName: settings.ownerName,
-        city: settings.address.city,
-      }),
-    [settings.businessName, settings.ownerName, settings.address.city],
-  )
+  const defaults = useMemo(() => {
+    const shipping = { ...DEFAULT_SHIPPING, ...settings.shipping }
+    return defaultStorefrontCopy({
+      businessName: settings.businessName,
+      ownerName: settings.ownerName,
+      city: settings.address.city,
+      shippingRegion: shipping.region,
+      freeShippingOver: shipping.freeOver,
+    })
+  }, [settings.businessName, settings.ownerName, settings.address.city, settings.shipping])
 
   const [draft, setDraft] = useState<Partial<Content>>(settings.storefront ?? {})
   // emojify as-you-type: ":sparkles:" becomes ✨ the moment the closing colon lands

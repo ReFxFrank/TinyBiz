@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { FileText, FolderOpen, HardDrive, MoreHorizontal, Receipt, Upload, Download, Pencil, Trash2, UploadCloud } from 'lucide-react'
 import {
@@ -30,6 +30,7 @@ import { toast } from '@/store/useUI'
 import type { DocCategory, DocFileType, DocumentItem } from '@/data/types'
 import { fmtDate, timeAgo, num } from '@/lib/format'
 import { cn, downloadFile, uid, useLoaded } from '@/lib/utils'
+import { api, ApiError } from '@/lib/api'
 
 const CATEGORIES: DocCategory[] = ['Invoice', 'Receipt', 'Manual', 'Warranty', 'Supplier', 'Tax']
 const FILE_TYPES: DocFileType[] = ['pdf', 'png', 'jpg', 'docx', 'xlsx', 'csv']
@@ -50,6 +51,9 @@ const TYPE_TILE: Record<DocFileType, string> = {
   png: 'bg-pop-soft text-pop',
   jpg: 'bg-pop-soft text-pop',
   csv: 'bg-warn-wash text-[#8a6100] dark:text-warn',
+  txt: 'bg-surface-3 text-muted',
+  webp: 'bg-pop-soft text-pop',
+  gif: 'bg-pop-soft text-pop',
 }
 
 function prettySize(sizeKB: number): string {
@@ -73,46 +77,94 @@ function FileTile({ type }: { type: DocFileType }) {
 
 // ── Upload modal ─────────────────────────────────────────────────────────────
 
+/** Map a picked file's extension to the record's file type */
+function typeFromFile(file: File): DocFileType {
+  const ext = (file.name.split('.').pop() || '').toLowerCase()
+  const map: Record<string, DocFileType> = {
+    pdf: 'pdf', png: 'png', jpg: 'jpg', jpeg: 'jpg', webp: 'webp', gif: 'gif',
+    csv: 'csv', txt: 'txt', docx: 'docx', xlsx: 'xlsx',
+  }
+  return map[ext] ?? 'pdf'
+}
+
+const ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,.gif,.csv,.txt,.docx,.xlsx'
+
+/** MIME by document type — for files the browser reports with an empty type */
+const DOC_MIME: Record<DocFileType, string> = {
+  pdf: 'application/pdf',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  csv: 'text/csv',
+  txt: 'text/plain',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+}
+
 function UploadModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const addItem = useStore((s) => s.addItem)
   const [name, setName] = useState('')
   const [category, setCategory] = useState<string>('')
-  const [fileType, setFileType] = useState<string>('')
   const [tags, setTags] = useState('')
   const [notes, setNotes] = useState('')
-  const [attached, setAttached] = useState(false)
+  const [file, setFile] = useState<File | null>(null)
+  const [busy, setBusy] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open) {
       setName('')
       setCategory('')
-      setFileType('')
       setTags('')
       setNotes('')
-      setAttached(false)
+      setFile(null)
+      setBusy(false)
     }
   }, [open])
 
-  const valid = name.trim().length > 0 && category !== '' && fileType !== ''
-
-  const submit = () => {
-    if (!valid) return
-    const doc: DocumentItem = {
-      id: uid('doc'),
-      name: name.trim(),
-      category: category as DocCategory,
-      fileType: fileType as DocFileType,
-      sizeKB: Math.round(Math.random() * 3950) + 50,
-      uploadedAt: new Date().toISOString(),
-      tags: tags
-        .split(',')
-        .map((t) => t.trim())
-        .filter(Boolean),
-      notes: notes.trim() || undefined,
+  const pick = (f: File | null) => {
+    if (!f) return
+    if (f.size > 10 * 1024 * 1024) {
+      toast('That file is too big', { description: 'Documents can be up to 10 MB.', tone: 'error' })
+      return
     }
-    addItem('documents', doc)
-    toast('Uploaded', { description: `${doc.name} (${prettySize(doc.sizeKB)}) added to your documents.`, tone: 'success' })
-    onClose()
+    setFile(f)
+    // A sensible default name from the filename, only when the field is empty
+    setName((n) => n.trim() || f.name.replace(/\.[^.]+$/, ''))
+  }
+
+  const valid = name.trim().length > 0 && category !== '' && file !== null && !busy
+
+  const submit = async () => {
+    if (!valid || !file) return
+    setBusy(true)
+    try {
+      const { url } = await api.upload(file, file.type || DOC_MIME[typeFromFile(file)])
+      const doc: DocumentItem = {
+        id: uid('doc'),
+        name: name.trim(),
+        category: category as DocCategory,
+        fileType: typeFromFile(file),
+        sizeKB: Math.max(1, Math.round(file.size / 1024)),
+        uploadedAt: new Date().toISOString(),
+        tags: tags
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean),
+        notes: notes.trim() || undefined,
+        url,
+      }
+      addItem('documents', doc)
+      toast('Uploaded', { description: `${doc.name} (${prettySize(doc.sizeKB)}) added to your documents.`, tone: 'success' })
+      onClose()
+    } catch (err) {
+      toast('Upload failed', {
+        description: err instanceof ApiError ? err.message : 'Could not reach the server.',
+        tone: 'error',
+      })
+      setBusy(false)
+    }
   }
 
   return (
@@ -126,28 +178,43 @@ function UploadModal({ open, onClose }: { open: boolean; onClose: () => void }) 
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button disabled={!valid} onClick={submit} icon={<Upload />}>
-            Upload
+          <Button disabled={!valid} onClick={() => void submit()} icon={<Upload />}>
+            {busy ? 'Uploading…' : 'Upload'}
           </Button>
         </>
       }
     >
       <div className="space-y-4">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={ACCEPT}
+          className="hidden"
+          onChange={(e) => {
+            pick(e.target.files?.[0] ?? null)
+            e.target.value = '' // allow re-picking the same file
+          }}
+        />
         <button
           type="button"
-          onClick={() => setAttached(true)}
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault()
+            pick(e.dataTransfer.files?.[0] ?? null)
+          }}
           className={cn(
             'flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-6 py-8 text-center transition-colors',
-            attached
+            file
               ? 'border-good/50 bg-good-wash text-[#006300] dark:text-good'
               : 'border-edge bg-sunken/50 text-ink-3 hover:border-accent/50 hover:bg-accent-wash/40 hover:text-accent',
           )}
         >
           <UploadCloud className="h-7 w-7" />
           <span className="text-[13px] font-medium">
-            {attached ? 'File attached — ready to upload' : 'Click to browse, or drop a file here'}
+            {file ? `${file.name} (${prettySize(Math.max(1, Math.round(file.size / 1024)))}) — click to swap` : 'Click to browse, or drop a file here'}
           </span>
-          {!attached && <span className="text-xs">PDF, PNG, JPG, DOCX, XLSX, CSV up to 10 MB</span>}
+          {!file && <span className="text-xs">PDF, PNG, JPG, WEBP, GIF, DOCX, XLSX, CSV, TXT up to 10 MB</span>}
         </button>
         <Field label="Name" required>
           <Input
@@ -157,24 +224,14 @@ function UploadModal({ open, onClose }: { open: boolean; onClose: () => void }) 
             autoFocus
           />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Category" required>
-            <Select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder="Select…"
-              options={CATEGORIES}
-            />
-          </Field>
-          <Field label="File type" required>
-            <Select
-              value={fileType}
-              onChange={(e) => setFileType(e.target.value)}
-              placeholder="Select…"
-              options={FILE_TYPES.map((t) => ({ value: t, label: t.toUpperCase() }))}
-            />
-          </Field>
-        </div>
+        <Field label="Category" required>
+          <Select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            placeholder="Select…"
+            options={CATEGORIES}
+          />
+        </Field>
         <Field label="Tags" hint="Comma-separated, e.g. supplies, q2">
           <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="supplies, q2" />
         </Field>
@@ -287,10 +344,20 @@ export default function Documents() {
   }
 
   const download = (doc: DocumentItem) => {
-    downloadFile(
-      `${doc.name}.${doc.fileType}`,
-      `Tiny Magic Studio demo document\n\nName: ${doc.name}\nCategory: ${doc.category}\nUploaded: ${fmtDate(doc.uploadedAt)}\nSize: ${prettySize(doc.sizeKB)}\n${doc.notes ? `Notes: ${doc.notes}\n` : ''}`,
-    )
+    if (doc.url) {
+      const a = document.createElement('a')
+      a.href = doc.url
+      a.download = `${doc.name}.${doc.fileType}`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+    } else {
+      // Pre-upload-era entries have no real file behind them
+      downloadFile(
+        `${doc.name}.${doc.fileType}`,
+        `Tiny Magic Studio demo document\n\nName: ${doc.name}\nCategory: ${doc.category}\nUploaded: ${fmtDate(doc.uploadedAt)}\nSize: ${prettySize(doc.sizeKB)}\n${doc.notes ? `Notes: ${doc.notes}\n` : ''}`,
+      )
+    }
     toast('Download started', { description: `${doc.name}.${doc.fileType}` })
   }
 

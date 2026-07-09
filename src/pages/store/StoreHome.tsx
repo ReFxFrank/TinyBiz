@@ -33,6 +33,8 @@ function useStorefrontCopy() {
         businessName: shop?.businessName ?? 'Our shop',
         ownerName: shop?.ownerName ?? '',
         city: shop?.city ?? '',
+        shippingRegion: shop?.shippingRegion ?? '',
+        freeShippingOver: shop?.freeShippingOver ?? FREE_SHIPPING_OVER,
       }),
     [shop],
   )
@@ -216,16 +218,11 @@ function PromoBannerStrip() {
 // ── Trust strip ──────────────────────────────────────────────────────────────
 
 function TrustStrip() {
-  const threshold = useCatalog((s) => s.shop?.freeShippingOver ?? FREE_SHIPPING_OVER)
-  const region = useCatalog((s) => s.shop?.shippingRegion)
+  const copy = useStorefrontCopy()
   const props = [
-    {
-      icon: Truck,
-      title: region ? `Free shipping across ${region}` : 'Free shipping',
-      body: `On every order over ${money(threshold)}`,
-    },
-    { icon: Sparkles, title: 'Made to order', body: 'Printed in-house in small batches' },
-    { icon: HeartHandshake, title: 'Easy returns', body: '30-day returns & friendly support' },
+    { icon: Truck, title: copy.trust1Title, body: copy.trust1Body },
+    { icon: Sparkles, title: copy.trust2Title, body: copy.trust2Body },
+    { icon: HeartHandshake, title: copy.trust3Title, body: copy.trust3Body },
   ]
   return (
     <section className="mt-5 grid gap-3 sm:grid-cols-3 sm:gap-4">

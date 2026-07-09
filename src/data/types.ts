@@ -325,7 +325,7 @@ export interface TimeOff {
 }
 
 export type DocCategory = 'Invoice' | 'Receipt' | 'Manual' | 'Warranty' | 'Supplier' | 'Tax'
-export type DocFileType = 'pdf' | 'png' | 'jpg' | 'docx' | 'xlsx' | 'csv'
+export type DocFileType = 'pdf' | 'png' | 'jpg' | 'docx' | 'xlsx' | 'csv' | 'txt' | 'webp' | 'gif'
 
 export interface DocumentItem {
   id: ID
@@ -336,6 +336,8 @@ export interface DocumentItem {
   uploadedAt: string
   tags: string[]
   notes?: string
+  /** Server URL of the real file (/uploads/…); absent on old metadata-only entries */
+  url?: string
 }
 
 export interface Employee {
@@ -525,6 +527,13 @@ export type CurrencyCode = 'USD' | 'EUR' | 'GBP' | 'CAD' | 'AUD'
 export interface StorefrontContent {
   heroBadge: string
   heroSubtext: string
+  /** The three little trust tiles under the hero */
+  trust1Title: string
+  trust1Body: string
+  trust2Title: string
+  trust2Body: string
+  trust3Title: string
+  trust3Body: string
   aboutHeading: string
   aboutBody1: string
   aboutBody2: string

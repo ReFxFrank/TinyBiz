@@ -139,14 +139,16 @@ export const api = {
     remove: (id: string) => request<{ ok: true }>(`/api/team/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   },
 
-  // product photo upload — raw image bytes, server returns the hosted URL
-  upload: async (blob: Blob) => {
+  // file upload (product photos, documents…) — raw bytes, server returns the
+  // hosted URL. contentType overrides blob.type for files the browser can't
+  // sniff (e.g. .csv reported with an empty MIME on some systems).
+  upload: async (blob: Blob, contentType?: string) => {
     let res: Response
     try {
       res = await fetch('/api/uploads', {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': blob.type || 'image/jpeg' },
+        headers: { 'Content-Type': contentType || blob.type || 'image/jpeg' },
         body: blob,
       })
     } catch {

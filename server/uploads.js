@@ -1,5 +1,6 @@
-// Product photo uploads. The client resizes images before sending, so the
-// server just validates, names, and stores raw bytes — no image libraries.
+// File uploads: product/newsletter photos and business documents. The client
+// resizes images before sending, so the server just validates, names, and
+// stores raw bytes — no image libraries.
 // Files land in TINYMAGIC_UPLOADS (defaults next to the DB) and are served at
 // /uploads/<name> by Express (dev) or nginx→Express (production).
 
@@ -26,8 +27,14 @@ const TYPES = {
   'image/png': 'png',
   'image/webp': 'webp',
   'image/gif': 'gif',
+  'application/pdf': 'pdf',
+  'text/csv': 'csv',
+  'application/vnd.ms-excel': 'csv', // Windows often labels .csv this way
+  'text/plain': 'txt',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
 }
-const MAX_BYTES = 8 * 1024 * 1024
+const MAX_BYTES = 10 * 1024 * 1024
 
 /** Static handler for the stored files — hashed names, cache hard */
 export const uploadsStatic = express.static(UPLOADS_DIR, {
@@ -39,21 +46,31 @@ export const uploadsStatic = express.static(UPLOADS_DIR, {
 export const uploadsRouter = Router()
 uploadsRouter.use(requireAuth)
 
-// Anyone who can edit products (product photos) or newsletters (email images)
-// can add photos
+// Anyone who can edit products (photos), newsletters (email images), or
+// documents (business files) can upload
 uploadsRouter.use((req, res, next) => {
   const access = computeAccess(req.user)
-  if (access.all || access.writable.has('products') || access.writable.has('newsletters')) return next()
+  if (
+    access.all ||
+    access.writable.has('products') ||
+    access.writable.has('newsletters') ||
+    access.writable.has('documents')
+  )
+    return next()
   res.status(403).json({ error: 'forbidden' })
 })
 
-uploadsRouter.post('/', express.raw({ type: 'image/*', limit: MAX_BYTES }), (req, res) => {
-  const ext = TYPES[req.headers['content-type']]
-  if (!ext) return res.status(415).json({ error: 'bad_type', message: 'Upload a JPEG, PNG, WebP, or GIF image.' })
+uploadsRouter.post('/', express.raw({ type: () => true, limit: MAX_BYTES }), (req, res) => {
+  const contentType = String(req.headers['content-type'] || '').split(';')[0].trim()
+  const ext = TYPES[contentType]
+  if (!ext) {
+    return res.status(415).json({ error: 'bad_type', message: 'Upload an image, PDF, CSV, TXT, DOCX, or XLSX file.' })
+  }
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
     return res.status(400).json({ error: 'empty', message: 'The upload was empty.' })
   }
-  const name = `img_${Date.now().toString(36)}${crypto.randomBytes(5).toString('hex')}.${ext}`
+  const prefix = contentType.startsWith('image/') ? 'img' : 'doc'
+  const name = `${prefix}_${Date.now().toString(36)}${crypto.randomBytes(5).toString('hex')}.${ext}`
   writeFileSync(join(UPLOADS_DIR, name), req.body)
   res.json({ url: `/uploads/${name}` })
 })

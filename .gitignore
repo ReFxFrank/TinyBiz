@@ -4,3 +4,9 @@ dist
 .DS_Store
 npm-debug.log*
 tsconfig.tsbuildinfo
+server/*.db
+server/*.db-shm
+server/*.db-wal
+server/*.log
+server/uploads/
+server/backups/

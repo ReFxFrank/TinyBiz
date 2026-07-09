@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# TinyBiz one-step deploy for a fresh Ubuntu VPS (22.04 / 24.04).
+# Tiny Magic Studio one-step deploy for a fresh Ubuntu VPS (22.04 / 24.04).
 #
 #   First deploy (serve on the server's IP over http):
 #     sudo bash deploy.sh
@@ -20,24 +20,24 @@
 #
 # Idempotent and cron-safe: when there are no new commits it exits silently;
 # concurrent runs are prevented with a lock; the domain is remembered in
-# /etc/tinybiz-domain so unattended runs never clobber the HTTPS config.
+# /etc/tinymagic-domain so unattended runs never clobber the HTTPS config.
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
 REPO="https://github.com/ReFxFrank/TinyBiz.git"
 BRANCH="main"
-APP_DIR="/opt/tinybiz"
-DOMAIN_FILE="/etc/tinybiz-domain"
-LOCK_FILE="/var/lock/tinybiz-deploy.lock"
-CRON_FILE="/etc/cron.d/tinybiz-deploy"
-BACKUP_CRON_FILE="/etc/cron.d/tinybiz-backup"
-LOG_FILE="/var/log/tinybiz-deploy.log"
+APP_DIR="/opt/tinymagic"
+DOMAIN_FILE="/etc/tinymagic-domain"
+LOCK_FILE="/var/lock/tinymagic-deploy.lock"
+CRON_FILE="/etc/cron.d/tinymagic-deploy"
+BACKUP_CRON_FILE="/etc/cron.d/tinymagic-backup"
+LOG_FILE="/var/log/tinymagic-deploy.log"
 SHIM_FILE="/usr/local/bin/redeploy"
-API_SERVICE="tinybiz-api"
-ENV_FILE="/etc/tinybiz.env"
-MAIL_SERVICE="tinybiz-mail"
-MAIL_ENV_FILE="/etc/tinybiz-mail.env"
-DATA_DIR="/var/lib/tinybiz"
+API_SERVICE="tinymagic-api"
+ENV_FILE="/etc/tinymagic.env"
+MAIL_SERVICE="tinymagic-mail"
+MAIL_ENV_FILE="/etc/tinymagic-mail.env"
+DATA_DIR="/var/lib/tinymagic"
 
 FORCE=0
 INSTALL_CRON=0
@@ -70,6 +70,68 @@ ensure_packages() {
   fi
 }
 
+migrate_legacy() {
+  # One-time rename of everything installed under the old "tinybiz" name.
+  # Idempotent: each step fires only when the old artifact exists and the new
+  # one doesn't. Data (DB, uploads, backups) is MOVED, never copied or deleted.
+  local migrated=0
+
+  if [ -f /etc/systemd/system/tinybiz-api.service ] || [ -f /etc/systemd/system/tinybiz-mail.service ]; then
+    echo "──> Migrating tinybiz → tinymagic (services, data, config)…"
+    systemctl disable --now tinybiz-api 2>/dev/null || true
+    systemctl disable --now tinybiz-mail 2>/dev/null || true
+    rm -f /etc/systemd/system/tinybiz-api.service /etc/systemd/system/tinybiz-mail.service
+    systemctl daemon-reload
+    migrated=1
+  fi
+
+  if [ -d /var/lib/tinybiz ] && [ ! -d "$DATA_DIR" ]; then
+    mv /var/lib/tinybiz "$DATA_DIR"
+    migrated=1
+  fi
+  if [ -f "$DATA_DIR/tinybiz.db" ] && [ ! -f "$DATA_DIR/tinymagic.db" ]; then
+    mv "$DATA_DIR/tinybiz.db" "$DATA_DIR/tinymagic.db"
+  fi
+
+  if [ -f /etc/tinybiz.env ] && [ ! -f "$ENV_FILE" ]; then
+    sed -e 's/^TINYBIZ_/TINYMAGIC_/' \
+        -e 's|/var/lib/tinybiz|/var/lib/tinymagic|g' \
+        -e 's|tinybiz\.db|tinymagic.db|g' /etc/tinybiz.env > "$ENV_FILE"
+    chmod 600 "$ENV_FILE"
+    rm -f /etc/tinybiz.env
+    migrated=1
+  fi
+  if [ -f /etc/tinybiz-mail.env ] && [ ! -f "$MAIL_ENV_FILE" ]; then
+    mv /etc/tinybiz-mail.env "$MAIL_ENV_FILE"
+    migrated=1
+  fi
+
+  [ -f /etc/tinybiz-domain ] && [ ! -f "$DOMAIN_FILE" ] && mv /etc/tinybiz-domain "$DOMAIN_FILE"
+  rm -f /etc/cron.d/tinybiz-backup
+  if [ -f /etc/cron.d/tinybiz-deploy ]; then
+    rm -f /etc/cron.d/tinybiz-deploy
+    INSTALL_CRON=1 # keep auto-deploy alive under the new name
+  fi
+  [ -f /var/log/tinybiz-deploy.log ] && [ ! -f "$LOG_FILE" ] && mv /var/log/tinybiz-deploy.log "$LOG_FILE"
+
+  if [ -f /etc/nginx/sites-available/tinybiz ]; then
+    sed 's|/opt/tinybiz|/opt/tinymagic|g' /etc/nginx/sites-available/tinybiz > /etc/nginx/sites-available/tinymagic
+    rm -f /etc/nginx/sites-available/tinybiz /etc/nginx/sites-enabled/tinybiz
+    ln -sf /etc/nginx/sites-available/tinymagic /etc/nginx/sites-enabled/tinymagic
+    migrated=1
+  fi
+
+  # The clone itself. Safe even while this script runs from the old path —
+  # bash parsed the whole file before main() started (see the note at the end).
+  if [ -d /opt/tinybiz ] && [ ! -d "$APP_DIR" ]; then
+    mv /opt/tinybiz "$APP_DIR"
+    migrated=1
+  fi
+
+  [ "$migrated" -eq 1 ] && echo "    Done — data moved intact, nothing deleted."
+  return 0
+}
+
 setup_api() {
   mkdir -p "$DATA_DIR"
 
@@ -77,7 +139,7 @@ setup_api() {
   if [ ! -f "$ENV_FILE" ]; then
     echo "──> Creating ${ENV_FILE}…"
     cat > "$ENV_FILE" <<ENV
-TINYBIZ_DB=${DATA_DIR}/tinybiz.db
+TINYMAGIC_DB=${DATA_DIR}/tinymagic.db
 PORT=4000
 # Uncomment to enable real Stripe payments on the storefront:
 # STRIPE_SECRET_KEY=sk_live_...
@@ -89,7 +151,7 @@ ENV
   local unit unit_file="/etc/systemd/system/${API_SERVICE}.service"
   unit="$(cat <<UNIT
 [Unit]
-Description=TinyBiz API
+Description=Tiny Magic Studio API
 After=network.target
 
 [Service]
@@ -118,7 +180,7 @@ UNIT
   local backup_cron
   backup_cron="$(cat <<CRON
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-17 3 * * * root sh -c 'set -a; . ${ENV_FILE}; node ${APP_DIR}/server/backup.js' >>/var/log/tinybiz-backup.log 2>&1
+17 3 * * * root sh -c 'set -a; . ${ENV_FILE}; node ${APP_DIR}/server/backup.js' >>/var/log/tinymagic-backup.log 2>&1
 CRON
 )"
   if [ ! -f "$BACKUP_CRON_FILE" ] || [ "$(cat "$BACKUP_CRON_FILE")" != "$backup_cron" ]; then
@@ -165,7 +227,7 @@ ENV
   local unit unit_file="/etc/systemd/system/${MAIL_SERVICE}.service"
   unit="$(cat <<UNIT
 [Unit]
-Description=TinyBiz Mail Bridge
+Description=Tiny Magic Studio Mail Bridge
 After=network.target
 
 [Service]
@@ -191,7 +253,7 @@ UNIT
 
 configure_nginx() {
   local server_name="${DOMAIN:-_}"
-  local site="/etc/nginx/sites-available/tinybiz"
+  local site="/etc/nginx/sites-available/tinymagic"
   # Never rewrite a config that already targets this server_name — certbot
   # appends TLS blocks to this file and a rewrite would wipe them. Configs
   # from before the API server lack the /api proxy, so inject just that
@@ -313,7 +375,7 @@ server {
     }
 }
 NGINX
-  ln -sf /etc/nginx/sites-available/tinybiz /etc/nginx/sites-enabled/tinybiz
+  ln -sf /etc/nginx/sites-available/tinymagic /etc/nginx/sites-enabled/tinymagic
   rm -f /etc/nginx/sites-enabled/default
   nginx -t
   systemctl enable --now nginx
@@ -338,7 +400,7 @@ install_shim() {
   local shim
   shim="$(cat <<SHIM
 #!/usr/bin/env bash
-# TinyBiz: pull latest, rebuild, publish. Installed by ${APP_DIR}/deploy.sh.
+# Tiny Magic Studio: pull latest, rebuild, publish. Installed by ${APP_DIR}/deploy.sh.
 [ "\$(id -u)" -eq 0 ] || exec sudo "\$0" "\$@"
 exec bash ${APP_DIR}/deploy.sh "\$@"
 SHIM
@@ -376,6 +438,8 @@ main() {
     exit 0
   fi
 
+  migrate_legacy
+
   # Remember/recall the domain so unattended runs keep the HTTPS setup
   if [ -z "$DOMAIN" ] && [ -f "$DOMAIN_FILE" ]; then
     DOMAIN="$(cat "$DOMAIN_FILE")"
@@ -407,7 +471,7 @@ main() {
   local self_before=""
   [ -f "$APP_DIR/deploy.sh" ] && self_before="$(sha256sum "$APP_DIR/deploy.sh" | cut -d' ' -f1)"
 
-  echo "──> Fetching TinyBiz (${BRANCH})…"
+  echo "──> Fetching Tiny Magic Studio (${BRANCH})…"
   if [ -d "$APP_DIR/.git" ]; then
     git -C "$APP_DIR" fetch origin "$BRANCH"
     # -B: create/reset the local branch — handles switching deploy branches
@@ -420,12 +484,12 @@ main() {
   # If the pull updated THIS script, hand the deploy over to the new version
   # so its improvements apply this run, not next run. Guarded against loops;
   # the flock on FD 9 survives exec, so no second deploy can slip in.
-  if [ -z "${TINYBIZ_REEXEC:-}" ] && [ -n "$self_before" ] &&
+  if [ -z "${TINYMAGIC_REEXEC:-}" ] && [ -n "$self_before" ] &&
      [ "$(sha256sum "$APP_DIR/deploy.sh" | cut -d' ' -f1)" != "$self_before" ]; then
     echo "──> deploy.sh was updated — continuing with the new version…"
     local args=(--force)
     [ "$INSTALL_CRON" -eq 1 ] && args+=(--install-cron)
-    TINYBIZ_REEXEC=1 exec bash "$APP_DIR/deploy.sh" "${args[@]}"
+    TINYMAGIC_REEXEC=1 exec bash "$APP_DIR/deploy.sh" "${args[@]}"
   fi
 
   echo "──> Building…"
@@ -452,7 +516,7 @@ main() {
   local ip
   ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
   echo
-  echo "✓ [$(date '+%F %T')] TinyBiz deployed ($(git -C "$APP_DIR" rev-parse --short HEAD))."
+  echo "✓ [$(date '+%F %T')] Tiny Magic Studio deployed ($(git -C "$APP_DIR" rev-parse --short HEAD))."
   if [ -n "$DOMAIN" ]; then
     echo "  → https://${DOMAIN}"
   else

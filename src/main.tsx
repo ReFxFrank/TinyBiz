@@ -9,9 +9,9 @@ import './index.css'
 // Vite signals that failure — reload once to pick up the new build. The
 // timestamp guard prevents a reload loop if the network itself is down.
 window.addEventListener('vite:preloadError', (event) => {
-  const last = Number(sessionStorage.getItem('tb-chunk-reload') || 0)
+  const last = Number(sessionStorage.getItem('tms-chunk-reload') || 0)
   if (Date.now() - last < 15_000) return
-  sessionStorage.setItem('tb-chunk-reload', String(Date.now()))
+  sessionStorage.setItem('tms-chunk-reload', String(Date.now()))
   event.preventDefault()
   window.location.reload()
 })

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // ─────────────────────────────────────────────────────────────────────────────
-// TinyBiz Mail Bridge  (v2 — per-recipient personalization + tracking)
+// Tiny Magic Studio Mail Bridge  (v2 — per-recipient personalization + tracking)
 //
 // A tiny always-on service that accepts newsletter send requests from the
-// TinyBiz web app (which has no backend) over HTTP and delivers them via SMTP
+// web app (which has no backend of its own) over HTTP and delivers them via SMTP
 // using nodemailer. The browser can't speak SMTP, so this bridge holds the
 // mail credentials and does the sending.
 //
@@ -329,7 +329,7 @@ function startServer(config) {
   const demo = isDemo(config)
 
   const server = http.createServer(async (req, res) => {
-    // Allow the TinyBiz SPA (any origin) to post send requests / poll stats.
+    // Allow the SPA (any origin) to post send requests / poll stats.
     // The /o /c /u endpoints are hit by email clients directly so CORS is moot
     // there, but it's harmless to include.
     res.setHeader('Access-Control-Allow-Origin', '*')
@@ -347,7 +347,7 @@ function startServer(config) {
     if (req.method === 'GET' && (url === '/' || url === '/health')) {
       return sendJson(res, 200, {
         ok: true,
-        service: 'tinybiz-mail-bridge',
+        service: 'tinymagic-mail-bridge',
         mode: demo ? 'demo' : 'smtp',
         campaigns: Object.keys(store.campaigns).length,
       })
@@ -510,7 +510,7 @@ function startServer(config) {
     }
 
     // ── Send one (transactional — order confirmations etc.) ─────────────────
-    // A single email, no campaign, no tracking. Used by the TinyBiz API server.
+    // A single email, no campaign, no tracking. Used by the studio API server.
     if (req.method === 'POST' && url === '/send-one') {
       let body
       try {
@@ -555,7 +555,7 @@ function startServer(config) {
   })
 
   server.listen(config.port, () => {
-    console.log(`TinyBiz mail bridge listening on http://0.0.0.0:${config.port} (${demo ? 'demo' : 'smtp'} mode)`)
+    console.log(`Tiny Magic Studio mail bridge listening on http://0.0.0.0:${config.port} (${demo ? 'demo' : 'smtp'} mode)`)
     console.log(`  → health:  http://localhost:${config.port}/health`)
     console.log(`  → send:    POST http://localhost:${config.port}/send`)
     console.log(`  → stats:   GET  http://localhost:${config.port}/stats?campaign=<id>`)
@@ -566,7 +566,7 @@ function startServer(config) {
     if (config.publicUrl.includes('localhost') || config.publicUrl.includes('127.0.0.1')) {
       console.log('  Note: publicUrl is local — open/click tracking only works for recipients on this machine.')
     }
-    console.log('  Set the Mail bridge URL + token in TinyBiz Settings → Newsletter.')
+    console.log('  Set the Mail bridge URL + token in Settings → Newsletter.')
   })
 
   // Flush tracking on shutdown so the last <1s of events isn't lost.

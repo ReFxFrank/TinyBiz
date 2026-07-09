@@ -1,15 +1,15 @@
-# TinyBiz Mail Bridge ✉️
+# Tiny Magic Studio Mail Bridge ✉️
 
-A tiny always-on service that accepts **newsletter send requests** from the TinyBiz web app and delivers them over **SMTP** using [nodemailer](https://nodemailer.com), so the app can send email even though it has no backend of its own.
+A tiny always-on service that accepts **newsletter send requests** from the Tiny Magic Studio web app and delivers them over **SMTP** using [nodemailer](https://nodemailer.com), so the app can send email even though it has no backend of its own.
 
-It pairs with **Settings → Newsletter** in TinyBiz (Mail bridge URL + token).
+It pairs with **Settings → Newsletter** in Tiny Magic Studio (Mail bridge URL + token).
 
 ## Why a separate service?
 
-TinyBiz is a static web app with no backend, and a browser **cannot send email** — there's no SMTP in the browser, and putting mail credentials in client-side JavaScript would expose them to the world. This bridge runs on any always-on machine (a Raspberry Pi, a mini-PC, the shop's office computer, or a small cloud box), holds the SMTP credentials, and exposes a single URL the app can POST to.
+Tiny Magic Studio is a static web app with no backend, and a browser **cannot send email** — there's no SMTP in the browser, and putting mail credentials in client-side JavaScript would expose them to the world. This bridge runs on any always-on machine (a Raspberry Pi, a mini-PC, the shop's office computer, or a small cloud box), holds the SMTP credentials, and exposes a single URL the app can POST to.
 
 ```
-TinyBiz in your browser ──HTTP/JSON──▶ Mail bridge (this) ──SMTP──▶ your recipients
+Tiny Magic Studio in your browser ──HTTP/JSON──▶ Mail bridge (this) ──SMTP──▶ your recipients
 ```
 
 ## Try it with no SMTP (demo mode)
@@ -20,16 +20,16 @@ Zero dependencies — just Node 18+, no `npm install`:
 node index.js --demo
 ```
 
-In demo mode nothing is actually sent: each `/send` request is **logged** (subject, from, recipient count, first few addresses) and returns `{ ok: true, demo: true, sent: N }`. Demo mode also accepts **any token** (default `demo`), so you can wire up TinyBiz before you have real mail credentials.
+In demo mode nothing is actually sent: each `/send` request is **logged** (subject, from, recipient count, first few addresses) and returns `{ ok: true, demo: true, sent: N }`. Demo mode also accepts **any token** (default `demo`), so you can wire up Tiny Magic Studio before you have real mail credentials.
 
 Check it's alive:
 
 ```bash
 curl -s http://localhost:7071/health
-# {"ok":true,"service":"tinybiz-mail-bridge","mode":"demo"}
+# {"ok":true,"service":"tinymagic-mail-bridge","mode":"demo"}
 ```
 
-In TinyBiz, go to **Settings → Newsletter** and set the Mail bridge URL to `http://localhost:7071`.
+In Tiny Magic Studio, go to **Settings → Newsletter** and set the Mail bridge URL to `http://localhost:7071`.
 
 ## Run it for real
 
@@ -41,7 +41,7 @@ In TinyBiz, go to **Settings → Newsletter** and set the Mail bridge URL to `ht
    # edit config.json — SMTP host/port/user/pass, a long random token, and the From identity
    npm start
    ```
-2. In TinyBiz: **Settings → Newsletter → Mail bridge URL** = `http://<bridge-host>:7071`, and paste the same **token** you put in `config.json`. Compose a newsletter and send.
+2. In Tiny Magic Studio: **Settings → Newsletter → Mail bridge URL** = `http://<bridge-host>:7071`, and paste the same **token** you put in `config.json`. Compose a newsletter and send.
 
 If a real SMTP host is configured (and you didn't pass `--demo`), the bridge sends for real. If no SMTP host is configured, it stays in demo mode so you can't accidentally spam anyone during setup.
 
@@ -103,7 +103,7 @@ Any standards-compliant SMTP server works.
 - `GET /c/:token?u=<encoded-url>` — **click.** Records a click, then `302`-redirects to the decoded `u` (must be `http`/`https`; otherwise redirects to `publicUrl`).
 - `GET /u/:token` — **unsubscribe.** Records an unsubscribe and returns a small friendly HTML confirmation page.
 - `GET /stats?campaign=<id>` — aggregated tracking for a campaign (see below). Unknown campaign → all-zero counts with `ok:true`.
-- `GET /health` → `{ ok: true, service: "tinybiz-mail-bridge", mode: "demo" | "smtp", campaigns: <count> }`.
+- `GET /health` → `{ ok: true, service: "tinymagic-mail-bridge", mode: "demo" | "smtp", campaigns: <count> }`.
 
 CORS is open (`Access-Control-Allow-Origin: *`) on `/send`, `/stats`, and `/health` (plus the `OPTIONS` preflight) so the browser app can call them. The `/o` `/c` `/u` endpoints are hit by email clients/browsers directly (CORS doesn't apply). Request bodies are capped at ~2MB.
 

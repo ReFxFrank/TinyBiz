@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Domain types — the single source of truth for every entity in TinyBiz.
+// Domain types — the single source of truth for every entity in the app.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ID = string
@@ -459,7 +459,7 @@ export interface NewsletterSettings {
   sendMonthDay: number
   /** 0–23 local hour to send */
   sendHour: number
-  /** Base URL of the TinyBiz mail bridge, e.g. http://192.168.1.50:7071 */
+  /** Base URL of the mail bridge, e.g. http://192.168.1.50:7071 */
   mailBridgeUrl: string
   /** Shared secret the mail bridge requires */
   mailBridgeToken: string
@@ -524,7 +524,7 @@ export interface Settings {
   notifyNewOrders: boolean
   notifyExpensesDue: boolean
   weeklyReports: boolean
-  /** Base URL of the TinyBiz printer bridge, e.g. http://192.168.1.50:7070 */
+  /** Base URL of the printer bridge, e.g. http://192.168.1.50:7070 */
   printerBridgeUrl: string
   /** Storefront wording overrides — see StorefrontContent */
   storefront?: Partial<StorefrontContent>

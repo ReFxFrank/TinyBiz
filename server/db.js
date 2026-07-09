@@ -1,4 +1,4 @@
-// SQLite persistence for TinyBiz. Collections are stored document-style —
+// SQLite persistence. Collections are stored document-style —
 // one row per item, JSON payload — because the client works with whole
 // objects and the datasets are small. Anything the server must reason about
 // (auth, pending Stripe checkouts) gets a real table.
@@ -17,9 +17,8 @@ export const COLLECTIONS = [
   'adjustments', 'notifications',
 ]
 
-const DB_PATH = process.env.TINYBIZ_DB
-  ? resolve(process.env.TINYBIZ_DB)
-  : resolve(dirname(fileURLToPath(import.meta.url)), 'tinybiz.db')
+const DB_ENV = process.env.TINYMAGIC_DB || process.env.TINYBIZ_DB // legacy name still honored
+const DB_PATH = DB_ENV ? resolve(DB_ENV) : resolve(dirname(fileURLToPath(import.meta.url)), 'tinymagic.db')
 mkdirSync(dirname(DB_PATH), { recursive: true })
 
 export const db = new Database(DB_PATH)

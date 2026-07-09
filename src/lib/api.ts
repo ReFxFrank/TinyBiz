@@ -1,4 +1,4 @@
-// Typed fetch layer for the TinyBiz API server. Same-origin (/api is proxied
+// Typed fetch layer for the studio's API server. Same-origin (/api is proxied
 // by Vite in dev and nginx in production), cookie-authenticated.
 
 import type { CurrencyCode, Order, PolicyContent, Product, SocialLinks, StorefrontContent } from '@/data/types'
@@ -22,7 +22,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...init,
     })
   } catch {
-    throw new ApiError(0, 'network', 'Could not reach the TinyBiz server.')
+    throw new ApiError(0, 'network', 'Could not reach the studio server.')
   }
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
@@ -149,7 +149,7 @@ export const api = {
         body: blob,
       })
     } catch {
-      throw new ApiError(0, 'network', 'Could not reach the TinyBiz server.')
+      throw new ApiError(0, 'network', 'Could not reach the studio server.')
     }
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {

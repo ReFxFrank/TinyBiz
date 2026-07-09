@@ -231,7 +231,7 @@ export default function Accounting() {
       t.otherIncome.toFixed(2),
       t.net.toFixed(2),
     ])
-    downloadFile(`tinybiz-report-${period}.csv`, `${meta}\n\n${toCsv(headers, rows)}`, 'text/csv')
+    downloadFile(`tinymagic-report-${period}.csv`, `${meta}\n\n${toCsv(headers, rows)}`, 'text/csv')
     toast('P&L report downloaded', { description: `Profit & loss for ${label}.`, tone: 'success' })
   }
 
@@ -257,7 +257,7 @@ export default function Accounting() {
       sum(current.map((p) => taxableByMonth.get(p.key) ?? 0)).toFixed(2),
       taxCollected.toFixed(2),
     ])
-    downloadFile(`tinybiz-sales-tax-${period}.csv`, `${meta}\n\n${toCsv(headers, rows)}`, 'text/csv')
+    downloadFile(`tinymagic-sales-tax-${period}.csv`, `${meta}\n\n${toCsv(headers, rows)}`, 'text/csv')
     toast('Sales tax summary downloaded', { description: `Tax collected for ${label}.`, tone: 'success' })
   }
 

@@ -1,4 +1,4 @@
-// Transactional order-confirmation email, sent through the TinyBiz mail
+// Transactional order-confirmation email, sent through the mail
 // bridge (mail-bridge/) when one is configured in Settings → Newsletter.
 // Fire-and-forget: a down bridge must never break checkout.
 
@@ -214,9 +214,9 @@ async function sendViaBridge(kind, order, subject, html, text) {
       }),
     })
     if (!res.ok) throw new Error(`bridge responded ${res.status}`)
-    console.log(`[tinybiz-api] ${kind} email for ${order.number} → ${order.email}`)
+    console.log(`[tinymagic-api] ${kind} email for ${order.number} → ${order.email}`)
   } catch (err) {
-    console.warn(`[tinybiz-api] ${kind} email for ${order.number} skipped: ${err.message}`)
+    console.warn(`[tinymagic-api] ${kind} email for ${order.number} skipped: ${err.message}`)
   }
 }
 
@@ -260,8 +260,8 @@ export async function sendOrderConfirmation(order) {
       }),
     })
     if (!res.ok) throw new Error(`bridge responded ${res.status}`)
-    console.log(`[tinybiz-api] confirmation email for ${order.number} → ${order.email}`)
+    console.log(`[tinymagic-api] confirmation email for ${order.number} → ${order.email}`)
   } catch (err) {
-    console.warn(`[tinybiz-api] confirmation email for ${order.number} skipped: ${err.message}`)
+    console.warn(`[tinymagic-api] confirmation email for ${order.number} skipped: ${err.message}`)
   }
 }

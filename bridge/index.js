@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // ─────────────────────────────────────────────────────────────────────────────
-// TinyBiz Printer Bridge
+// Tiny Magic Studio Printer Bridge
 //
 // A tiny always-on service that reads live status from Bambu Lab printers over
-// their local MQTT broker and exposes it as JSON at GET /status, so the TinyBiz
+// their local MQTT broker and exposes it as JSON at GET /status, so the
 // web app (which has no backend) can show whether each printer is printing or
 // idle. Read-only: it never sends print/control commands.
 //
@@ -189,7 +189,7 @@ function startDemo() {
 
 function startServer(port) {
   const server = http.createServer((req, res) => {
-    // Allow the TinyBiz SPA (any origin) to read status.
+    // Allow the SPA (any origin) to read status.
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
@@ -205,15 +205,15 @@ function startServer(port) {
     }
     if (url === '/' || url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
-      return res.end(JSON.stringify({ ok: true, service: 'tinybiz-printer-bridge', printers: snapshots.size }))
+      return res.end(JSON.stringify({ ok: true, service: 'tinymagic-printer-bridge', printers: snapshots.size }))
     }
     res.writeHead(404, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ ok: false, error: 'Not found' }))
   })
   server.listen(port, () => {
-    console.log(`TinyBiz printer bridge listening on http://0.0.0.0:${port}`)
+    console.log(`Tiny Magic Studio printer bridge listening on http://0.0.0.0:${port}`)
     console.log(`  → status:  http://localhost:${port}/status`)
-    console.log('  Point Settings → Printer sync at this URL in TinyBiz.')
+    console.log('  Point Settings → Printer sync at this URL in the admin.')
   })
 }
 

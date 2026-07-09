@@ -1,10 +1,10 @@
 {
-  "name": "tinybiz-printer-bridge",
+  "name": "tinymagic-printer-bridge",
   "version": "0.1.0",
   "private": true,
-  "description": "Reads live status from Bambu Lab printers over local MQTT and serves it as JSON for the TinyBiz web app.",
+  "description": "Reads live status from Bambu Lab printers over local MQTT and serves it as JSON for the Tiny Magic Studio web app.",
   "bin": {
-    "tinybiz-printer-bridge": "index.js"
+    "tinymagic-printer-bridge": "index.js"
   },
   "scripts": {
     "start": "node index.js",

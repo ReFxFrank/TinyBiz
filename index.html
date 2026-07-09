@@ -18,7 +18,7 @@
     <script>
       // Apply persisted theme + appearance before first paint to avoid a flash
       try {
-        var raw = localStorage.getItem('tinybiz-ui');
+        var raw = localStorage.getItem('tms-ui') || localStorage.getItem('tinybiz-ui');
         var parsed = raw ? JSON.parse(raw) : {};
         var state = parsed.state || {};
         // Pre-v2 stores are migrated to the brand look on load — mirror that
@@ -47,7 +47,7 @@
           block("html[data-accent='custom']", state.customAccent.light);
           block("html.dark[data-accent='custom']", state.customAccent.dark);
           var st = document.createElement('style');
-          st.id = 'tinybiz-custom-accent';
+          st.id = 'tms-custom-accent';
           st.textContent = css;
           document.head.appendChild(st);
         }

@@ -1,6 +1,6 @@
 // Product photo uploads. The client resizes images before sending, so the
 // server just validates, names, and stores raw bytes — no image libraries.
-// Files land in TINYBIZ_UPLOADS (defaults next to the DB) and are served at
+// Files land in TINYMAGIC_UPLOADS (defaults next to the DB) and are served at
 // /uploads/<name> by Express (dev) or nginx→Express (production).
 
 import { Router } from 'express'
@@ -12,10 +12,12 @@ import { fileURLToPath } from 'node:url'
 import { requireAuth } from './auth.js'
 import { computeAccess } from './perms.js'
 
-export const UPLOADS_DIR = process.env.TINYBIZ_UPLOADS
-  ? resolve(process.env.TINYBIZ_UPLOADS)
-  : process.env.TINYBIZ_DB
-    ? join(dirname(resolve(process.env.TINYBIZ_DB)), 'uploads')
+const UPLOADS_ENV = process.env.TINYMAGIC_UPLOADS || process.env.TINYBIZ_UPLOADS
+const DB_ENV = process.env.TINYMAGIC_DB || process.env.TINYBIZ_DB
+export const UPLOADS_DIR = UPLOADS_ENV
+  ? resolve(UPLOADS_ENV)
+  : DB_ENV
+    ? join(dirname(resolve(DB_ENV)), 'uploads')
     : resolve(dirname(fileURLToPath(import.meta.url)), 'uploads')
 mkdirSync(UPLOADS_DIR, { recursive: true })
 

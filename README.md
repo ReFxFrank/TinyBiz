@@ -1,8 +1,8 @@
-# TinyBiz 🐣
+# Tiny Magic Studio 🐣
 
 **The all-in-one workspace for makers, Etsy sellers, 3D-printing businesses, and small online shops.**
 
-TinyBiz combines the parts of Notion, Shopify analytics, an Etsy seller dashboard, inventory software, and bookkeeping that a small maker business actually needs — in one fast, friendly app.
+Tiny Magic Studio combines the parts of Notion, Shopify analytics, an Etsy seller dashboard, inventory software, and bookkeeping that a small maker business actually needs — in one fast, friendly app.
 
 ## What's inside
 
@@ -46,7 +46,7 @@ The site root is the customer storefront (always dark, dressed in the shop's bra
 
 ## Deploying to an Ubuntu VPS
 
-`deploy.sh` turns a fresh Ubuntu 22.04/24.04 server into a live TinyBiz host in one command — it installs nginx + Node 20 (if missing), clones this repo, builds, runs the API as a systemd service (`tinybiz-api`), and configures nginx with SPA routing plus an `/api` proxy:
+`deploy.sh` turns a fresh Ubuntu 22.04/24.04 server into a live Tiny Magic Studio host in one command — it installs nginx + Node 20 (if missing), clones this repo, builds, runs the API as a systemd service (`tinymagic-api`), and configures nginx with SPA routing plus an `/api` proxy:
 
 ```bash
 # Serve on the server's IP over http
@@ -56,11 +56,11 @@ curl -fsSL https://raw.githubusercontent.com/ReFxFrank/TinyBiz/main/deploy.sh | 
 curl -fsSL https://raw.githubusercontent.com/ReFxFrank/TinyBiz/main/deploy.sh | sudo bash -s -- shop.example.com
 ```
 
-The admin signs in, and all business data lives in SQLite on the server at `/var/lib/tinybiz/tinybiz.db` — the first visit to `/admin` shows a one-time setup screen (create the owner account, then choose sample data, import the browser's existing data, or start empty). Storefront orders and newsletter subscribers land in the server database from any customer's browser. Product photos uploaded from the admin are stored next to the database in `/var/lib/tinybiz/uploads/` and served at `/uploads/…`.
+The admin signs in, and all business data lives in SQLite on the server at `/var/lib/tinymagic/tinymagic.db` — the first visit to `/admin` shows a one-time setup screen (create the owner account, then choose sample data, import the browser's existing data, or start empty). Storefront orders and newsletter subscribers land in the server database from any customer's browser. Product photos uploaded from the admin are stored next to the database in `/var/lib/tinymagic/uploads/` and served at `/uploads/…`.
 
-**Backups**: the deploy installs a nightly cron (3:17 AM) that snapshots the database with SQLite's online backup API, gzips it into `/var/lib/tinybiz/backups/`, and keeps the newest 14. The owner can also grab one on demand — `GET /api/backup` while signed in downloads a fresh snapshot. Sign-in, checkout, tracking, and subscribe endpoints are rate-limited per IP against brute force.
+**Backups**: the deploy installs a nightly cron (3:17 AM) that snapshots the database with SQLite's online backup API, gzips it into `/var/lib/tinymagic/backups/`, and keeps the newest 14. The owner can also grab one on demand — `GET /api/backup` while signed in downloads a fresh snapshot. Sign-in, checkout, tracking, and subscribe endpoints are rate-limited per IP against brute force.
 
-**Customer emails**: the deploy runs the mail bridge as a service (`tinybiz-mail`) behind `https://your-domain/mail`, with its URL + send token printed on first install (and kept in `/etc/tinybiz-mail.env`). Paste both into Settings → Newsletter, add SMTP credentials to that env file (Resend works great — see the commented lines in it), and customers get an order confirmation at checkout plus a "your order is on its way" email — with the carrier tracking link — the moment an order is marked shipped or gains a tracking number. Until credentials are added the bridge runs in demo mode and only logs. **SEO**: `/robots.txt` and `/sitemap.xml` are generated from the live catalog; the storefront's policies live at `/policies`, editable under Settings → Store policies.
+**Customer emails**: the deploy runs the mail bridge as a service (`tinymagic-mail`) behind `https://your-domain/mail`, with its URL + send token printed on first install (and kept in `/etc/tinymagic-mail.env`). Paste both into Settings → Newsletter, add SMTP credentials to that env file (Resend works great — see the commented lines in it), and customers get an order confirmation at checkout plus a "your order is on its way" email — with the carrier tracking link — the moment an order is marked shipped or gains a tracking number. Until credentials are added the bridge runs in demo mode and only logs. **SEO**: `/robots.txt` and `/sitemap.xml` are generated from the live catalog; the storefront's policies live at `/policies`, editable under Settings → Store policies.
 
 **Redeploying**: the first run installs a `redeploy` command on the server, so pulling the latest code, rebuilding, and publishing is just:
 
@@ -69,15 +69,15 @@ redeploy            # pull latest + rebuild + publish (no-op if nothing new)
 redeploy --force    # rebuild even with no new commits
 ```
 
-**Auto-deploy**: `redeploy --install-cron` sets up a cron job that polls the branch every 5 minutes and redeploys only when new commits land (silent no-op otherwise, logged to `/var/log/tinybiz-deploy.log`). After that you never touch the server — pushing to the branch is enough.
+**Auto-deploy**: `redeploy --install-cron` sets up a cron job that polls the branch every 5 minutes and redeploys only when new commits land (silent no-op otherwise, logged to `/var/log/tinymagic-deploy.log`). After that you never touch the server — pushing to the branch is enough.
 
 ## Payments (Stripe)
 
 Until Stripe keys are set, storefront checkout runs in a clearly-labeled no-payment preview mode. To take real payments:
 
 1. Create a [Stripe](https://stripe.com) account and copy your secret key (Developers → API keys).
-2. On the VPS, edit `/etc/tinybiz.env` and uncomment `STRIPE_SECRET_KEY`. Optionally uncomment `STRIPE_WEBHOOK_SECRET` for webhooks — not required, the confirmation page verifies payment directly with Stripe.
-3. `sudo systemctl restart tinybiz-api`
+2. On the VPS, edit `/etc/tinymagic.env` and uncomment `STRIPE_SECRET_KEY`. Optionally uncomment `STRIPE_WEBHOOK_SECRET` for webhooks — not required, the confirmation page verifies payment directly with Stripe.
+3. `sudo systemctl restart tinymagic-api`
 
 ## Keyboard shortcuts
 

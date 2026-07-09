@@ -1,10 +1,10 @@
 {
-  "name": "tinybiz-mail-bridge",
+  "name": "tinymagic-mail-bridge",
   "version": "1.0.0",
   "private": true,
-  "description": "Standalone SMTP mail-sending bridge for the TinyBiz web app's newsletter feature.",
+  "description": "Standalone SMTP mail-sending bridge for the Tiny Magic Studio web app's newsletter feature.",
   "bin": {
-    "tinybiz-mail-bridge": "index.js"
+    "tinymagic-mail-bridge": "index.js"
   },
   "scripts": {
     "start": "node index.js",

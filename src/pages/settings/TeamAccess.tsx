@@ -428,7 +428,7 @@ function MemberModal({
 
         <div className="border-t border-hairline pt-4">
           <div className="mb-1 text-sm font-medium text-ink">Section access</div>
-          <p className="mb-3 text-[13px] text-ink-3">Pick the parts of TinyBiz this teammate can open.</p>
+          <p className="mb-3 text-[13px] text-ink-3">Pick the parts of the workspace this teammate can open.</p>
           <PermPicker selected={perms} onChange={setPerms} />
           <p className="mt-3 text-xs text-ink-3">
             {perms.size === 0

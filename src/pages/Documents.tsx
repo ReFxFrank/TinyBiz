@@ -289,7 +289,7 @@ export default function Documents() {
   const download = (doc: DocumentItem) => {
     downloadFile(
       `${doc.name}.${doc.fileType}`,
-      `TinyBiz demo document\n\nName: ${doc.name}\nCategory: ${doc.category}\nUploaded: ${fmtDate(doc.uploadedAt)}\nSize: ${prettySize(doc.sizeKB)}\n${doc.notes ? `Notes: ${doc.notes}\n` : ''}`,
+      `Tiny Magic Studio demo document\n\nName: ${doc.name}\nCategory: ${doc.category}\nUploaded: ${fmtDate(doc.uploadedAt)}\nSize: ${prettySize(doc.sizeKB)}\n${doc.notes ? `Notes: ${doc.notes}\n` : ''}`,
     )
     toast('Download started', { description: `${doc.name}.${doc.fileType}` })
   }

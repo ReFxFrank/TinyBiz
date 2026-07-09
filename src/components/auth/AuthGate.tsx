@@ -18,7 +18,7 @@ type Phase = 'checking' | 'setup' | 'login' | 'ready' | 'offline'
 /** The persisted pre-backend dataset in this browser, if any */
 function localData(): Record<string, unknown> | null {
   try {
-    const raw = localStorage.getItem('tinybiz-data')
+    const raw = localStorage.getItem('tms-data') || localStorage.getItem('tinybiz-data')
     if (!raw) return null
     const state = JSON.parse(raw)?.state
     return state && Array.isArray(state.orders) ? state : null
@@ -183,13 +183,13 @@ function LoginScreen({ onDone }: { onDone: () => Promise<void> }) {
 function OfflineScreen({ onRetry }: { onRetry: () => void }) {
   return (
     <Shell>
-      <BrandHeader subtitle="Can’t reach the TinyBiz server" />
+      <BrandHeader subtitle="Can’t reach the studio server" />
       <div className="card p-6 text-center">
         <ServerOff className="mx-auto h-8 w-8 text-ink-3" aria-hidden />
         <p className="mt-3 text-sm leading-relaxed text-ink-2">
           The API server isn’t responding. In development, run{' '}
           <span className="font-mono text-[13px] text-ink">node server/index.js</span>. On a VPS, check{' '}
-          <span className="font-mono text-[13px] text-ink">systemctl status tinybiz-api</span>.
+          <span className="font-mono text-[13px] text-ink">systemctl status tinymagic-api</span>.
         </p>
         <Button className="mt-5" variant="secondary" onClick={onRetry}>
           Try again

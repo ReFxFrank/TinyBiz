@@ -65,6 +65,10 @@ import {
   seedTasks,
 } from '@/data/seed'
 import { setActiveCurrency } from '@/lib/format'
+import { migrateKey } from '@/lib/legacyStorage'
+
+// Carry the offline data cache over from the pre-rename key
+migrateKey('tinybiz-data', 'tms-data')
 import { uid } from '@/lib/utils'
 
 export interface Collections {
@@ -387,7 +391,7 @@ export const useStore = create<StoreState>()(
       },
     }),
     {
-      name: 'tinybiz-data',
+      name: 'tms-data',
       version: 4,
       migrate: (persisted, version) => {
         const state = persisted as StoreState

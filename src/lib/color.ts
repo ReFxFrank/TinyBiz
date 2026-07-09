@@ -184,7 +184,7 @@ export function generateAccentTheme(baseHex: string): CustomAccent {
 
 // ── Applying the theme ───────────────────────────────────────────────────────
 
-const STYLE_ID = 'tinybiz-custom-accent'
+const STYLE_ID = 'tms-custom-accent'
 
 function tokensToCss(selector: string, tokens: AccentTokens): string {
   const body = Object.entries(tokens)

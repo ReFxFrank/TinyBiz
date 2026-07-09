@@ -6,6 +6,7 @@
 import { useMemo } from 'react'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { migrateKey } from '@/lib/legacyStorage'
 import { useCatalog } from '@/store/useCatalog'
 import type { Product, ProductVariant } from '@/data/types'
 
@@ -37,6 +38,9 @@ interface CartState {
   setPromo: (promo: AppliedPromo | null) => void
   setDrawerOpen: (open: boolean) => void
 }
+
+// Carry shoppers' carts over from the pre-rename key
+migrateKey('tinybiz-cart', 'tms-cart')
 
 export const useCart = create<CartState>()(
   persist(
@@ -71,7 +75,7 @@ export const useCart = create<CartState>()(
       setDrawerOpen: (drawerOpen) => set({ drawerOpen }),
     }),
     {
-      name: 'tinybiz-cart',
+      name: 'tms-cart',
       version: 2, // v2: promoCode string → server-validated promo object
       migrate: (persisted) => {
         const p = persisted as Partial<CartState> & { promoCode?: unknown }

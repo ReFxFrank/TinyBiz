@@ -126,7 +126,7 @@ export function SettingsTab() {
         <CardHeader title="Email delivery" subtitle="Connect a mail bridge to actually send newsletters." />
         <div className="space-y-3">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Mail bridge URL" hint="Where your TinyBiz mail bridge runs — e.g. http://192.168.1.50:7071.">
+            <Field label="Mail bridge URL" hint="Where your mail bridge runs — e.g. http://192.168.1.50:7071.">
               <Input
                 value={draft.mailBridgeUrl}
                 onChange={(e) => {

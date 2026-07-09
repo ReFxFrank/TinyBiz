@@ -481,7 +481,7 @@ function AppearanceCard() {
     <Card>
       <CardHeader
         title="Appearance"
-        subtitle="Make TinyBiz yours — every change applies instantly and only affects this browser."
+        subtitle="Make the workspace yours — every change applies instantly and only affects this browser."
       />
       <div>
         <AppearanceRow label="Theme" hint="System follows your device's light/dark preference automatically.">
@@ -568,7 +568,7 @@ function NotificationsCard() {
 
   return (
     <Card>
-      <CardHeader title="Notifications" subtitle="Choose what TinyBiz pings you about. Changes apply immediately." />
+      <CardHeader title="Notifications" subtitle="Choose what the workspace pings you about. Changes apply immediately." />
       <div className="divide-y divide-hairline">
         {NOTIFICATION_PREFS.map((pref) => (
           <Toggle
@@ -632,7 +632,7 @@ function PrinterSyncCard() {
       <div className="space-y-3">
         <Field
           label="Bridge URL"
-          hint="Where the TinyBiz printer bridge is running — e.g. http://192.168.1.50:7070. Leave blank to keep status manual."
+          hint="Where the printer bridge is running — e.g. http://192.168.1.50:7070. Leave blank to keep status manual."
         >
           <div className="flex gap-2">
             <Input
@@ -673,7 +673,7 @@ function PrinterSyncCard() {
 
 const INTEGRATIONS: Array<{ emoji: string; name: string; blurb: string }> = [
   { emoji: '🧡', name: 'Etsy', blurb: 'Sync orders & listings automatically' },
-  { emoji: '🛍️', name: 'Shopify', blurb: 'Pull storefront sales into TinyBiz' },
+  { emoji: '🛍️', name: 'Shopify', blurb: 'Pull storefront sales into the workspace' },
   { emoji: '📦', name: 'Amazon', blurb: 'Track marketplace orders & fees' },
   { emoji: '🏷️', name: 'eBay', blurb: 'Import auction and fixed-price sales' },
   { emoji: '◼️', name: 'Square', blurb: 'Sync in-person and market-day sales' },
@@ -849,7 +849,7 @@ export default function Settings() {
           <IntegrationsCard />
           <ShortcutsCard />
           <DangerZoneCard />
-          <p className="pb-2 text-center text-xs text-ink-3">TinyBiz v0.1 — made with 🐣</p>
+          <p className="pb-2 text-center text-xs text-ink-3">The Tiny Magic Studio — made with ✨</p>
         </motion.div>
       )}
     </div>

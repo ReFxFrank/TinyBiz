@@ -88,7 +88,7 @@ function SidebarContent({ collapsed, onNavigate }: { collapsed: boolean; onNavig
         {!collapsed && (
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-ink">{settings.businessName}</div>
-            <div className="truncate text-[11px] text-ink-3">TinyBiz workspace</div>
+            <div className="truncate text-[11px] text-ink-3">Tiny Magic workspace</div>
           </div>
         )}
       </div>

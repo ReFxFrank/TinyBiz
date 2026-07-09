@@ -1,5 +1,5 @@
 // Minimal Stripe client — raw REST + webhook signature verification, no SDK.
-// Configure with environment variables (usually /etc/tinybiz.env on the VPS):
+// Configure with environment variables (usually /etc/tinymagic.env on the VPS):
 //   STRIPE_SECRET_KEY      sk_live_… or sk_test_…   (absent → mock checkout)
 //   STRIPE_WEBHOOK_SECRET  whsec_…                  (optional; the return-URL
 //                          poll finalizes paid orders even without webhooks)

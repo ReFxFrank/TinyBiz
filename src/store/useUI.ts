@@ -2,6 +2,10 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { uid } from '@/lib/utils'
 import { generateAccentTheme, type CustomAccent } from '@/lib/color'
+import { migrateKey } from '@/lib/legacyStorage'
+
+// Carry saved appearance over from the pre-rename key
+migrateKey('tinybiz-ui', 'tms-ui')
 
 export type Theme = 'light' | 'dark' | 'system'
 
@@ -86,7 +90,7 @@ export const useUI = create<UIState>()(
       dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })),
     }),
     {
-      name: 'tinybiz-ui',
+      name: 'tms-ui',
       // v2: the app adopted the Tiny Magic brand — dark workspace, sage accent.
       // One-time flip for existing browsers; custom brand colors are kept, and
       // everything stays changeable in Settings → Appearance.

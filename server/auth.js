@@ -9,7 +9,8 @@ import bcrypt from 'bcryptjs'
 import { db, uid, importState, bumpRev } from './db.js'
 import { computeAccess, sanitizePerms } from './perms.js'
 
-const COOKIE = 'tb_session'
+const COOKIE = 'tms_session'
+const LEGACY_COOKIE = 'tb_session' // pre-rename sessions keep working
 const SESSION_DAYS = 30
 
 const stmtUserCount = db.prepare('SELECT COUNT(*) AS n FROM users')
@@ -66,7 +67,8 @@ export function createUser({ email, password, name = '', role = 'staff', perms =
 
 /** Attach req.user when a valid session cookie is present (sliding expiry) */
 export function sessionMiddleware(req, _res, next) {
-  const token = parseCookies(req)[COOKIE]
+  const cookies = parseCookies(req)
+  const token = cookies[COOKIE] || cookies[LEGACY_COOKIE]
   if (token) {
     const row = stmtSession.get(token)
     if (row && row.expires_at > Date.now() && !row.disabled) {

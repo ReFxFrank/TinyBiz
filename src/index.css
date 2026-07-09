@@ -197,6 +197,24 @@ html.dark[data-accent='teal'] {
   --pop-soft: #16283d;
 }
 
+/* ── Storefront visitor theme ────────────────────────────────────────────────
+   The shop's light mode is a soft cream (the visitor default); dark mode is
+   the classic midnight look. data-storefront is set only while the customer-
+   facing site is mounted, so the admin's own light theme stays untouched. */
+html[data-storefront]:not(.dark) {
+  --page: #faf6ee;
+  --surface: #fffdf7;
+  --raised: #ffffff;
+  --sunken: #f1ead9;
+
+  --ink: #23200f;
+  --ink-2: #57534a;
+  --ink-3: #8b8579;
+
+  --hairline: #e7dfca;
+  --edge: rgba(60, 50, 24, 0.14);
+}
+
 html,
 body,
 #root {
@@ -272,6 +290,43 @@ body {
   animation: shimmer 1.4s linear infinite;
 }
 
+/* Hue picker: the track wears the full color wheel so you can see what
+   you're sliding toward; the thumb is a simple ring that rides on top. */
+.hue-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 10px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    hsl(0, 70%, 60%), hsl(45, 70%, 60%), hsl(90, 70%, 60%), hsl(135, 70%, 60%),
+    hsl(180, 70%, 60%), hsl(225, 70%, 60%), hsl(270, 70%, 60%), hsl(315, 70%, 60%), hsl(360, 70%, 60%)
+  );
+  outline-offset: 4px;
+  cursor: pointer;
+}
+.hue-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 18px;
+  width: 18px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid rgba(0, 0, 0, 0.25);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+.hue-slider::-moz-range-thumb {
+  height: 18px;
+  width: 18px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid rgba(0, 0, 0, 0.25);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+.hue-slider::-moz-range-track {
+  background: transparent;
+}
+
 /* Numbers that must align vertically (tables, axis ticks) */
 .tnum {
   font-variant-numeric: tabular-nums;
@@ -319,8 +374,8 @@ input[type='number'] {
   will-change: transform;
 }
 
-/* Headline gradient that glints as it sweeps */
-@keyframes tb-shimmer-sweep { to { background-position: 200% center; } }
+/* Headline gradient that glints as it sweeps (left to right) */
+@keyframes tb-shimmer-sweep { to { background-position: -200% center; } }
 .shimmer-text {
   background: linear-gradient(
     110deg,

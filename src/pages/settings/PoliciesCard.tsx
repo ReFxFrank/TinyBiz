@@ -43,14 +43,19 @@ export function PoliciesCard() {
   const [draft, setDraft] = useState<Partial<PolicyContent>>(settings.policies ?? {})
   // emojify as-you-type: ":sparkles:" becomes ✨ the moment the closing colon lands
   const set = (key: keyof PolicyContent, value: string) => setDraft((d) => ({ ...d, [key]: emojify(value) }))
-  const dirty = JSON.stringify(draft) !== JSON.stringify(settings.policies ?? {})
+
+  // Fields show the standard wording as real, editable text. Anything left
+  // matching the standard (or emptied) isn't stored, so untouched fields keep
+  // following the shipping config and business identity automatically.
+  const shown = (key: keyof PolicyContent) => draft[key] ?? defaults[key]
+  const saved = settings.policies ?? {}
+  const dirty = POLICY_FIELDS.some(({ key }) => shown(key).trim() !== (saved[key] ?? defaults[key]).trim())
 
   const save = () => {
-    // Persist only real overrides — blanks mean "use the standard wording"
     const cleaned: Partial<PolicyContent> = {}
     for (const { key } of POLICY_FIELDS) {
-      const v = draft[key]
-      if (typeof v === 'string' && v.trim() !== '') cleaned[key] = v.trim()
+      const v = shown(key).trim()
+      if (v !== '' && v !== defaults[key].trim()) cleaned[key] = v
     }
     updateSettings({ policies: cleaned })
     setDraft(cleaned)
@@ -61,7 +66,7 @@ export function PoliciesCard() {
     <Card>
       <CardHeader
         title="Store policies"
-        subtitle="The shipping, returns and privacy text on your shop's policies page. Leave a field blank to use the standard wording shown in the placeholder."
+        subtitle="The shipping, returns and privacy text on your shop's policies page — edit any field directly. Fields you haven't changed keep following your shipping settings automatically."
         actions={
           <div className="flex items-center gap-2">
             <a href="/policies" target="_blank" rel="noreferrer">
@@ -78,18 +83,13 @@ export function PoliciesCard() {
       <div className="space-y-4">
         {POLICY_FIELDS.map(({ key, label, hint }) => (
           <Field key={key} label={label} hint={hint}>
-            <GrowingTextarea
-              value={draft[key] ?? ''}
-              onChange={(e) => set(key, e.target.value)}
-              placeholder={defaults[key]}
-              rows={5}
-            />
+            <GrowingTextarea value={shown(key)} onChange={(e) => set(key, e.target.value)} rows={5} />
           </Field>
         ))}
       </div>
       <p className="mt-3 text-xs text-ink-3">
-        The standard wording weaves in your rates and country from the Shipping & delivery card automatically, so it
-        stays accurate as those change.
+        Fields you haven't touched weave in your rates and country from the Shipping & delivery card automatically, so
+        they stay accurate as those change. To go back to that standard wording, just empty the field and save.
       </p>
     </Card>
   )

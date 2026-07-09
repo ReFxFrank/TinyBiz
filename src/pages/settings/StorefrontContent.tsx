@@ -29,14 +29,19 @@ export function StorefrontContentCard() {
   const [draft, setDraft] = useState<Partial<Content>>(settings.storefront ?? {})
   // emojify as-you-type: ":sparkles:" becomes ✨ the moment the closing colon lands
   const set = (key: keyof Content, value: string) => setDraft((d) => ({ ...d, [key]: emojify(value) }))
-  const dirty = JSON.stringify(draft) !== JSON.stringify(settings.storefront ?? {})
+
+  // Fields show the standard wording as real, editable text. Anything left
+  // matching the standard (or emptied) isn't stored, so untouched fields keep
+  // following the business identity automatically.
+  const shown = (key: keyof Content) => draft[key] ?? defaults[key]
+  const saved = settings.storefront ?? {}
+  const dirty = STOREFRONT_FIELDS.some(({ key }) => shown(key).trim() !== (saved[key] ?? defaults[key]).trim())
 
   const save = () => {
-    // Persist only real overrides — blanks mean "use the standard wording"
     const cleaned: Partial<Content> = {}
     for (const { key } of STOREFRONT_FIELDS) {
-      const v = draft[key]
-      if (typeof v === 'string' && v.trim() !== '') cleaned[key] = v.trim()
+      const v = shown(key).trim()
+      if (v !== '' && v !== defaults[key].trim()) cleaned[key] = v
     }
     updateSettings({ storefront: cleaned })
     setDraft(cleaned)
@@ -47,7 +52,7 @@ export function StorefrontContentCard() {
     <Card>
       <CardHeader
         title="Storefront content"
-        subtitle="The wording customers read on your shop's home page. Leave a field blank to use the standard wording shown in the placeholder."
+        subtitle="The wording customers read on your shop's home page — edit any field directly. Fields you haven't changed keep following your business details automatically."
         actions={
           <div className="flex items-center gap-2">
             <a href="/" target="_blank" rel="noreferrer">
@@ -65,21 +70,16 @@ export function StorefrontContentCard() {
         {STOREFRONT_FIELDS.map(({ key, label, hint, multiline }) => (
           <Field key={key} label={label} hint={hint} className={multiline ? 'sm:col-span-2' : undefined}>
             {multiline ? (
-              <Textarea
-                value={draft[key] ?? ''}
-                onChange={(e) => set(key, e.target.value)}
-                placeholder={defaults[key]}
-                rows={3}
-              />
+              <Textarea value={shown(key)} onChange={(e) => set(key, e.target.value)} rows={3} />
             ) : (
-              <Input value={draft[key] ?? ''} onChange={(e) => set(key, e.target.value)} placeholder={defaults[key]} />
+              <Input value={shown(key)} onChange={(e) => set(key, e.target.value)} />
             )}
           </Field>
         ))}
       </div>
       <p className="mt-3 text-xs text-ink-3">
-        Your shop name, tagline, and owner name come from the Business card above — the standard wording weaves them in
-        automatically.
+        Fields you haven't touched weave in your shop name, owner name and shipping details automatically. To go back to
+        that standard wording, just empty the field and save.
       </p>
     </Card>
   )

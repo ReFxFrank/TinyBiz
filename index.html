@@ -29,11 +29,17 @@
         }
         var theme = state.theme || 'dark';
         var dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        // The storefront (everything outside /admin) is always dark
-        if (location.pathname.indexOf('/admin') !== 0) dark = true;
         var el = document.documentElement;
+        var accent = state.accent || 'tinymagic';
+        // The storefront (everything outside /admin) follows the visitor's own
+        // theme choice — soft cream by default — and always wears the brand accent
+        if (location.pathname.indexOf('/admin') !== 0) {
+          dark = localStorage.getItem('tms-store-theme') === 'dark';
+          el.setAttribute('data-storefront', '1');
+          accent = 'tinymagic';
+        }
         if (dark) el.classList.add('dark');
-        el.setAttribute('data-accent', state.accent || 'tinymagic');
+        el.setAttribute('data-accent', accent);
         if (state.radius) el.setAttribute('data-radius', state.radius);
         if (state.scale) el.setAttribute('data-scale', state.scale);
         // Custom accent: rebuild the token style tag from persisted values

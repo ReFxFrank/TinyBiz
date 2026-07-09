@@ -246,6 +246,7 @@ function TaskCard({
   onDragEnd,
   onEdit,
   onMove,
+  onDelete,
 }: {
   task: TaskItem
   dragging: boolean
@@ -253,6 +254,7 @@ function TaskCard({
   onDragEnd: () => void
   onEdit: () => void
   onMove: (status: TaskStatus) => void
+  onDelete: () => void
 }) {
   const done = task.status === 'done'
   const due = task.dueDate && !done ? dueIn(task.dueDate) : null
@@ -278,14 +280,12 @@ function TaskCard({
           <p className={cn('min-w-0 text-sm font-medium leading-snug', done ? 'line-through text-ink-3' : 'text-ink')}>
             {task.title}
           </p>
+          {/* The menu portals its content, but React still bubbles its clicks
+              through this tree — contain them so they don't open the editor */}
+          <span className="-mr-1 -mt-1 shrink-0" onClick={(e) => e.stopPropagation()}>
           <Menu
             trigger={
-              <IconButton
-                label="Task actions"
-                size="sm"
-                className="-mr-1 -mt-1 shrink-0"
-                onClick={(e) => e.stopPropagation()}
-              >
+              <IconButton label="Task actions" size="sm">
                 <MoreHorizontal />
               </IconButton>
             }
@@ -300,7 +300,12 @@ function TaskCard({
                 {c.label}
               </MenuItem>
             ))}
+            <MenuSeparator />
+            <MenuItem icon={<Trash2 />} danger onSelect={onDelete}>
+              Delete task
+            </MenuItem>
           </Menu>
+          </span>
         </div>
         {task.description && <p className="line-clamp-2 text-xs leading-relaxed text-ink-3">{task.description}</p>}
         <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
@@ -345,6 +350,7 @@ function BoardColumn({
   onAdd,
   onEdit,
   onMove,
+  onDelete,
   onDragStart,
   onDragEnd,
   onDragOver,
@@ -361,6 +367,7 @@ function BoardColumn({
   onAdd: () => void
   onEdit: (task: TaskItem) => void
   onMove: (task: TaskItem, status: TaskStatus) => void
+  onDelete: (task: TaskItem) => void
   onDragStart: (e: DragEvent<HTMLDivElement>, task: TaskItem) => void
   onDragEnd: () => void
   onDragOver: (e: DragEvent<HTMLDivElement>) => void
@@ -397,6 +404,7 @@ function BoardColumn({
             onDragEnd={onDragEnd}
             onEdit={() => onEdit(task)}
             onMove={(s) => onMove(task, s)}
+            onDelete={() => onDelete(task)}
           />
         ))}
         {tasks.length === 0 && (
@@ -432,6 +440,7 @@ export default function Tasks() {
   // Modal state: create (with a preset column) or edit an existing task
   const [modal, setModal] = useState<{ open: boolean; task?: TaskItem; presetStatus?: TaskStatus }>({ open: false })
   const [confirmClearDone, setConfirmClearDone] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<TaskItem | null>(null)
 
   // Drag state
   const [draggingId, setDraggingId] = useState<string | null>(null)
@@ -627,6 +636,7 @@ export default function Tasks() {
               onAdd={() => setModal({ open: true, presetStatus: col.status })}
               onEdit={(task) => setModal({ open: true, task })}
               onMove={handleMenuMove}
+              onDelete={setPendingDelete}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
               onDragOver={(e) => handleDragOver(e, col.status)}
@@ -648,6 +658,21 @@ export default function Tasks() {
         task={modal.task}
         presetStatus={modal.presetStatus}
         onClose={() => setModal((m) => ({ ...m, open: false }))}
+      />
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (!pendingDelete) return
+          removeItem('tasks', pendingDelete.id)
+          toast('Task deleted', { description: `“${pendingDelete.title}” removed from the board.`, tone: 'success' })
+          setPendingDelete(null)
+        }}
+        danger
+        title="Delete task?"
+        description={pendingDelete ? `“${pendingDelete.title}” will be removed from the board. This cannot be undone.` : undefined}
+        confirmLabel="Delete"
       />
 
       <ConfirmDialog

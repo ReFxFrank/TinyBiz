@@ -11,7 +11,7 @@ import type { SocialLinks } from '@/data/types'
 const SOCIAL_FIELDS: Array<{ key: keyof SocialLinks; label: string; placeholder: string }> = [
   { key: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/yourshop' },
   { key: 'tiktok', label: 'TikTok', placeholder: 'https://tiktok.com/@yourshop' },
-  { key: 'facebook', label: 'Facebook', placeholder: 'https://facebook.com/yourshop' },
+  { key: 'youtube', label: 'YouTube', placeholder: 'https://youtube.com/@yourshop' },
   { key: 'etsy', label: 'Etsy', placeholder: 'https://yourshop.etsy.com' },
 ]
 

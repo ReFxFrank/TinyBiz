@@ -38,7 +38,7 @@ import {
 } from '@/components/ui'
 import { BarList, ChartCard, DonutChart, TrendChart, foldSlices } from '@/components/charts'
 import { dueIn, fmtDateShort, fmtMonth, money, money0, moneyCompact, timeAgo } from '@/lib/format'
-import { dailySeries, monthlySeries, lowStockMaterials, lowStockProducts, orderRevenue, bestSellers } from '@/lib/metrics'
+import { dailySeries, monthlySeries, lowStockMaterials, lowStockProducts, isRevenueOrder, orderRevenue, bestSellers } from '@/lib/metrics'
 import { addDays, dayKey, startOfDay } from '@/lib/dates'
 import { cn, useLoaded } from '@/lib/utils'
 
@@ -144,6 +144,15 @@ export default function Dashboard() {
   const todayPoint = daily12[daily12.length - 1]
   const yesterdayPoint = daily12[daily12.length - 2]
   const newOrdersToday = todayPoint?.orders ?? 0
+
+  // All-time totals: every dollar in (sales + other income) minus every dollar out
+  const allTime = useMemo(() => {
+    const salesRevenue = orders.filter(isRevenueOrder).reduce((a, o) => a + orderRevenue(o), 0)
+    const otherIncome = incomes.reduce((a, i) => a + i.amount, 0)
+    const totalExpenses = expenses.reduce((a, e) => a + e.amount, 0)
+    const income = salesRevenue + otherIncome
+    return { income, expenses: totalExpenses, profit: income - totalExpenses }
+  }, [orders, incomes, expenses])
 
   const chart = useMemo(() => {
     if (range === '12m') {
@@ -337,6 +346,39 @@ export default function Dashboard() {
             clickHint="Open expenses to see where the money went"
             onClick={() => navigate('/admin/expenses')}
           />
+        </motion.div>
+      )}
+
+      {/* All-time profit: every dollar in vs every dollar out */}
+      {loaded && (
+        <motion.div {...fadeUp}>
+          <Card padding="sm" className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-2 px-1">
+              <div>
+                <div className="text-[11px] font-medium uppercase tracking-wide text-ink-3">Total income</div>
+                <div className="tnum text-lg font-bold text-ink">{money0(allTime.income)}</div>
+              </div>
+              <span className="hidden text-xl font-light text-ink-3 sm:block" aria-hidden>
+                −
+              </span>
+              <div>
+                <div className="text-[11px] font-medium uppercase tracking-wide text-ink-3">Total expenses</div>
+                <div className="tnum text-lg font-bold text-ink">{money0(allTime.expenses)}</div>
+              </div>
+              <span className="hidden text-xl font-light text-ink-3 sm:block" aria-hidden>
+                =
+              </span>
+              <div>
+                <div className="text-[11px] font-medium uppercase tracking-wide text-ink-3">Total profit</div>
+                <div className={cn('tnum text-lg font-bold', allTime.profit < 0 ? 'text-critical' : 'text-good')}>
+                  {money0(allTime.profit)}
+                </div>
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" className="shrink-0" onClick={() => navigate('/admin/accounting')}>
+              Full profit &amp; loss <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Card>
         </motion.div>
       )}
 

@@ -309,6 +309,10 @@ export interface CalendarEvent {
   /** ISO date (day precision) */
   date: string
   type: EventType
+  /** Optional "from" time as HH:MM (24h) */
+  startTime?: string
+  /** Optional "till" time as HH:MM (24h) */
+  endTime?: string
   notes?: string
   relatedId?: ID
 }
@@ -553,8 +557,10 @@ export interface PolicyContent {
 export interface SocialLinks {
   instagram?: string
   tiktok?: string
-  facebook?: string
+  youtube?: string
   etsy?: string
+  /** No longer offered in Settings — kept so older saved data still parses */
+  facebook?: string
 }
 
 /** The eye-catching announcement strip under the storefront hero */

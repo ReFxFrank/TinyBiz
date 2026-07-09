@@ -311,7 +311,7 @@ export default function ProductModal({ open, onClose, product }: ProductModalPro
               value={imageHue}
               onChange={(e) => setImageHue(Number(e.target.value))}
               aria-label="Tile hue (0 to 360)"
-              className="w-full accent-[var(--accent)]"
+              className="hue-slider w-full"
             />
             <span className="tnum w-10 shrink-0 text-right text-xs text-ink-3">{imageHue}°</span>
           </div>

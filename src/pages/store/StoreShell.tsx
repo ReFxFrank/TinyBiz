@@ -5,13 +5,14 @@
 import { Suspense, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { MotionConfig } from 'framer-motion'
-import { ArrowLeft, Facebook, Instagram, ShoppingBag, X } from 'lucide-react'
+import { ArrowLeft, Instagram, Moon, ShoppingBag, Sun, X, Youtube } from 'lucide-react'
 import { Toaster } from '@/components/ui/Toaster'
 import { ErrorState } from '@/components/ui/EmptyState'
 import { useUI } from '@/store/useUI'
 import { api } from '@/lib/api'
 import { useCatalog } from '@/store/useCatalog'
 import { useCart, useCartDetails } from '@/store/useCart'
+import { useStoreTheme } from '@/store/useStoreTheme'
 import { CartDrawer } from './CartDrawer'
 import { cn } from '@/lib/utils'
 
@@ -52,6 +53,8 @@ function StoreHeader() {
   const shop = useCatalog((s) => s.shop)
   const setDrawerOpen = useCart((s) => s.setDrawerOpen)
   const { count } = useCartDetails()
+  const theme = useStoreTheme((s) => s.theme)
+  const toggleTheme = useStoreTheme((s) => s.toggle)
 
   return (
     <header
@@ -61,7 +64,7 @@ function StoreHeader() {
     >
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-6 px-4 sm:px-6">
         <Link to="/" className="flex min-w-0 items-center gap-2.5">
-          <img src="/brand/logo.png" alt="" className="h-9 w-9 shrink-0 rounded-full ring-1 ring-white/15" />
+          <img src="/brand/logo.png" alt="" className="h-9 w-9 shrink-0 rounded-full ring-1 ring-edge" />
           <span className="truncate text-[15px] font-semibold text-ink">{shop?.businessName ?? 'Shop'}</span>
         </Link>
 
@@ -82,6 +85,15 @@ function StoreHeader() {
             </NavLink>
           ))}
         </nav>
+
+        <button
+          onClick={toggleTheme}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-ink-2 transition-colors hover:bg-sunken hover:text-ink"
+          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          title={theme === 'dark' ? 'Light theme' : 'Dark theme'}
+        >
+          {theme === 'dark' ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+        </button>
 
         <button
           onClick={() => setDrawerOpen(true)}
@@ -125,7 +137,7 @@ function StoreFooter() {
   const socials = [
     { href: shop.social.instagram, label: 'Instagram', Icon: Instagram },
     { href: shop.social.tiktok, label: 'TikTok', Icon: TikTokIcon },
-    { href: shop.social.facebook, label: 'Facebook', Icon: Facebook },
+    { href: shop.social.youtube, label: 'YouTube', Icon: Youtube },
     { href: shop.social.etsy, label: 'Etsy', Icon: EtsyIcon },
   ].filter((s) => s.href)
   return (
@@ -134,7 +146,7 @@ function StoreFooter() {
         <div className="flex flex-col gap-8 sm:flex-row sm:justify-between">
           <div className="max-w-xs">
             <div className="flex items-center gap-2.5">
-              <img src="/brand/logo.png" alt="" className="h-9 w-9 rounded-full ring-1 ring-white/15" />
+              <img src="/brand/logo.png" alt="" className="h-9 w-9 rounded-full ring-1 ring-edge" />
               <span className="text-[15px] font-semibold text-ink">{shop.businessName}</span>
             </div>
             <p className="mt-3 text-sm leading-relaxed text-ink-3">{shop.tagline}</p>
@@ -199,24 +211,31 @@ function StoreFallback() {
 }
 
 /**
- * The storefront is ALWAYS dark and always wears the shop's brand accent
- * (the "tinymagic" sage/pink preset drawn from the logo) — independent of
- * the owner's admin theme, which is restored when they hop back to /admin.
+ * The storefront always wears the shop's brand accent (the "tinymagic"
+ * sage/pink preset drawn from the logo) and follows the VISITOR's theme
+ * choice — soft cream by default, dark via the header toggle. Both are
+ * independent of the owner's admin theme, which is restored when they hop
+ * back to /admin.
  */
 function useStorefrontTheme() {
   const shop = useCatalog((s) => s.shop)
+  const theme = useStoreTheme((s) => s.theme)
   useEffect(() => {
     const el = document.documentElement
     const wasDark = el.classList.contains('dark')
     const prevAccent = el.getAttribute('data-accent')
-    el.classList.add('dark')
+    el.setAttribute('data-storefront', '1')
     el.setAttribute('data-accent', 'tinymagic')
     return () => {
-      if (!wasDark) el.classList.remove('dark')
+      el.removeAttribute('data-storefront')
+      el.classList.toggle('dark', wasDark)
       if (prevAccent) el.setAttribute('data-accent', prevAccent)
       else el.removeAttribute('data-accent')
     }
   }, [])
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+  }, [theme])
   // Shop-branded tab: title + logo favicon (restored for the admin on unmount)
   useEffect(() => {
     const icon = document.querySelector<HTMLLinkElement>("link[rel='icon']")

@@ -108,7 +108,7 @@ function Hero({ heroEmojis }: { heroEmojis: string[] }) {
           <img
             src="/brand/logo.png"
             alt=""
-            className="tb-bob mx-auto h-24 w-24 rounded-full shadow-pop ring-2 ring-white/15 sm:h-28 sm:w-28"
+            className="tb-bob mx-auto h-24 w-24 rounded-full shadow-pop ring-2 ring-edge sm:h-28 sm:w-28"
             style={{ '--bob-rot': '-2deg', animationDelay: '-2s' } as CSSProperties}
           />
         </div>
@@ -572,7 +572,7 @@ export default function StoreHome() {
                 <img
                   src="/brand/logo.png"
                   alt=""
-                  className="tb-bob h-32 w-32 rounded-full shadow-lifted ring-2 ring-white/20 sm:h-36 sm:w-36"
+                  className="tb-bob h-32 w-32 rounded-full shadow-lifted ring-2 ring-edge sm:h-36 sm:w-36"
                   style={{ '--bob-rot': '-4deg' } as CSSProperties}
                 />
               </div>

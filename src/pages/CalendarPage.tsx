@@ -36,6 +36,9 @@ interface MergedEvent {
   /** ISO date */
   date: string
   type: EventType
+  /** HH:MM (24h), only on real calendar events */
+  startTime?: string
+  endTime?: string
   notes?: string
   /** Only 'event' rows are editable/deletable */
   source: EventSource
@@ -74,6 +77,20 @@ function TypeDot({ type, className }: { type: EventType; className?: string }) {
 function dateInputToIso(value: string): string {
   const [y, m, d] = value.split('-').map(Number)
   return new Date(y, m - 1, d, 12).toISOString()
+}
+
+/** "14:30" → "2:30 PM" */
+function fmtClock(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number)
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const hour = h % 12 === 0 ? 12 : h % 12
+  return `${hour}:${String(m).padStart(2, '0')} ${ampm}`
+}
+
+/** "9:00 AM – 1:00 PM", "9:00 AM", or null when the event has no time */
+function timeLabel(e: { startTime?: string; endTime?: string }): string | null {
+  if (!e.startTime) return null
+  return e.endTime ? `${fmtClock(e.startTime)} – ${fmtClock(e.endTime)}` : fmtClock(e.startTime)
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -118,6 +135,8 @@ export default function CalendarPage() {
       title: e.title,
       date: e.date,
       type: e.type,
+      startTime: e.startTime,
+      endTime: e.endTime,
       notes: e.notes,
       source: 'event',
     }))
@@ -163,7 +182,13 @@ export default function CalendarPage() {
       else map.set(key, [e])
     }
     for (const list of map.values()) {
-      list.sort((a, b) => EVENT_TYPES.indexOf(a.type) - EVENT_TYPES.indexOf(b.type) || a.title.localeCompare(b.title))
+      // Timed events first in clock order, then the usual type/title order
+      list.sort(
+        (a, b) =>
+          (a.startTime ?? '99:99').localeCompare(b.startTime ?? '99:99') ||
+          EVENT_TYPES.indexOf(a.type) - EVENT_TYPES.indexOf(b.type) ||
+          a.title.localeCompare(b.title),
+      )
     }
     return map
   }, [merged])
@@ -444,6 +469,7 @@ export default function CalendarPage() {
                             <span className="min-w-0 flex-1 truncate text-[13px] text-ink" title={e.title}>
                               {e.title}
                             </span>
+                            {timeLabel(e) && <span className="shrink-0 text-xs text-ink-2">{timeLabel(e)}</span>}
                             <span className="shrink-0 text-xs text-ink-3">{TYPE_META[e.type].label}</span>
                           </li>
                         ))}
@@ -553,6 +579,7 @@ export default function CalendarPage() {
                     </div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-2">
                       <Badge tone={TYPE_META[e.type].tone}>{TYPE_META[e.type].label}</Badge>
+                      {timeLabel(e) && <span className="text-xs font-medium text-ink-2">{timeLabel(e)}</span>}
                       <span className="text-xs text-ink-3">{SOURCE_LABEL[e.source]}</span>
                     </div>
                     {e.notes && <p className="mt-2 text-[13px] leading-relaxed text-ink-2">{e.notes}</p>}
@@ -625,6 +652,8 @@ function EventModal({
 
   const [title, setTitle] = useState('')
   const [date, setDate] = useState('')
+  const [startTime, setStartTime] = useState('')
+  const [endTime, setEndTime] = useState('')
   const [type, setType] = useState<EventType>('other')
   const [notes, setNotes] = useState('')
 
@@ -632,19 +661,25 @@ function EventModal({
     if (open) {
       setTitle(editing?.title ?? '')
       setDate(editing ? dayKey(editing.date) : (defaultDate ?? dayKey(new Date())))
+      setStartTime(editing?.startTime ?? '')
+      setEndTime(editing?.endTime ?? '')
       setType(editing?.type ?? 'other')
       setNotes(editing?.notes ?? '')
     }
   }, [open, editing, defaultDate])
 
   const dayBlocked = date.length > 0 && isDayOff(date)
-  const valid = title.trim().length > 0 && date.length > 0 && !dayBlocked
+  const timesBackwards = startTime !== '' && endTime !== '' && endTime <= startTime
+  const endWithoutStart = endTime !== '' && startTime === ''
+  const valid = title.trim().length > 0 && date.length > 0 && !dayBlocked && !timesBackwards && !endWithoutStart
 
   const submit = () => {
     if (!valid) return
     const payload = {
       title: title.trim(),
       date: dateInputToIso(date),
+      startTime: startTime || undefined,
+      endTime: endTime || undefined,
       type,
       notes: notes.trim() || undefined,
     }
@@ -700,6 +735,14 @@ function EventModal({
               value={type}
               onChange={(e) => setType(e.target.value as EventType)}
             />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="From" hint="Optional start time." error={endWithoutStart ? 'Set a start time first' : undefined}>
+            <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+          </Field>
+          <Field label="Till" hint="Optional end time." error={timesBackwards ? 'Must be after the start time' : undefined}>
+            <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
           </Field>
         </div>
         <Field label="Notes" hint="Optional — booth number, supplier, reminders…">

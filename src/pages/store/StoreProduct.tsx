@@ -62,22 +62,34 @@ function ProductView({ product }: { product: Product }) {
 
   const hasVariants = product.variants.length > 0
   const photos = product.photos ?? []
-  const [selectedVariantId, setSelectedVariantId] = useState<string | undefined>(
-    () => product.variants.find((v) => v.stock > 0)?.id,
+  // The product's own price/stock sell as the "Standard" option alongside any
+  // variants (undefined selection = Standard). Hidden once its stock runs out,
+  // so variant-only products (base stock 0) never show a dead option.
+  const optionRows = hasVariants
+    ? [
+        ...(product.stock > 0
+          ? [{ variant: null as ProductVariant | null, key: 'base', name: 'Standard', price: product.price, stock: product.stock }]
+          : []),
+        ...product.variants.map((v) => ({ variant: v as ProductVariant | null, key: v.id, name: v.name, price: v.price, stock: v.stock })),
+      ]
+    : []
+  const [selectedVariantId, setSelectedVariantId] = useState<string | undefined>(() =>
+    !hasVariants || product.stock > 0 ? undefined : product.variants.find((v) => v.stock > 0)?.id,
   )
   const [qty, setQty] = useState(1)
   const [photoIdx, setPhotoIdx] = useState(0)
 
-  const selectedVariant = hasVariants ? product.variants.find((v) => v.id === selectedVariantId) : undefined
-  const available = hasVariants ? (selectedVariant?.stock ?? 0) : product.stock
+  const selectedVariant = selectedVariantId ? product.variants.find((v) => v.id === selectedVariantId) : undefined
+  const available = selectedVariant ? selectedVariant.stock : product.stock
   const price = selectedVariant?.price ?? product.price
   const soldOut = available <= 0
   const lowStock = !soldOut && available <= product.reorderPoint
 
-  const pickVariant = (v: ProductVariant) => {
-    if (v.stock <= 0) return
-    setSelectedVariantId(v.id)
-    setQty((q) => Math.min(Math.max(1, q), v.stock))
+  const pickOption = (v: ProductVariant | null) => {
+    const stock = v ? v.stock : product.stock
+    if (stock <= 0) return
+    setSelectedVariantId(v?.id)
+    setQty((q) => Math.min(Math.max(1, q), stock))
   }
 
   const addToCart = () => {
@@ -107,7 +119,7 @@ function ProductView({ product }: { product: Product }) {
     return [...same, ...rest].slice(0, 4)
   }, [products, product.id, product.category])
 
-  const specSku = hasVariants ? (selectedVariant ?? product.variants[0]).sku : product.sku
+  const specSku = selectedVariant?.sku ?? product.sku
   const { l, w, h } = product.dimensionsCm
 
   return (
@@ -220,27 +232,27 @@ function ProductView({ product }: { product: Product }) {
                   // ARIA radio pattern: one tab stop, arrows move selection between in-stock options
                   if (!['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'].includes(e.key)) return
                   e.preventDefault()
-                  const inStock = product.variants.filter((v) => v.stock > 0)
+                  const inStock = optionRows.filter((r) => r.stock > 0)
                   if (!inStock.length) return
                   const dir = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1
-                  const at = inStock.findIndex((v) => v.id === selectedVariantId)
+                  const at = inStock.findIndex((r) => r.variant?.id === selectedVariantId)
                   const next = inStock[(at + dir + inStock.length) % inStock.length]
-                  pickVariant(next)
-                  ;(e.currentTarget.querySelector(`[data-variant="${next.id}"]`) as HTMLElement | null)?.focus()
+                  pickOption(next.variant)
+                  ;(e.currentTarget.querySelector(`[data-variant="${next.key}"]`) as HTMLElement | null)?.focus()
                 }}
               >
-                {product.variants.map((v) => {
-                  const out = v.stock <= 0
-                  const selected = v.id === selectedVariantId
+                {optionRows.map((r) => {
+                  const out = r.stock <= 0
+                  const selected = r.variant?.id === selectedVariantId
                   return (
                     <button
-                      key={v.id}
-                      data-variant={v.id}
+                      key={r.key}
+                      data-variant={r.key}
                       role="radio"
                       aria-checked={selected}
                       tabIndex={selected ? 0 : -1}
                       disabled={out}
-                      onClick={() => pickVariant(v)}
+                      onClick={() => pickOption(r.variant)}
                       className={cn(
                         'rounded-xl border px-3.5 py-2 text-left text-sm transition-all',
                         selected
@@ -256,9 +268,9 @@ function ProductView({ product }: { product: Product }) {
                           out && 'line-through',
                         )}
                       >
-                        {v.name}
+                        {r.name}
                       </span>
-                      <span className="ml-2 text-xs text-ink-3">{out ? 'Sold out' : money(v.price)}</span>
+                      <span className="ml-2 text-xs text-ink-3">{out ? 'Sold out' : money(r.price)}</span>
                     </button>
                   )
                 })}

@@ -11,9 +11,9 @@ import { money } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { Product } from '@/data/types'
 
-/** Sellable stock — variant products sell from variant stock, not the base */
+/** Sellable stock — the base product (the "Standard" option) plus every variant */
 export function productAvailableStock(p: Product): number {
-  return p.variants.length ? p.variants.reduce((a, v) => a + v.stock, 0) : p.stock
+  return p.variants.reduce((a, v) => a + v.stock, p.stock)
 }
 
 export function StoreProductCard({ product, badge }: { product: Product; badge?: ReactNode }) {

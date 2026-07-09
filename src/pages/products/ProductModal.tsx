@@ -368,6 +368,11 @@ export default function ProductModal({ open, onClose, product }: ProductModalPro
             </p>
           ) : (
             <div className="space-y-2">
+              <p className="rounded-xl bg-sunken px-3 py-2.5 text-[13px] text-ink-3">
+                The price &amp; stock above sell as the <span className="font-medium text-ink-2">Standard</span> option;
+                each variant is an extra option with its own price &amp; stock. Set the stock above to 0 if this product
+                only comes in these variants.
+              </p>
               <div className="hidden grid-cols-[1fr_1fr_80px_80px_64px_32px] gap-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-ink-3 sm:grid">
                 <span>Name</span>
                 <span>SKU</span>

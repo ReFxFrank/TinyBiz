@@ -35,6 +35,8 @@ LOG_FILE="/var/log/tinybiz-deploy.log"
 SHIM_FILE="/usr/local/bin/redeploy"
 API_SERVICE="tinybiz-api"
 ENV_FILE="/etc/tinybiz.env"
+MAIL_SERVICE="tinybiz-mail"
+MAIL_ENV_FILE="/etc/tinybiz-mail.env"
 DATA_DIR="/var/lib/tinybiz"
 
 FORCE=0
@@ -126,6 +128,67 @@ CRON
   fi
 }
 
+setup_mail_bridge() {
+  # Seed the env file once, never overwrite — operators put mail credentials
+  # here (e.g. a Resend API key). Without SMTP_* set the bridge stays in demo
+  # mode: sends are logged, nothing real goes out.
+  if [ ! -f "$MAIL_ENV_FILE" ]; then
+    echo "──> Creating ${MAIL_ENV_FILE}…"
+    local base token
+    token="$(od -An -tx1 -N24 /dev/urandom | tr -d ' \n')"
+    if [ -n "$DOMAIN" ]; then
+      base="https://${DOMAIN}/mail"
+    else
+      base="http://$(hostname -I 2>/dev/null | awk '{print $1}')/mail"
+    fi
+    cat > "$MAIL_ENV_FILE" <<ENV
+PORT=7071
+SEND_TOKEN=${token}
+PUBLIC_URL=${base}
+# Uncomment + fill in to send real email. For Resend (resend.com): verify your
+# domain there first; SMTP_USER is the literal word "resend" and SMTP_PASS is
+# your re_... API key.
+# SMTP_HOST=smtp.resend.com
+# SMTP_PORT=465
+# SMTP_SECURE=true
+# SMTP_USER=resend
+# SMTP_PASS=re_your_api_key
+ENV
+    chmod 600 "$MAIL_ENV_FILE"
+    echo "    Mail bridge URL for Settings → Newsletter: ${base}"
+    echo "    Send token (paste it there too): ${token}"
+  fi
+
+  echo "──> Installing mail bridge dependencies…"
+  (cd "$APP_DIR/mail-bridge" && npm install --no-audit --no-fund --loglevel=error)
+
+  local unit unit_file="/etc/systemd/system/${MAIL_SERVICE}.service"
+  unit="$(cat <<UNIT
+[Unit]
+Description=TinyBiz Mail Bridge
+After=network.target
+
+[Service]
+WorkingDirectory=${APP_DIR}/mail-bridge
+ExecStart=/usr/bin/node index.js
+EnvironmentFile=${MAIL_ENV_FILE}
+Restart=always
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+)"
+  if [ ! -f "$unit_file" ] || [ "$(cat "$unit_file")" != "$unit" ]; then
+    echo "──> Installing systemd service (${MAIL_SERVICE})…"
+    printf '%s\n' "$unit" > "$unit_file"
+    systemctl daemon-reload
+  fi
+  systemctl enable --now "$MAIL_SERVICE"
+  systemctl restart "$MAIL_SERVICE"
+}
+
 configure_nginx() {
   local server_name="${DOMAIN:-_}"
   local site="/etc/nginx/sites-available/tinybiz"
@@ -152,6 +215,17 @@ configure_nginx() {
       sed -i '/location \/assets\/ {/i\
     location /uploads/ {\
         proxy_pass http://127.0.0.1:4000;\
+        proxy_http_version 1.1;\
+        proxy_set_header Host $host;\
+    }\
+' "$site"
+      nginx -t
+    fi
+    if ! grep -q "location /mail/" "$site"; then
+      echo "──> Adding the /mail proxy to the existing nginx config…"
+      sed -i '/location \/assets\/ {/i\
+    location /mail/ {\
+        proxy_pass http://127.0.0.1:7071/;\
         proxy_http_version 1.1;\
         proxy_set_header Host $host;\
     }\
@@ -202,6 +276,14 @@ server {
     # Product photos live next to the database, served by the API
     location /uploads/ {
         proxy_pass http://127.0.0.1:4000;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+    }
+
+    # Mail bridge (systemd: tinybiz-mail): newsletter sends + email tracking.
+    # The trailing slash strips the /mail prefix so the bridge sees root paths.
+    location /mail/ {
+        proxy_pass http://127.0.0.1:7071/;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
     }
@@ -355,6 +437,7 @@ main() {
   (cd "$APP_DIR/server" && npm ci --no-audit --no-fund)
 
   setup_api
+  setup_mail_bridge
   configure_nginx
   systemctl reload nginx
 

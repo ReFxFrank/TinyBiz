@@ -61,11 +61,13 @@ export function SettingsTab() {
     }
   }
 
-  // A real end-to-end test: sends an actual email to the From address
+  // A real end-to-end test. Sent FROM the From address (must be on the
+  // verified domain) but TO the reply-to when set — the From address often
+  // has no real inbox behind it.
   const [sendingTest, setSendingTest] = useState(false)
   const sendTestEmail = async () => {
     const base = draft.mailBridgeUrl.trim().replace(/\/$/, '')
-    const to = draft.fromEmail.trim()
+    const to = (draft.replyTo.trim() || draft.fromEmail).trim()
     if (!base || !emailValid) return
     setSendingTest(true)
     setTestResult(null)
@@ -85,7 +87,7 @@ export function SettingsTab() {
             Newsletters, order confirmations, and shipping updates will all travel this same road.</p>
             <p style="color:#999;font-size:13px;">Sent from the newsletter settings page.</p></div>`,
           text: 'It works! This test email left your mail bridge and was delivered by your email provider.',
-          from: { name: draft.fromName || 'Test', email: to },
+          from: { name: draft.fromName || 'Test', email: draft.fromEmail.trim() },
         }),
       })
       const data = await res.json().catch(() => ({}))

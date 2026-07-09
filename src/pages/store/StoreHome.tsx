@@ -189,9 +189,17 @@ function PromoBannerStrip() {
         {/* Accent wash — brightest at the edges so the copy stays readable */}
         <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-r from-accent-wash via-transparent to-accent-wash" />
         <div className="relative flex min-w-0 items-start gap-3.5 sm:items-center">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-wash text-accent-strong dark:text-accent">
-            <Megaphone className="h-[18px] w-[18px]" />
-          </span>
+          {banner.imageUrl ? (
+            <img
+              src={banner.imageUrl}
+              alt=""
+              className="h-14 w-14 shrink-0 rounded-xl border border-hairline object-cover shadow-soft sm:h-16 sm:w-16"
+            />
+          ) : (
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-wash text-accent-strong dark:text-accent">
+              <Megaphone className="h-[18px] w-[18px]" />
+            </span>
+          )}
           <div className="min-w-0">
             <p className="text-base font-bold tracking-tight text-ink">{emojify(banner.heading)}</p>
             {banner.body?.trim() && <p className="mt-0.5 text-sm text-ink-2">{emojify(banner.body)}</p>}

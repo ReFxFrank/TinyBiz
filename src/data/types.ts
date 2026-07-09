@@ -567,6 +567,8 @@ export interface PromoBanner {
   /** Optional call-to-action */
   linkLabel?: string
   linkUrl?: string
+  /** Optional uploaded photo shown beside the text, e.g. the new product */
+  imageUrl?: string
 }
 
 export interface Settings {

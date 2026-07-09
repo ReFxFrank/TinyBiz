@@ -1,12 +1,14 @@
 // Settings → Storefront banner: the announcement strip that shows right under
 // the hero on the shop's home page — new drops, sales, holiday notes.
 
-import { useState } from 'react'
-import { ExternalLink, Save } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { ExternalLink, ImagePlus, Save, X } from 'lucide-react'
 import { Button, Card, CardHeader, Field, Input, Toggle } from '@/components/ui'
 import { useStore } from '@/store/useStore'
 import { toast } from '@/store/useUI'
 import { emojify } from '@/lib/emoji'
+import { api, ApiError } from '@/lib/api'
+import { prepareImageForUpload } from '@/lib/image'
 import type { PromoBanner } from '@/data/types'
 
 /** Every field normalized to a string so draft/saved comparisons stay stable */
@@ -16,6 +18,7 @@ interface BannerDraft {
   body: string
   linkLabel: string
   linkUrl: string
+  imageUrl: string
 }
 
 const toDraft = (b?: PromoBanner): BannerDraft => ({
@@ -24,6 +27,7 @@ const toDraft = (b?: PromoBanner): BannerDraft => ({
   body: b?.body ?? '',
   linkLabel: b?.linkLabel ?? '',
   linkUrl: b?.linkUrl ?? '',
+  imageUrl: b?.imageUrl ?? '',
 })
 
 export function PromoBannerCard() {
@@ -31,12 +35,31 @@ export function PromoBannerCard() {
   const updateSettings = useStore((s) => s.updateSettings)
 
   const [draft, setDraft] = useState<BannerDraft>(() => toDraft(settings.promoBanner))
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   // emojify as-you-type: ":dragon:" becomes 🐉 the moment the closing colon lands
   const set = (key: keyof Omit<BannerDraft, 'enabled'>, value: string) =>
     setDraft((d) => ({ ...d, [key]: key === 'heading' || key === 'body' ? emojify(value) : value }))
   const dirty = JSON.stringify(draft) !== JSON.stringify(toDraft(settings.promoBanner))
 
   const needsHeading = draft.enabled && draft.heading.trim() === ''
+
+  const pickPhoto = async (file: File | null) => {
+    if (!file) return
+    setUploading(true)
+    try {
+      const blob = await prepareImageForUpload(file)
+      const { url } = await api.upload(blob)
+      setDraft((d) => ({ ...d, imageUrl: url }))
+    } catch (err) {
+      toast('Couldn’t upload that photo', {
+        description: err instanceof ApiError ? err.message : 'Could not read that image.',
+        tone: 'error',
+      })
+    } finally {
+      setUploading(false)
+    }
+  }
 
   const save = () => {
     // Trim everything and keep only filled-in optionals
@@ -50,6 +73,7 @@ export function PromoBannerCard() {
       // Site-relative paths like /shop stay as-is; bare domains get a scheme
       cleaned.linkUrl = linkUrl.startsWith('http') || linkUrl.startsWith('/') ? linkUrl : `https://${linkUrl}`
     }
+    if (draft.imageUrl) cleaned.imageUrl = draft.imageUrl
     updateSettings({ promoBanner: cleaned })
     setDraft(toDraft(cleaned))
     toast('Storefront banner saved', {
@@ -72,7 +96,7 @@ export function PromoBannerCard() {
                 View storefront
               </Button>
             </a>
-            <Button size="sm" icon={<Save />} disabled={!dirty || needsHeading} onClick={save}>
+            <Button size="sm" icon={<Save />} disabled={!dirty || needsHeading || uploading} onClick={save}>
               Save
             </Button>
           </div>
@@ -111,6 +135,50 @@ export function PromoBannerCard() {
         </Field>
         <Field label="Button link" hint="A full URL, or a path on your site like /shop.">
           <Input value={draft.linkUrl} onChange={(e) => set('linkUrl', e.target.value)} placeholder="/shop" />
+        </Field>
+        <Field
+          label="Photo"
+          hint="Optional — shows beside the text, great for a shot of the new product."
+          className="sm:col-span-2"
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="hidden"
+            onChange={(e) => {
+              void pickPhoto(e.target.files?.[0] ?? null)
+              e.target.value = '' // allow re-picking the same file
+            }}
+          />
+          <div className="flex items-center gap-3">
+            {draft.imageUrl ? (
+              <div className="relative">
+                <img
+                  src={draft.imageUrl}
+                  alt="Banner photo"
+                  className="h-16 w-16 rounded-xl border border-hairline object-cover"
+                />
+                <button
+                  type="button"
+                  aria-label="Remove photo"
+                  onClick={() => setDraft((d) => ({ ...d, imageUrl: '' }))}
+                  className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-critical text-white shadow-soft"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ) : null}
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<ImagePlus />}
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {uploading ? 'Uploading…' : draft.imageUrl ? 'Swap photo' : 'Add photo'}
+            </Button>
+          </div>
         </Field>
       </div>
       <p className="mt-3 text-xs text-ink-3">

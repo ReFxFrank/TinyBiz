@@ -101,6 +101,14 @@ export interface ShopInfo {
   promoBanner: PromoBanner | null
 }
 
+/** A shopper's account on the storefront (separate from the admin login) */
+export interface ShopAccount {
+  id: string
+  name: string
+  email: string
+  address: { line1: string; city: string; state: string; zip: string } | null
+}
+
 /** The sanitized order shape the public confirmation/track endpoints return */
 export type PublicOrder = Pick<
   Order,
@@ -163,6 +171,21 @@ export const api = {
       throw new ApiError(res.status, data?.error || 'server_error', data?.message || `Upload failed (${res.status})`)
     }
     return data as { url: string }
+  },
+
+  // shopper accounts (storefront — separate cookie from the admin login)
+  account: {
+    me: () => request<{ account: ShopAccount | null }>('/api/store/account/me'),
+    signup: (input: { name: string; email: string; password: string }) =>
+      request<{ account: ShopAccount }>('/api/store/account/signup', { method: 'POST', body: JSON.stringify(input) }),
+    login: (input: { email: string; password: string }) =>
+      request<{ account: ShopAccount }>('/api/store/account/login', { method: 'POST', body: JSON.stringify(input) }),
+    logout: () => request<{ ok: true }>('/api/store/account/logout', { method: 'POST' }),
+    update: (patch: { name?: string; address?: ShopAccount['address'] }) =>
+      request<{ account: ShopAccount }>('/api/store/account/me', { method: 'PATCH', body: JSON.stringify(patch) }),
+    password: (input: { current: string; next: string }) =>
+      request<{ ok: true }>('/api/store/account/password', { method: 'POST', body: JSON.stringify(input) }),
+    orders: () => request<{ orders: PublicOrder[] }>('/api/store/account/orders'),
   },
 
   // owner state sync

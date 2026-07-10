@@ -11,6 +11,7 @@ import { currentRev, getCollection } from './db.js'
 import { authRouter, teamRouter, sessionMiddleware, requireAuth, requireOwner } from './auth.js'
 import { stateRouter } from './state.js'
 import { storeRouter, webhookRouter } from './store-api.js'
+import { shopAccountRouter } from './shop-accounts.js'
 import { stripeEnabled } from './stripe.js'
 import { rateLimit } from './ratelimit.js'
 import { uploadsRouter, uploadsStatic } from './uploads.js'
@@ -31,6 +32,9 @@ app.use('/api/auth/password', rateLimit({ windowMs: 10 * 60_000, max: 10, name: 
 app.use('/api/store/checkout', rateLimit({ windowMs: 15 * 60_000, max: 30, name: 'checkout' }))
 app.use('/api/store/track', rateLimit({ windowMs: 10 * 60_000, max: 30, name: 'track' }))
 app.use('/api/store/subscribe', rateLimit({ windowMs: 10 * 60_000, max: 30, name: 'subscribe' }))
+app.use('/api/store/account/signup', rateLimit({ windowMs: 10 * 60_000, max: 10, name: 'shop-signup' }))
+app.use('/api/store/account/login', rateLimit({ windowMs: 10 * 60_000, max: 10, name: 'shop-login' }))
+app.use('/api/store/account/password', rateLimit({ windowMs: 10 * 60_000, max: 10, name: 'shop-password' }))
 
 // Product photos: reads are public (the storefront shows them), writes need
 // product access. The router parses its own raw image body.
@@ -63,6 +67,7 @@ app.get('/api/stripe/status', requireAuth, (_req, res) => res.json({ enabled: st
 
 app.use('/api/auth', authRouter)
 app.use('/api/team', teamRouter)
+app.use('/api/store/account', shopAccountRouter)
 app.use('/api/store', storeRouter)
 app.use('/api/uploads', uploadsRouter)
 

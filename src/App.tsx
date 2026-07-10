@@ -40,6 +40,7 @@ const StoreCheckout = lazy(() => import('@/pages/store/StoreCheckout'))
 const StoreConfirmation = lazy(() => import('@/pages/store/StoreConfirmation'))
 const StoreTrack = lazy(() => import('@/pages/store/StoreTrack'))
 const StorePolicies = lazy(() => import('@/pages/store/StorePolicies'))
+const StoreAccount = lazy(() => import('@/pages/store/StoreAccount'))
 
 export default function App() {
   return (
@@ -53,6 +54,7 @@ export default function App() {
         <Route path="confirmation/:orderId" element={<StoreConfirmation />} />
         <Route path="track" element={<StoreTrack />} />
         <Route path="policies" element={<StorePolicies />} />
+        <Route path="account" element={<StoreAccount />} />
       </Route>
 
       {/* Old /store/* links keep working */}

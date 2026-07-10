@@ -5,7 +5,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { MotionConfig } from 'framer-motion'
-import { ArrowLeft, ChevronDown, Instagram, Moon, ShoppingBag, Sun, X, Youtube } from 'lucide-react'
+import { ArrowLeft, ChevronDown, CircleUserRound, Instagram, Moon, ShoppingBag, Sun, X, Youtube } from 'lucide-react'
 import { Toaster } from '@/components/ui/Toaster'
 import { ErrorState } from '@/components/ui/EmptyState'
 import { useUI } from '@/store/useUI'
@@ -15,6 +15,7 @@ import { useCatalog } from '@/store/useCatalog'
 import { useCart, useCartDetails } from '@/store/useCart'
 import { useStoreTheme } from '@/store/useStoreTheme'
 import { useStoreCurrency } from '@/store/useStoreCurrency'
+import { useShopAccount } from '@/store/useShopAccount'
 import { DISPLAY_CURRENCIES, type DisplayCurrencyCode } from '@/data/types'
 import { CartDrawer } from './CartDrawer'
 import { cn } from '@/lib/utils'
@@ -100,6 +101,7 @@ function StoreHeader() {
   const { count } = useCartDetails()
   const theme = useStoreTheme((s) => s.theme)
   const toggleTheme = useStoreTheme((s) => s.toggle)
+  const signedIn = useShopAccount((s) => Boolean(s.account))
 
   return (
     <header
@@ -132,6 +134,15 @@ function StoreHeader() {
         </nav>
 
         <CurrencySelect />
+
+        <Link
+          to="/account"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-ink-2 transition-colors hover:bg-sunken hover:text-ink"
+          aria-label={signedIn ? 'Your account' : 'Sign in or create an account'}
+          title={signedIn ? 'Your account' : 'Sign in'}
+        >
+          <CircleUserRound className={cn('h-[19px] w-[19px]', signedIn && 'text-accent-strong dark:text-accent')} />
+        </Link>
 
         <button
           onClick={toggleTheme}
@@ -319,6 +330,12 @@ export function StoreShell() {
   const reduceMotion = useUI((s) => s.reduceMotion)
   const { pathname } = useLocation()
   useEffect(() => window.scrollTo(0, 0), [pathname])
+
+  // The signed-in shopper (if any) — header state + checkout prefill
+  const loadAccount = useShopAccount((s) => s.load)
+  useEffect(() => {
+    void loadAccount()
+  }, [loadAccount])
 
   // The storefront runs off the public catalog API — load it once, refresh on focus
   const load = useCatalog((s) => s.load)

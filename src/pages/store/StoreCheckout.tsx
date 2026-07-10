@@ -9,6 +9,7 @@ import { ArrowLeft, CreditCard, Lock, ShoppingBag, Tag } from 'lucide-react'
 import { Button, Card, CardHeader, EmptyState, Field, Input, Textarea } from '@/components/ui'
 import { useCart, useCartDetails } from '@/store/useCart'
 import { useCatalog } from '@/store/useCatalog'
+import { useShopAccount } from '@/store/useShopAccount'
 import { api, ApiError } from '@/lib/api'
 import { toast } from '@/store/useUI'
 import { getDisplayCurrency, money } from '@/lib/format'
@@ -46,6 +47,22 @@ export default function StoreCheckout() {
   const [form, setForm] = useState({ name: '', email: '', line1: '', city: '', state: '', zip: '', notes: '' })
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({})
   const [submitting, setSubmitting] = useState(false)
+
+  // Signed-in shoppers get their saved details prefilled (only into fields
+  // they haven't already typed in)
+  const account = useShopAccount((s) => s.account)
+  useEffect(() => {
+    if (!account) return
+    setForm((f) => ({
+      ...f,
+      name: f.name || account.name,
+      email: f.email || account.email,
+      line1: f.line1 || account.address?.line1 || '',
+      city: f.city || account.address?.city || '',
+      state: f.state || account.address?.state || '',
+      zip: f.zip || account.address?.zip || '',
+    }))
+  }, [account])
 
   const nameRef = useRef<HTMLInputElement>(null)
   const emailRef = useRef<HTMLInputElement>(null)

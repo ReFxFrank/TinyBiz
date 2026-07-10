@@ -55,6 +55,19 @@ db.exec(`
     created_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_pending_session ON pending_checkouts(session_id);
+  CREATE TABLE IF NOT EXISTS shop_accounts (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL DEFAULT '',
+    pass_hash TEXT NOT NULL,
+    address TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS shop_sessions (
+    token TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES shop_accounts(id) ON DELETE CASCADE,
+    expires_at INTEGER NOT NULL
+  );
 `)
 
 // Migration: staff accounts — pre-existing users tables lack these columns.

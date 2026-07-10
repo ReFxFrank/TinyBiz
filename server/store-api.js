@@ -248,7 +248,7 @@ storeRouter.post('/checkout', wrap(async (req, res) => {
 }))
 
 /** Sanitized order for the confirmation page (ids are unguessable) */
-function publicOrder(o) {
+export function publicOrder(o) {
   return {
     id: o.id,
     number: o.number,

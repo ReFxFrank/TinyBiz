@@ -9,6 +9,9 @@ import crypto from 'node:crypto'
 import bcrypt from 'bcryptjs'
 import { db, uid, getCollection, upsertItem, bumpRev } from './db.js'
 import { publicOrder } from './store-api.js'
+import { startSession as startAdminSession } from './auth.js'
+
+const stmtAdminByEmail = db.prepare('SELECT * FROM users WHERE email = ?')
 
 const COOKIE = 'tms_shopper'
 const SESSION_DAYS = 180
@@ -63,6 +66,16 @@ const publicAccount = (row) => ({
   address: row.address ? JSON.parse(row.address) : null,
 })
 
+/** The owner/staff signed in with their studio login — no shopper account needed */
+const staffAccount = (user) => ({
+  id: `staff:${user.id}`,
+  email: user.email,
+  name: user.name || '',
+  address: null,
+  staff: true,
+  role: user.role || 'owner',
+})
+
 /** Attach req.shopper when a valid shopper cookie is present (sliding expiry) */
 function shopperSession(req) {
   const token = parseCookies(req)[COOKIE]
@@ -103,7 +116,10 @@ export const shopAccountRouter = Router()
 
 shopAccountRouter.get('/me', (req, res) => {
   const sess = shopperSession(req)
-  res.json({ account: sess ? publicAccount(sess.row) : null })
+  if (sess) return res.json({ account: publicAccount(sess.row) })
+  // Owner/staff already signed into the admin are recognized automatically
+  if (req.user) return res.json({ account: staffAccount(req.user) })
+  res.json({ account: null })
 })
 
 shopAccountRouter.post('/signup', (req, res) => {
@@ -120,6 +136,12 @@ shopAccountRouter.post('/signup', (req, res) => {
   if (stmtByEmail.get(cleanEmail)) {
     return res.status(409).json({ error: 'email_taken', message: 'An account with that email already exists — sign in instead.' })
   }
+  if (stmtAdminByEmail.get(cleanEmail)) {
+    return res.status(409).json({
+      error: 'staff_email',
+      message: 'That email belongs to a studio account — just sign in with your usual password.',
+    })
+  }
   const id = uid('shp')
   stmtInsert.run(id, cleanEmail, cleanName, bcrypt.hashSync(password, 10), null, new Date().toISOString())
   const row = stmtById.get(id)
@@ -131,13 +153,24 @@ shopAccountRouter.post('/signup', (req, res) => {
 
 shopAccountRouter.post('/login', (req, res) => {
   const { email, password } = req.body || {}
-  const row = stmtByEmail.get(String(email || '').trim().toLowerCase())
-  if (!row || !bcrypt.compareSync(String(password || ''), row.pass_hash)) {
-    return res.status(401).json({ error: 'bad_credentials', message: 'That email and password don’t match.' })
+  const cleanEmail = String(email || '').trim().toLowerCase()
+  const row = stmtByEmail.get(cleanEmail)
+  if (row && bcrypt.compareSync(String(password || ''), row.pass_hash)) {
+    stmtPruneSessions.run(Date.now())
+    startSession(req, res, row.id)
+    return res.json({ ok: true, account: publicAccount(row) })
   }
-  stmtPruneSessions.run(Date.now())
-  startSession(req, res, row.id)
-  res.json({ ok: true, account: publicAccount(row) })
+  // Owner/staff can use their studio credentials right here — same check and
+  // same session as the admin login, so no second account to remember.
+  const admin = stmtAdminByEmail.get(cleanEmail)
+  if (admin && !admin.disabled && bcrypt.compareSync(String(password || ''), admin.pass_hash)) {
+    startAdminSession(req, res, admin.id)
+    return res.json({
+      ok: true,
+      account: staffAccount({ id: admin.id, email: admin.email, name: admin.name, role: admin.role }),
+    })
+  }
+  res.status(401).json({ error: 'bad_credentials', message: 'That email and password don’t match.' })
 })
 
 shopAccountRouter.post('/logout', (req, res) => {
@@ -182,8 +215,8 @@ shopAccountRouter.post('/password', (req, res) => {
 /** Every order placed with the account's email — guest orders included */
 shopAccountRouter.get('/orders', (req, res) => {
   const sess = shopperSession(req)
-  if (!sess) return res.status(401).json({ error: 'unauthorized' })
-  const email = sess.row.email
+  const email = sess ? sess.row.email : req.user ? String(req.user.email).toLowerCase() : null
+  if (!email) return res.status(401).json({ error: 'unauthorized' })
   const orders = getCollection('orders')
     .filter((o) => String(o.email || '').trim().toLowerCase() === email)
     .sort((a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime())

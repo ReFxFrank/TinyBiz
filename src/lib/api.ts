@@ -107,6 +107,9 @@ export interface ShopAccount {
   name: string
   email: string
   address: { line1: string; city: string; state: string; zip: string } | null
+  /** True when this is really the owner/staff signed in with their studio login */
+  staff?: boolean
+  role?: 'owner' | 'staff'
 }
 
 /** The sanitized order shape the public confirmation/track endpoints return */

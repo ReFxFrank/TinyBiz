@@ -4,7 +4,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { CircleUserRound, LogOut, PackageOpen, ExternalLink } from 'lucide-react'
+import { ArrowRight, CircleUserRound, LogOut, PackageOpen, ExternalLink, Sparkles } from 'lucide-react'
 import { Badge, Button, Card, EmptyState, Field, Input, type BadgeTone } from '@/components/ui'
 import { api, ApiError, type PublicOrder } from '@/lib/api'
 import { useShopAccount } from '@/store/useShopAccount'
@@ -59,7 +59,8 @@ function AuthCard() {
         </span>
         <h1 className="mt-4 text-3xl font-bold tracking-tight text-ink">Your account</h1>
         <p className="mt-2 text-sm text-ink-3">
-          Keep your details on file for faster checkout and see all your orders in one place.
+          Keep your details on file for faster checkout and see all your orders in one place. Studio owner or staff?
+          Just sign in with your usual login.
         </p>
       </div>
 
@@ -324,7 +325,9 @@ export default function StoreAccount() {
 
   const logout = async () => {
     try {
-      await api.account.logout()
+      // Staff signed in with the studio login — signing out ends that session
+      if (account?.staff) await api.logout()
+      else await api.account.logout()
     } catch {
       /* signing out locally regardless */
     }
@@ -360,13 +363,40 @@ export default function StoreAccount() {
               Sign out
             </Button>
           </div>
-          <div className="grid gap-5 lg:grid-cols-[1fr_1.2fr]">
-            <div className="space-y-5">
-              <DetailsCard />
-              <PasswordCard />
+          {account.staff ? (
+            <div className="grid gap-5 lg:grid-cols-[1fr_1.2fr]">
+              <Card padding="lg">
+                <div className="flex items-start gap-3">
+                  <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-wash text-accent-strong dark:text-accent">
+                    <Sparkles className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h2 className="text-[15px] font-semibold text-ink">
+                      This is your studio {account.role === 'owner' ? 'owner' : 'staff'} account
+                    </h2>
+                    <p className="mt-1 text-[13px] leading-relaxed text-ink-3">
+                      No separate shopper account needed — you&rsquo;re signed in with your usual login. Your name,
+                      password and everything else live in the admin.
+                    </p>
+                  </div>
+                </div>
+                <Link to="/admin" className="mt-4 block">
+                  <Button className="w-full">
+                    Open the admin <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </Card>
+              <OrdersCard />
             </div>
-            <OrdersCard />
-          </div>
+          ) : (
+            <div className="grid gap-5 lg:grid-cols-[1fr_1.2fr]">
+              <div className="space-y-5">
+                <DetailsCard />
+                <PasswordCard />
+              </div>
+              <OrdersCard />
+            </div>
+          )}
         </div>
       )}
     </motion.div>

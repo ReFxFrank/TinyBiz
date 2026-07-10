@@ -4,6 +4,7 @@
 // (auth, pending Stripe checkouts) gets a real table.
 
 import Database from 'better-sqlite3'
+import { randomBytes } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -160,7 +161,8 @@ export function fullState() {
   return state
 }
 
-/** Server-side ids, same shape as the client's uid() */
+/** Server-side ids. Crypto-random suffix: order ids are used in public lookup
+ *  URLs, so they must not be guessable from a timestamp + weak PRNG. */
 export function uid(prefix) {
-  return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+  return `${prefix}_${Date.now().toString(36)}${randomBytes(8).toString('hex')}`
 }

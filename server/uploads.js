@@ -36,12 +36,23 @@ const TYPES = {
 }
 const MAX_BYTES = 10 * 1024 * 1024
 
-/** Static handler for the stored files — hashed names, cache hard */
-export const uploadsStatic = express.static(UPLOADS_DIR, {
+/** Static handler for the stored files — hashed names, cache hard.
+ *  Images (img_*) are public; business documents (doc_*) hold tax paperwork
+ *  and supplier files, so they require a signed-in admin and never cache. */
+const serveFiles = express.static(UPLOADS_DIR, {
   immutable: true,
   maxAge: '365d',
   fallthrough: false,
+  setHeaders: (res, filePath) => {
+    if (/[/\\]doc_[^/\\]*$/.test(filePath)) res.setHeader('Cache-Control', 'private, no-store')
+  },
 })
+export const uploadsStatic = Router()
+uploadsStatic.use((req, res, next) => {
+  if (/^\/doc_/.test(req.path) && !req.user) return res.status(401).json({ error: 'unauthorized' })
+  next()
+})
+uploadsStatic.use(serveFiles)
 
 export const uploadsRouter = Router()
 uploadsRouter.use(requireAuth)

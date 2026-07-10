@@ -71,6 +71,9 @@ export async function createCheckoutSession({ priced, ref, origin }) {
     customer_email: priced.contact.email,
     line_items,
     metadata: { ref },
+    // Shortest expiry Stripe allows — an open session holds no stock, so the
+    // window where someone else can buy the last unit stays small
+    expires_at: Math.floor(Date.now() / 1000) + 31 * 60,
     success_url: `${origin}/confirmation/stripe?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${origin}/checkout?canceled=1`,
   })

@@ -495,7 +495,10 @@ function ReportModal({ newsletter, onClose }: { newsletter: Newsletter | null; o
     if (!n || !base) return
     setRefreshing(true)
     try {
-      const res = await fetch(`${base}/stats?campaign=${encodeURIComponent(n.id)}`, { signal: AbortSignal.timeout(8000) })
+      const res = await fetch(`${base}/stats?campaign=${encodeURIComponent(n.id)}`, {
+        signal: AbortSignal.timeout(8000),
+        headers: { 'x-send-token': nlSettings.mailBridgeToken || 'demo' },
+      })
       const data = await res.json()
       if (!res.ok || !data.ok) throw new Error()
       updateItem('newsletters', n.id, {

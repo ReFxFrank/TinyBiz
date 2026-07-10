@@ -34,8 +34,26 @@ const DEMO_FLAG = args.includes('--demo')
 const configArgIdx = args.indexOf('--config')
 const CONFIG_PATH = configArgIdx >= 0 ? args[configArgIdx + 1] : path.join(__dirname, 'config.json')
 
-// Tracking events live next to the bridge, regardless of --config location.
-const TRACKING_PATH = path.join(__dirname, 'tracking.json')
+// Tracking events. TRACKING_FILE (set by deploy.sh to the data dir, so the
+// store survives redeploys and rides along with backups) wins; the legacy
+// next-to-the-code default remains for dev.
+const TRACKING_PATH = process.env.TRACKING_FILE
+  ? path.resolve(process.env.TRACKING_FILE)
+  : path.join(__dirname, 'tracking.json')
+const LEGACY_TRACKING_PATH = path.join(__dirname, 'tracking.json')
+// One-time migration: adopt the old file when the new location is empty
+if (
+  TRACKING_PATH !== LEGACY_TRACKING_PATH &&
+  !fs.existsSync(TRACKING_PATH) &&
+  fs.existsSync(LEGACY_TRACKING_PATH)
+) {
+  try {
+    fs.copyFileSync(LEGACY_TRACKING_PATH, TRACKING_PATH)
+    console.log(`Migrated tracking store → ${TRACKING_PATH}`)
+  } catch (e) {
+    console.warn(`Could not migrate tracking store: ${e.message}`)
+  }
+}
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024 // ~2MB cap on request bodies
 
@@ -177,14 +195,20 @@ function flushStore() {
 
 // ── Personalization & tracking injection ─────────────────────────────────────
 
+const escapeHtml = (s) =>
+  String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
 // Replace merge tags in a string. Handles {{first_name}}, {{ first_name }},
 // {{name}}, {{shop}} and the {{unsubscribe}} placeholder. No-op on non-strings.
-function personalize(str, ctx) {
+// Recipient names are attacker-controllable (they typed them at signup), so
+// values are HTML-escaped when substituting into HTML bodies.
+function personalize(str, ctx, isHtml = false) {
   if (typeof str !== 'string') return str
+  const v = (s) => (isHtml ? escapeHtml(s) : String(s))
   return str
-    .replace(/\{\{\s*first_name\s*\}\}/gi, ctx.firstName)
-    .replace(/\{\{\s*name\s*\}\}/gi, ctx.firstName)
-    .replace(/\{\{\s*shop\s*\}\}/gi, ctx.shop)
+    .replace(/\{\{\s*first_name\s*\}\}/gi, v(ctx.firstName))
+    .replace(/\{\{\s*name\s*\}\}/gi, v(ctx.firstName))
+    .replace(/\{\{\s*shop\s*\}\}/gi, v(ctx.shop))
     .replace(/\{\{\s*unsubscribe\s*\}\}/gi, ctx.unsubUrl)
 }
 
@@ -416,6 +440,12 @@ function startServer(config) {
 
     // ── Stats (polled by the app) ───────────────────────────────────────────
     if (req.method === 'GET' && url === '/stats') {
+      // Same shared secret as /send — stats include real subscriber addresses
+      const expectedStats = config.token || 'demo'
+      const given = req.headers['x-send-token'] || parsed.searchParams.get('token') || ''
+      if (!demo && given !== expectedStats) {
+        return sendJson(res, 401, { ok: false, error: 'Unauthorized' })
+      }
       const campaignId = parsed.searchParams.get('campaign') || ''
       const c = store.campaigns[campaignId]
       if (!c) {
@@ -478,11 +508,23 @@ function startServer(config) {
       const trackClicks = !!body.trackClicks
       const replyTo = body.replyTo
 
+      // CASL: never email anyone who unsubscribed from ANY earlier campaign —
+      // enforced here so it holds even if the app's subscriber list is stale.
+      const unsubscribed = new Set()
+      for (const c of Object.values(store.campaigns)) {
+        for (const e of c.unsubscribes) unsubscribed.add(String(e).toLowerCase())
+      }
+      const toSend = recipients.filter((r) => !unsubscribed.has(String(r.email).toLowerCase()))
+      const skippedUnsubscribed = recipients.length - toSend.length
+      if (toSend.length === 0) {
+        return sendJson(res, 200, { ok: true, sent: 0, skippedUnsubscribed, campaignId })
+      }
+
       // Personalize + inject tracking, one prepared message per recipient.
       const campaign = getCampaign(campaignId)
       const messages = []
       let firstToken = null
-      for (const r of recipients) {
+      for (const r of toSend) {
         const token = makeToken()
         if (!firstToken) firstToken = token
         store.tokens[token] = { campaignId, email: r.email }
@@ -493,7 +535,7 @@ function startServer(config) {
         const ctx = { firstName, shop, unsubUrl }
 
         const subject = personalize(body.subject, ctx)
-        let html = personalize(body.html, ctx)
+        let html = personalize(body.html, ctx, true)
         if (trackClicks) html = rewriteLinks(html, token, config.publicUrl)
         if (trackOpens) html = injectPixel(html, token, config.publicUrl)
         const text = personalize(body.text, ctx)
@@ -505,7 +547,7 @@ function startServer(config) {
 
       if (demo) {
         logDemoCampaign({ campaignId, subjectTemplate: body.subject, messages })
-        const resp = { ok: true, demo: true, sent: messages.length, campaignId }
+        const resp = { ok: true, demo: true, sent: messages.length, skippedUnsubscribed, campaignId }
         if (firstToken) {
           resp.sample = {
             open: `${config.publicUrl}/o/${firstToken}`,
@@ -518,8 +560,12 @@ function startServer(config) {
 
       try {
         await realSendAll(config, from, replyTo, messages)
-        console.log(`Sent "${body.subject}" to ${messages.length} recipient(s) [campaign ${campaignId}].`)
-        return sendJson(res, 200, { ok: true, sent: messages.length, campaignId })
+        console.log(
+          `Sent "${body.subject}" to ${messages.length} recipient(s)` +
+            (skippedUnsubscribed ? ` (${skippedUnsubscribed} unsubscribed, skipped)` : '') +
+            ` [campaign ${campaignId}].`,
+        )
+        return sendJson(res, 200, { ok: true, sent: messages.length, skippedUnsubscribed, campaignId })
       } catch (err) {
         console.error(`Send failed: ${err.message}`)
         return sendJson(res, 502, { ok: false, error: err.message })
@@ -571,8 +617,10 @@ function startServer(config) {
     sendJson(res, 404, { ok: false, error: 'Not found' })
   })
 
-  server.listen(config.port, () => {
-    console.log(`Tiny Magic Studio mail bridge listening on http://0.0.0.0:${config.port} (${demo ? 'demo' : 'smtp'} mode)`)
+  // Localhost only — nginx proxies /mail/ here; nothing should reach the
+  // bridge from the open internet directly. HOST=0.0.0.0 for containers.
+  server.listen(config.port, process.env.HOST || '127.0.0.1', () => {
+    console.log(`Tiny Magic Studio mail bridge listening on http://${process.env.HOST || '127.0.0.1'}:${config.port} (${demo ? 'demo' : 'smtp'} mode)`)
     console.log(`  → health:  http://localhost:${config.port}/health`)
     console.log(`  → send:    POST http://localhost:${config.port}/send`)
     console.log(`  → stats:   GET  http://localhost:${config.port}/stats?campaign=<id>`)

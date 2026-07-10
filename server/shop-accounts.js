@@ -133,14 +133,10 @@ shopAccountRouter.post('/signup', (req, res) => {
   if (typeof password !== 'string' || password.length < 8) {
     return res.status(400).json({ error: 'weak_password', message: 'Passwords need at least 8 characters.' })
   }
-  if (stmtByEmail.get(cleanEmail)) {
+  // One generic answer for shopper AND staff emails — a distinct message
+  // would let strangers probe which addresses are studio accounts
+  if (stmtByEmail.get(cleanEmail) || stmtAdminByEmail.get(cleanEmail)) {
     return res.status(409).json({ error: 'email_taken', message: 'An account with that email already exists — sign in instead.' })
-  }
-  if (stmtAdminByEmail.get(cleanEmail)) {
-    return res.status(409).json({
-      error: 'staff_email',
-      message: 'That email belongs to a studio account — just sign in with your usual password.',
-    })
   }
   const id = uid('shp')
   stmtInsert.run(id, cleanEmail, cleanName, bcrypt.hashSync(password, 10), null, new Date().toISOString())

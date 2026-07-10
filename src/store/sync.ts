@@ -132,10 +132,15 @@ async function flush() {
   queue = new Map()
   useSyncStatus.getState().setPhase('saving')
   try {
-    const res = await api.ops(batch)
-    serverRev = res.rev
+    await api.ops(batch)
+    // Deliberately do NOT fast-forward serverRev to the post-ops rev: a
+    // storefront order (or another device's write) may have landed between
+    // our last poll and this flush, and adopting the newer rev would skip it
+    // forever. Leaving serverRev behind makes the next poll re-fetch state —
+    // our own ops included (idempotent) — so nothing can fall in the gap.
     useSyncStatus.getState().setPhase(queue.size > 0 ? 'saving' : 'saved')
     if (queue.size > 0) scheduleFlush(100)
+    else setTimeout(() => void poll(), 250) // pick up anything that landed in between
   } catch {
     // Put the failed batch back (newer queued ops win) and retry with backoff
     const retry = new Map<string, SyncOp>()

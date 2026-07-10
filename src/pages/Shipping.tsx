@@ -41,12 +41,6 @@ const SERVICES: Record<Carrier, string[]> = {
   DHL: ['Express'],
 }
 
-function makeTrackingNumber(): string {
-  const group = (n: number) =>
-    Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join('')
-  return `9400 1000 0000 ${group(4)} ${group(4)} ${group(2)}`
-}
-
 function copyTracking(trackingNumber: string) {
   void navigator.clipboard.writeText(trackingNumber)
   toast('Tracking number copied', { tone: 'success' })
@@ -214,7 +208,7 @@ export default function Shipping() {
         description="Labels, tracking, and delivery status for every outgoing package."
         actions={
           <Button icon={<Plus />} onClick={() => setCreateOpen(true)}>
-            Create label
+            Mark shipped
           </Button>
         }
       />
@@ -318,7 +312,7 @@ export default function Shipping() {
                       </Button>
                     ) : (
                       <Button icon={<Plus />} onClick={() => setCreateOpen(true)}>
-                        Create label
+                        Mark shipped
                       </Button>
                     )
                   }
@@ -358,9 +352,8 @@ export default function Shipping() {
           }
           return total > 0 ? total : undefined
         }}
-        onCreate={({ order, carrier, service, weightGrams, cost }) => {
+        onCreate={({ order, carrier, service, trackingNumber, weightGrams, cost }) => {
           const now = new Date().toISOString()
-          const trackingNumber = makeTrackingNumber()
           addItem('shipments', {
             id: uid('shp'),
             orderId: order.id,
@@ -370,14 +363,20 @@ export default function Shipping() {
             service,
             trackingNumber,
             cost,
-            status: 'Label created',
+            status: 'In transit',
             shippedAt: now,
             estimatedDelivery: new Date(Date.now() + 3 * 86_400_000).toISOString(),
             weightGrams,
           })
           setOrderStatus(order.id, 'Shipped')
-          updateItem('orders', order.id, { trackingNumber, carrier })
-          toast('Label created', { tone: 'success', description: `${order.number} · ${carrier} ${service}` })
+          // shippingCost = what the label actually cost — keeps profit honest
+          updateItem('orders', order.id, { trackingNumber: trackingNumber || undefined, carrier, shippingCost: cost })
+          toast(`${order.number} marked shipped`, {
+            tone: 'success',
+            description: trackingNumber
+              ? 'The customer gets an email with the tracking link.'
+              : 'The customer gets a shipped email (no tracking number).',
+          })
         }}
       />
     </div>
@@ -407,33 +406,10 @@ function ShipmentDrawer({
       title={s ? <span className="font-mono">{s.orderNumber}</span> : ''}
       subtitle={s ? `${s.customerName} · shipped ${fmtDateTime(s.shippedAt)}` : undefined}
       footer={
-        s ? (
-          <>
-            <Button
-              variant="outline"
-              icon={<Download />}
-              onClick={() => {
-                downloadFile(
-                  `label-${s.orderNumber}.txt`,
-                  [
-                    `SHIPPING LABEL — ${s.orderNumber}`,
-                    `Carrier: ${s.carrier} ${s.service}`,
-                    `Tracking: ${s.trackingNumber}`,
-                    `To: ${s.customerName}`,
-                    `Weight: ${grams(s.weightGrams)}`,
-                  ].join('\n'),
-                )
-                toast('Label downloaded', { tone: 'success' })
-              }}
-            >
-              Download label
-            </Button>
-            {s.status !== 'Delivered' && (
-              <Button icon={<Check />} onClick={() => onMarkDelivered(s)}>
-                Mark delivered
-              </Button>
-            )}
-          </>
+        s && s.status !== 'Delivered' ? (
+          <Button icon={<Check />} onClick={() => onMarkDelivered(s)}>
+            Mark delivered
+          </Button>
         ) : undefined
       }
     >
@@ -533,7 +509,7 @@ function ShipmentDrawer({
   )
 }
 
-// ── Create label modal ────────────────────────────────────────────────────────
+// ── Mark shipped modal ────────────────────────────────────────────────────────
 
 function CreateLabelModal({
   open,
@@ -548,11 +524,19 @@ function CreateLabelModal({
   orders: Order[]
   shipments: Shipment[]
   weightForOrder: (order: Order) => number | undefined
-  onCreate: (v: { order: Order; carrier: Carrier; service: string; weightGrams: number; cost: number }) => void
+  onCreate: (v: {
+    order: Order
+    carrier: Carrier
+    service: string
+    trackingNumber: string
+    weightGrams: number
+    cost: number
+  }) => void
 }) {
   const [orderId, setOrderId] = useState('')
-  const [carrier, setCarrier] = useState<Carrier>('USPS')
-  const [service, setService] = useState(SERVICES.USPS[0])
+  const [carrier, setCarrier] = useState<Carrier>('Canada Post')
+  const [service, setService] = useState(SERVICES['Canada Post'][0])
+  const [tracking, setTracking] = useState('')
   const [weight, setWeight] = useState('')
   const [cost, setCost] = useState('6.50')
 
@@ -568,8 +552,9 @@ function CreateLabelModal({
   useEffect(() => {
     if (open) {
       setOrderId('')
-      setCarrier('USPS')
-      setService(SERVICES.USPS[0])
+      setCarrier('Canada Post')
+      setService(SERVICES['Canada Post'][0])
+      setTracking('')
       setWeight('')
       setCost('6.50')
     }
@@ -594,8 +579,8 @@ function CreateLabelModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="Create shipping label"
-      description="Buy a label for an open order and mark it shipped."
+      title="Mark an order shipped"
+      description="Record the shipment exactly as it left — the customer's email uses the real tracking number you paste here."
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -605,11 +590,11 @@ function CreateLabelModal({
             disabled={!valid}
             onClick={() => {
               if (!order) return
-              onCreate({ order, carrier, service, weightGrams: weightNum, cost: costNum })
+              onCreate({ order, carrier, service, trackingNumber: tracking.trim(), weightGrams: weightNum, cost: costNum })
               onClose()
             }}
           >
-            Create label
+            Mark shipped
           </Button>
         </>
       }
@@ -646,6 +631,17 @@ function CreateLabelModal({
               <Select value={service} onChange={(e) => setService(e.target.value)} options={SERVICES[carrier]} />
             </Field>
           </div>
+          <Field
+            label="Tracking number"
+            hint="From your Canada Post (or other carrier) receipt. Leave blank for untracked mail — the customer's email simply omits it."
+          >
+            <Input
+              value={tracking}
+              onChange={(e) => setTracking(e.target.value)}
+              placeholder="e.g. 7023 2101 3456 7890"
+              className="font-mono"
+            />
+          </Field>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Weight (g)" required hint={order ? 'Prefilled from order items' : undefined}>
               <Input
@@ -658,7 +654,7 @@ function CreateLabelModal({
                 placeholder="250"
               />
             </Field>
-            <Field label="Label cost" required>
+            <Field label="Postage cost" required hint="What you paid — recorded on the order so profit stays honest.">
               <Input
                 type="number"
                 min={0}

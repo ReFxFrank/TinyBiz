@@ -190,22 +190,26 @@ export function buildOrderShippedText(order, settings) {
   ].join('\n')
 }
 
-/** Send through the shared bridge plumbing. Never throws. */
-async function sendViaBridge(kind, order, subject, html, text) {
-  try {
-    const ns = getMeta('newsletterSettings')
-    const settings = getMeta('settings')
-    const base = String(ns?.mailBridgeUrl || '').trim().replace(/\/$/, '')
-    if (!base) return // no bridge configured — skip silently
+/**
+ * Send through the shared bridge plumbing. Never throws. Retries once, and a
+ * final failure leaves a notification in the admin bell — a silently-down
+ * bridge otherwise means customers just stop hearing from the shop.
+ */
+async function sendViaBridge(kind, { to, toName, subject, html, text, ref }) {
+  const ns = getMeta('newsletterSettings')
+  const settings = getMeta('settings')
+  const base = String(ns?.mailBridgeUrl || '').trim().replace(/\/$/, '')
+  if (!base || !to) return // no bridge configured — skip silently
 
+  const attempt = async () => {
     const res = await fetch(`${base}/send-one`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(8000),
       body: JSON.stringify({
         token: ns?.mailBridgeToken || 'demo',
-        to: order.email,
-        toName: order.customerName,
+        to,
+        toName,
         subject,
         html,
         text,
@@ -214,23 +218,117 @@ async function sendViaBridge(kind, order, subject, html, text) {
       }),
     })
     if (!res.ok) throw new Error(`bridge responded ${res.status}`)
-    console.log(`[tinymagic-api] ${kind} email for ${order.number} → ${order.email}`)
-  } catch (err) {
-    console.warn(`[tinymagic-api] ${kind} email for ${order.number} skipped: ${err.message}`)
   }
+
+  try {
+    try {
+      await attempt()
+    } catch {
+      await new Promise((r) => setTimeout(r, 2000))
+      await attempt()
+    }
+    console.log(`[tinymagic-api] ${kind} email${ref ? ` for ${ref}` : ''} → ${to}`)
+  } catch (err) {
+    console.warn(`[tinymagic-api] ${kind} email${ref ? ` for ${ref}` : ''} FAILED: ${err.message}`)
+    try {
+      const { uid, upsertItem, bumpRev } = await import('./db.js')
+      upsertItem('notifications', {
+        id: uid('ntf'),
+        type: 'message',
+        title: `Email failed: ${kind}${ref ? ` for ${ref}` : ''}`,
+        body: `${to} — ${err.message}. Check Settings → Newsletter → Email delivery.`,
+        createdAt: new Date().toISOString(),
+        read: false,
+        link: '/admin/newsletter?tab=settings',
+      })
+      bumpRev()
+    } catch {
+      /* the notification is best-effort too */
+    }
+  }
+}
+
+/** "Your order was cancelled/returned" — closure plus the refund expectation */
+export function buildOrderCancelledHtml(order, settings) {
+  const shopName = settings?.businessName || 'Our shop'
+  const returned = order.status === 'Returned'
+  const paid = order.payment?.provider === 'stripe'
+  const items = order.items
+    .map(
+      (i) => `
+      <tr>
+        <td style="padding:8px 0;border-bottom:1px solid #eee;color:#111;font-size:14px;">${esc(i.name)}<span style="color:#999;"> × ${i.quantity}</span></td>
+      </tr>`,
+    )
+    .join('')
+  return `<!doctype html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Order ${esc(order.number)} ${returned ? 'returned' : 'cancelled'}</title></head>
+<body style="margin:0;padding:0;background:#f4f4f2;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f2;padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:20px;overflow:hidden;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+        <tr><td style="padding:30px 32px 0;">
+          <div style="font-size:32px;line-height:1;">${esc(settings?.logoEmoji || '🛍️')}</div>
+          <div style="color:#111;font-size:19px;font-weight:700;margin-top:8px;">${esc(shopName)}</div>
+        </td></tr>
+        <tr><td style="padding:22px 32px 0;">
+          <div style="display:inline-block;background:#fbe9e9;color:#a32f2f;border-radius:999px;padding:6px 14px;font-size:13px;font-weight:700;">Order ${returned ? 'returned' : 'cancelled'}</div>
+          <h1 style="margin:14px 0 6px;color:#111;font-size:22px;">Hi ${esc(order.customerName.split(' ')[0])},</h1>
+          <p style="margin:0 0 4px;color:#555;font-size:15px;line-height:1.6;">
+            Your order <strong style="color:#111;">${esc(order.number)}</strong> has been ${returned ? 'marked as returned' : 'cancelled'}.
+            ${paid ? 'Your refund goes back to your original payment method — most banks show it within 5–10 business days.' : ''}
+          </p>
+        </td></tr>
+        <tr><td style="padding:16px 32px 8px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${items}</table>
+        </td></tr>
+        <tr><td style="padding:18px 32px;background:#fafaf9;border-top:1px solid #eee;color:#999;font-size:12px;line-height:1.6;">
+          Didn't expect this, or have a question? Just reply to this email${settings?.email ? ` or write to ${esc(settings.email)}` : ''} and a real human will sort it out.
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
+export function buildOrderCancelledText(order, settings) {
+  const paid = order.payment?.provider === 'stripe'
+  return [
+    `${settings?.businessName || 'Our shop'} — order ${order.number} ${order.status === 'Returned' ? 'returned' : 'cancelled'}`,
+    '',
+    ...order.items.map((i) => `${i.name} × ${i.quantity}`),
+    ...(paid ? ['', 'Your refund goes back to your original payment method within 5–10 business days.'] : []),
+  ].join('\n')
 }
 
 /** Fired when an order transitions to Shipped (or gains a tracking number). */
 export async function sendOrderShipped(order) {
   if (!order?.email || !Array.isArray(order.items)) return
   const settings = getMeta('settings')
-  await sendViaBridge(
-    'shipped',
-    order,
-    `Your order ${order.number} is on its way! — ${settings?.businessName || ''}`.trim().replace(/ —$/, ''),
-    buildOrderShippedHtml(order, settings),
-    buildOrderShippedText(order, settings),
-  )
+  await sendViaBridge('shipped', {
+    to: order.email,
+    toName: order.customerName,
+    subject: `Your order ${order.number} is on its way! — ${settings?.businessName || ''}`.trim().replace(/ —$/, ''),
+    html: buildOrderShippedHtml(order, settings),
+    text: buildOrderShippedText(order, settings),
+    ref: order.number,
+  })
+}
+
+/** Fired when an order transitions to Cancelled/Returned. */
+export async function sendOrderCancelled(order) {
+  if (!order?.email || !Array.isArray(order.items)) return
+  const settings = getMeta('settings')
+  await sendViaBridge('cancellation', {
+    to: order.email,
+    toName: order.customerName,
+    subject: `Your order ${order.number} was ${order.status === 'Returned' ? 'returned' : 'cancelled'} — ${settings?.businessName || ''}`.trim().replace(/ —$/, ''),
+    html: buildOrderCancelledHtml(order, settings),
+    text: buildOrderCancelledText(order, settings),
+    ref: order.number,
+  })
 }
 
 /**
@@ -238,30 +336,38 @@ export async function sendOrderShipped(order) {
  * Never throws — checkout already succeeded by the time this runs.
  */
 export async function sendOrderConfirmation(order) {
-  try {
-    const ns = getMeta('newsletterSettings')
-    const settings = getMeta('settings')
-    const base = String(ns?.mailBridgeUrl || '').trim().replace(/\/$/, '')
-    if (!base) return // no bridge configured — skip silently
+  if (!order?.email || !Array.isArray(order.items)) return
+  const settings = getMeta('settings')
+  await sendViaBridge('confirmation', {
+    to: order.email,
+    toName: order.customerName,
+    subject: `Order ${order.number} confirmed — ${settings?.businessName || 'thank you!'}`,
+    html: buildOrderConfirmationHtml(order, settings),
+    text: buildOrderConfirmationText(order, settings),
+    ref: order.number,
+  })
+}
 
-    const res = await fetch(`${base}/send-one`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(8000),
-      body: JSON.stringify({
-        token: ns?.mailBridgeToken || 'demo',
-        to: order.email,
-        toName: order.customerName,
-        subject: `Order ${order.number} confirmed — ${settings?.businessName || 'thank you!'}`,
-        html: buildOrderConfirmationHtml(order, settings),
-        text: buildOrderConfirmationText(order, settings),
-        from: { name: ns?.fromName || settings?.businessName || 'Shop', email: ns?.fromEmail || settings?.email || '' },
-        replyTo: ns?.replyTo || undefined,
-      }),
-    })
-    if (!res.ok) throw new Error(`bridge responded ${res.status}`)
-    console.log(`[tinymagic-api] confirmation email for ${order.number} → ${order.email}`)
-  } catch (err) {
-    console.warn(`[tinymagic-api] confirmation email for ${order.number} skipped: ${err.message}`)
-  }
+/** Heads-up to the owner when a website order lands (Settings toggle) */
+export async function sendNewOrderAlert(order) {
+  const settings = getMeta('settings')
+  if (settings?.notifyNewOrders === false) return
+  const to = String(settings?.email || '').trim()
+  if (!to || to.toLowerCase() === String(order.email || '').toLowerCase()) return
+  const total = order.items.reduce((a, i) => a + i.unitPrice * i.quantity, 0) + order.shippingCharged + order.taxCollected
+  const paid = order.payment?.provider === 'stripe' ? 'PAID via Stripe' : 'no payment collected (preview mode)'
+  const lines = order.items.map((i) => `• ${i.name} × ${i.quantity}`).join('<br>')
+  await sendViaBridge('new-order alert', {
+    to,
+    toName: settings?.ownerName || '',
+    subject: `🛒 New order ${order.number} — ${money(total)} (${order.customerName})`,
+    html: `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;color:#111;line-height:1.7;">
+      <p><strong>${esc(order.customerName)}</strong> (${esc(order.email)}) just ordered:</p>
+      <p>${lines}</p>
+      <p>Total <strong>${money(total)}</strong> — ${paid}.</p>
+      <p>Ships to ${esc(order.shippingAddress.line1)}, ${esc(order.shippingAddress.city)}, ${esc(order.shippingAddress.state)} ${esc(order.shippingAddress.zip)}</p>
+    </div>`,
+    text: `${order.customerName} (${order.email}) ordered ${order.items.map((i) => `${i.name} × ${i.quantity}`).join(', ')} — total ${money(total)} (${paid}).`,
+    ref: order.number,
+  })
 }

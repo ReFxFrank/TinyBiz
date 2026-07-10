@@ -536,8 +536,9 @@ function AppearanceCard() {
 
 // ── Notifications ────────────────────────────────────────────────────────────
 
+// Only toggles that are actually wired up — anything else would be lying
 const NOTIFICATION_PREFS: Array<{
-  key: 'notifyLowStock' | 'notifyNewOrders' | 'notifyExpensesDue' | 'weeklyReports'
+  key: 'notifyLowStock' | 'notifyNewOrders'
   label: string
   description: string
 }> = [
@@ -549,17 +550,7 @@ const NOTIFICATION_PREFS: Array<{
   {
     key: 'notifyNewOrders',
     label: 'New orders',
-    description: 'A heads-up whenever a new order lands in the shop.',
-  },
-  {
-    key: 'notifyExpensesDue',
-    label: 'Expenses due',
-    description: 'Reminders before recurring expenses hit your account.',
-  },
-  {
-    key: 'weeklyReports',
-    label: 'Weekly reports',
-    description: 'A tidy Monday-morning summary of sales, profit and stock.',
+    description: 'An email to your business address whenever a website order lands.',
   },
 ]
 
@@ -762,41 +753,9 @@ function ShortcutsCard() {
   )
 }
 
-// ── Danger zone ──────────────────────────────────────────────────────────────
-
-function DangerZoneCard() {
-  const resetDemo = useStore((s) => s.resetDemo)
-  const [confirmOpen, setConfirmOpen] = useState(false)
-
-  return (
-    <Card className="border-critical/30">
-      <CardHeader title="Danger zone" subtitle="Irreversible actions live here. Tread lightly." />
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="min-w-0">
-          <div className="text-sm font-medium text-ink">Reset demo data</div>
-          <p className="mt-0.5 text-[13px] text-ink-3">
-            Wipes every change you've made and restores the original Nova Prints & Co. sample dataset.
-          </p>
-        </div>
-        <Button variant="danger" icon={<RotateCcw />} onClick={() => setConfirmOpen(true)}>
-          Reset demo data
-        </Button>
-      </div>
-      <ConfirmDialog
-        open={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={() => {
-          resetDemo()
-          toast('Demo data reset', { tone: 'success', description: 'Everything is back to the sample dataset.' })
-        }}
-        danger
-        title="Reset demo data?"
-        description="All orders, products, expenses and settings you've changed will be replaced with the original sample dataset. This cannot be undone."
-        confirmLabel="Reset everything"
-      />
-    </Card>
-  )
-}
+// The "Reset demo data" card is gone on purpose: with the server sync live it
+// would stream deletes for every REAL order and customer, then upload the
+// sample dataset. One confirm click away from wiping the business.
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
@@ -850,7 +809,6 @@ export default function Settings() {
           <PrinterSyncCard />
           <IntegrationsCard />
           <ShortcutsCard />
-          <DangerZoneCard />
           <p className="pb-2 text-center text-xs text-ink-3">The Tiny Magic Studio — made with ✨</p>
         </motion.div>
       )}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Copy, CopyPlus, Trash2 } from 'lucide-react'
+import { Copy, CopyPlus, ExternalLink, Trash2 } from 'lucide-react'
 import {
+  Badge,
   Button,
   ConfirmDialog,
   DetailLabel,
@@ -8,13 +9,16 @@ import {
   Drawer,
   Field,
   IconButton,
+  Input,
   OrderStatusBadge,
   ProductTile,
   Select,
   Textarea,
 } from '@/components/ui'
 import { useStore } from '@/store/useStore'
-import { ORDER_STATUSES, type Order, type OrderStatus } from '@/data/types'
+import { ORDER_STATUSES, type Carrier, type Order, type OrderStatus } from '@/data/types'
+
+const CARRIERS: Carrier[] = ['Canada Post', 'USPS', 'UPS', 'FedEx', 'DHL']
 import { nextOrderNumber, orderCost, orderItemsTotal, orderProfit, orderRevenue } from '@/lib/metrics'
 import { dueIn, fmtDateShort, fmtDateTime, money } from '@/lib/format'
 import { addDays } from '@/lib/dates'
@@ -47,7 +51,28 @@ export default function OrderDrawer({ order, onClose, onOpenOrder }: OrderDrawer
   useEffect(() => setNotes(order?.notes ?? ''), [order?.id, order?.notes])
   const [confirmDelete, setConfirmDelete] = useState(false)
 
+  const [trackingDraft, setTrackingDraft] = useState(o?.trackingNumber ?? '')
+  const [carrierDraft, setCarrierDraft] = useState<Carrier>(o?.carrier ?? 'Canada Post')
+  useEffect(() => {
+    setTrackingDraft(order?.trackingNumber ?? '')
+    setCarrierDraft(order?.carrier ?? 'Canada Post')
+  }, [order?.id, order?.trackingNumber, order?.carrier])
+
   if (!o) return null
+
+  const saveTracking = () => {
+    const tn = trackingDraft.trim()
+    updateItem('orders', o.id, { trackingNumber: tn || undefined, carrier: tn ? carrierDraft : o.carrier })
+    toast(tn ? 'Tracking saved' : 'Tracking cleared', {
+      description:
+        tn && o.status === 'Shipped'
+          ? 'The customer gets an email with the tracking link.'
+          : tn
+            ? 'It goes out in the shipped email when you mark this shipped.'
+            : undefined,
+      tone: 'success',
+    })
+  }
 
   const itemsTotal = orderItemsTotal(o)
   const revenue = orderRevenue(o)
@@ -87,6 +112,8 @@ export default function OrderDrawer({ order, onClose, onOpenOrder }: OrderDrawer
       shipBy: addDays(now, 4).toISOString(),
       shippedAt: undefined,
       deliveredAt: undefined,
+      payment: undefined, // the copy hasn't collected anything
+      restockedAt: undefined,
     }
     addItem('orders', clone)
     toast(`Order duplicated as ${clone.number}`, { tone: 'success' })
@@ -118,14 +145,28 @@ export default function OrderDrawer({ order, onClose, onOpenOrder }: OrderDrawer
         }
       >
         <div className="space-y-6">
-          <Field label="Status">
+          <Field
+            label="Status"
+            hint={
+              o.channel === 'Website'
+                ? 'Cancelled/Returned puts website-order items back in stock and emails the customer.'
+                : undefined
+            }
+          >
             <Select
               options={[...ORDER_STATUSES]}
               value={o.status}
               onChange={(e) => {
                 const next = e.target.value as OrderStatus
                 setOrderStatus(o.id, next)
-                toast(`${o.number} moved to ${next}`, { tone: 'success' })
+                if ((next === 'Cancelled' || next === 'Returned') && o.payment?.provider === 'stripe') {
+                  toast(`${o.number} ${next.toLowerCase()} — don't forget the refund`, {
+                    description: 'Items restock automatically; issue the refund from the Stripe link below.',
+                    tone: 'default',
+                  })
+                } else {
+                  toast(`${o.number} moved to ${next}`, { tone: 'success' })
+                }
               }}
             />
           </Field>
@@ -176,6 +217,29 @@ export default function OrderDrawer({ order, onClose, onOpenOrder }: OrderDrawer
                 </span>
               </DetailRow>
             </div>
+            {o.payment && (
+              <div className="border-t border-hairline">
+                <DetailRow label="Payment">
+                  {o.payment.provider === 'stripe' ? (
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      <Badge tone="green">Paid via Stripe</Badge>
+                      {o.payment.paymentIntent && (
+                        <a
+                          href={`https://dashboard.stripe.com/payments/${encodeURIComponent(o.payment.paymentIntent)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-accent-strong hover:underline dark:text-accent"
+                        >
+                          View / refund in Stripe <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </span>
+                  ) : (
+                    <Badge tone="yellow">No payment collected</Badge>
+                  )}
+                </DetailRow>
+              </div>
+            )}
           </section>
 
           <section>
@@ -212,20 +276,46 @@ export default function OrderDrawer({ order, onClose, onOpenOrder }: OrderDrawer
                   <span className="text-ink-3">—</span>
                 )}
               </DetailRow>
-              <DetailRow label="Carrier">{o.carrier ?? <span className="text-ink-3">—</span>}</DetailRow>
-              <DetailRow label="Tracking">
-                {o.trackingNumber ? (
-                  <span className="inline-flex items-center gap-1">
-                    <span className="font-mono text-[13px]">{o.trackingNumber}</span>
-                    <IconButton label="Copy tracking number" size="sm" onClick={() => copyTracking(o.trackingNumber!)}>
-                      <Copy />
-                    </IconButton>
-                  </span>
-                ) : (
-                  <span className="text-ink-3">Not shipped yet</span>
-                )}
-              </DetailRow>
             </div>
+            {/* The REAL carrier tracking number, typed in from the Canada Post
+                receipt — it lands in the customer's shipped email verbatim */}
+            <div className="mt-2 grid grid-cols-[130px_1fr_auto] items-end gap-2">
+              <Field label="Carrier">
+                <Select
+                  options={[...CARRIERS]}
+                  value={carrierDraft}
+                  onChange={(e) => setCarrierDraft(e.target.value as Carrier)}
+                />
+              </Field>
+              <Field label="Tracking number">
+                <Input
+                  value={trackingDraft}
+                  onChange={(e) => setTrackingDraft(e.target.value)}
+                  placeholder="Paste the number from your shipping receipt"
+                  className="font-mono"
+                />
+              </Field>
+              <div className="flex items-center gap-1 pb-0.5">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={trackingDraft.trim() === (o.trackingNumber ?? '') && carrierDraft === (o.carrier ?? 'Canada Post')}
+                  onClick={saveTracking}
+                >
+                  Save
+                </Button>
+                {o.trackingNumber && (
+                  <IconButton label="Copy tracking number" size="sm" onClick={() => copyTracking(o.trackingNumber!)}>
+                    <Copy />
+                  </IconButton>
+                )}
+              </div>
+            </div>
+            {o.status === 'Shipped' && !o.trackingNumber && (
+              <p className="mt-1.5 text-xs text-ink-3">
+                Saving a tracking number now still emails it to the customer.
+              </p>
+            )}
           </section>
 
           <Field label="Notes" hint="Saved automatically when you click away.">

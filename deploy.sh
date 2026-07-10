@@ -169,6 +169,9 @@ PORT=4000
 # Uncomment to enable real Stripe payments on the storefront:
 # STRIPE_SECRET_KEY=sk_live_...
 # STRIPE_WEBHOOK_SECRET=whsec_...
+# Optional off-site backup push, run after each nightly backup with
+# BACKUP_DB_FILE and BACKUP_FILES_FILE set to the fresh snapshot paths, e.g.:
+# BACKUP_PUSH_CMD=rclone copy "\$BACKUP_DB_FILE" b2:my-bucket/tinymagic/
 ENV
     chmod 600 "$ENV_FILE"
   fi
@@ -212,6 +215,25 @@ CRON
     echo "──> Installing nightly backup cron (3:17 AM, keeps 14 days)…"
     printf '%s\n' "$backup_cron" > "$BACKUP_CRON_FILE"
     chmod 644 "$BACKUP_CRON_FILE"
+  fi
+
+  # Deploy/backup logs grow forever without this
+  local logrotate_file="/etc/logrotate.d/tinymagic"
+  local logrotate_conf
+  logrotate_conf="$(cat <<'CONF'
+/var/log/tinymagic-*.log {
+    weekly
+    rotate 8
+    compress
+    missingok
+    notifempty
+    copytruncate
+}
+CONF
+)"
+  if [ ! -f "$logrotate_file" ] || [ "$(cat "$logrotate_file")" != "$logrotate_conf" ]; then
+    echo "──> Installing logrotate config for /var/log/tinymagic-*.log…"
+    printf '%s\n' "$logrotate_conf" > "$logrotate_file"
   fi
 }
 
@@ -259,6 +281,9 @@ After=network.target
 WorkingDirectory=${APP_DIR}/mail-bridge
 ExecStart=/usr/bin/node index.js
 EnvironmentFile=${MAIL_ENV_FILE}
+# Tracking store lives with the data (and inside the nightly files backup),
+# not next to the code where a re-clone would erase it
+Environment=TRACKING_FILE=${DATA_DIR}/mail-tracking.json
 Restart=always
 RestartSec=3
 User=root
@@ -319,6 +344,13 @@ configure_nginx() {
 ' "$site"
       nginx -t
     fi
+    if ! grep -q "X-Forwarded-For" "$site"; then
+      echo "──> Adding X-Forwarded-For to the nginx config (real per-IP rate limits)…"
+      # Deliberately \$remote_addr, NOT \$proxy_add_x_forwarded_for: appending
+      # would let clients spoof a fresh IP per request and dodge every limit.
+      sed -i 's|proxy_set_header X-Real-IP \$remote_addr;|proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $remote_addr;|' "$site"
+      nginx -t && systemctl reload nginx
+    fi
     if ! grep -q "location = /sitemap.xml" "$site"; then
       echo "──> Adding robots/sitemap proxies to the existing nginx config…"
       sed -i '/location \/assets\/ {/i\
@@ -351,12 +383,14 @@ server {
     gzip_types text/css application/javascript application/json image/svg+xml;
     gzip_min_length 1024;
 
-    # The API server (systemd: ${API_SERVICE}) listens on localhost only
+    # The API server (systemd: ${API_SERVICE}) listens on localhost only.
+    # X-Forwarded-For is \$remote_addr on purpose — never trust an inbound one.
     location /api/ {
         proxy_pass http://127.0.0.1:4000;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 

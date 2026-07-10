@@ -7,10 +7,10 @@
 // their writable set (the client's sync engine drops those first anyway).
 
 import { Router } from 'express'
-import { COLLECTIONS, db, getCollection, getItem, getMeta, currentRev, bumpRev, upsertItem, deleteItem, setMeta, importState } from './db.js'
+import { COLLECTIONS, db, getCollection, getItem, getMeta, currentRev, bumpRev, upsertItem, deleteItem, setMeta, importState, uid } from './db.js'
 import { requireAuth, requireOwner } from './auth.js'
 import { computeAccess } from './perms.js'
-import { sendOrderShipped } from './email.js'
+import { sendOrderShipped, sendOrderCancelled } from './email.js'
 
 export const stateRouter = Router()
 stateRouter.use(requireAuth)
@@ -48,9 +48,53 @@ function shippedTransition(oldOrder, newOrder) {
   return becameShipped || (hasTracking && !hadTracking)
 }
 
+const isDeadStatus = (s) => s === 'Cancelled' || s === 'Returned'
+
+/** Did this upsert cancel/return the order for the first time? */
+function cancelTransition(oldOrder, newOrder) {
+  return isDeadStatus(newOrder.status) && oldOrder && !isDeadStatus(oldOrder.status) && !oldOrder.restockedAt
+}
+
+/**
+ * Put a cancelled/returned order's items back in stock. Only website orders —
+ * they're the ones whose stock was decremented at checkout (hand-entered
+ * Etsy/market orders never touched stock). Returns the order stamped with
+ * restockedAt so a later status flip-flop can't double-restock.
+ */
+function restockOrder(order) {
+  const now = new Date().toISOString()
+  if (order.channel !== 'Website') return { ...order, restockedAt: now }
+  for (const it of order.items || []) {
+    const product = getItem('products', it.productId)
+    if (!product) continue
+    if (it.variantId) {
+      upsertItem('products', {
+        ...product,
+        variants: (product.variants || []).map((v) =>
+          v.id === it.variantId ? { ...v, stock: (v.stock || 0) + it.quantity } : v,
+        ),
+      })
+    } else {
+      upsertItem('products', { ...product, stock: (product.stock || 0) + it.quantity })
+    }
+    upsertItem('adjustments', {
+      id: uid('adj'),
+      date: now,
+      itemType: 'product',
+      itemId: product.id,
+      itemName: it.name,
+      delta: it.quantity,
+      reason: 'Return',
+      notes: `Order ${order.number} ${String(order.status).toLowerCase()} — restocked`,
+    })
+  }
+  return { ...order, restockedAt: now }
+}
+
 const applyOps = db.transaction((ops, access) => {
   let skipped = 0
   const shipped = [] // orders that just shipped — emailed after the tx commits
+  const cancelled = [] // orders that just cancelled/returned — ditto
   const allowed = (collection, meta) => {
     if (access.all) return true
     if (meta === 'settings') return access.canWriteSettings
@@ -60,10 +104,16 @@ const applyOps = db.transaction((ops, access) => {
   for (const op of ops) {
     if (op.op === 'upsert' && COLLECTIONS.includes(op.collection) && op.item && op.item.id != null) {
       if (!allowed(op.collection)) { skipped++; continue }
-      if (op.collection === 'orders' && shippedTransition(getItem('orders', op.item.id), op.item)) {
-        shipped.push(op.item)
+      let item = op.item
+      if (op.collection === 'orders') {
+        const old = getItem('orders', op.item.id)
+        if (shippedTransition(old, op.item)) shipped.push(op.item)
+        if (cancelTransition(old, op.item)) {
+          item = restockOrder(op.item)
+          cancelled.push(item)
+        }
       }
-      upsertItem(op.collection, op.item)
+      upsertItem(op.collection, item)
     } else if (op.op === 'delete' && COLLECTIONS.includes(op.collection) && op.id != null) {
       if (!allowed(op.collection)) { skipped++; continue }
       deleteItem(op.collection, op.id)
@@ -77,7 +127,7 @@ const applyOps = db.transaction((ops, access) => {
       throw Object.assign(new Error('bad op'), { status: 400, error: 'bad_op' })
     }
   }
-  return { rev: bumpRev(), skipped, shipped }
+  return { rev: bumpRev(), skipped, shipped, cancelled }
 })
 
 stateRouter.post('/ops', (req, res) => {
@@ -85,9 +135,10 @@ stateRouter.post('/ops', (req, res) => {
   if (!Array.isArray(ops) || ops.length === 0 || ops.length > 2000) {
     return res.status(400).json({ error: 'bad_ops' })
   }
-  const { rev, skipped, shipped } = applyOps(ops, computeAccess(req.user))
+  const { rev, skipped, shipped, cancelled } = applyOps(ops, computeAccess(req.user))
   // Fire-and-forget after the tx commits — email must never block the sync
   for (const order of shipped) void sendOrderShipped(order)
+  for (const order of cancelled) void sendOrderCancelled(order)
   res.json({ rev, ...(skipped ? { skipped } : {}) })
 })
 

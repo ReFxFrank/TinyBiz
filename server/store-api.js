@@ -4,10 +4,10 @@
 
 import { Router } from 'express'
 import { db, uid, getCollection, getMeta, upsertItem, bumpRev } from './db.js'
-import { buildLines, computeTotals, promoUsable, nextOrderNumber, shippingConfig } from './store-math.js'
+import { buildLines, computeTotals, promoUsable, nextOrderNumber, shippingConfig, taxRateFor, CA_TAX } from './store-math.js'
 import { currencyRates } from './rates.js'
 import { stripeEnabled, createCheckoutSession, getCheckoutSession, verifyWebhookSignature } from './stripe.js'
-import { sendOrderConfirmation } from './email.js'
+import { sendOrderConfirmation, sendNewOrderAlert } from './email.js'
 
 export const storeRouter = Router()
 
@@ -27,6 +27,8 @@ function shopInfo() {
     currency: s.currency || 'USD',
     currencyRates: currencyRates(s.currency || 'USD'),
     taxRate: Number(s.taxRate) || 0,
+    /** Province → combined GST/HST/PST — lets checkout estimate live; null for non-Canadian shops */
+    caTaxTable: /canada/i.test(shippingConfig(s).country) ? CA_TAX : null,
     freeShippingOver: shippingConfig(s).freeOver,
     flatShipping: shippingConfig(s).flatRate,
     shippingCountry: shippingConfig(s).country,
@@ -39,8 +41,14 @@ function shopInfo() {
   }
 }
 
+/** Public product shape — unit costs, margins, and supply-chain fields stay private */
+function publicProduct(p) {
+  const { cost, reorderPoint, recipeId, ...pub } = p
+  return { ...pub, variants: (p.variants || []).map(({ cost: _c, ...v }) => v) }
+}
+
 storeRouter.get('/catalog', (_req, res) => {
-  const products = getCollection('products').filter((p) => p.active)
+  const products = getCollection('products').filter((p) => p.active).map(publicProduct)
   // Best sellers: units per product over revenue orders (mirrors lib/metrics)
   const units = new Map()
   for (const o of getCollection('orders')) {
@@ -124,7 +132,8 @@ function priceCheckout(body) {
     promo = { id: found.id, code: found.code, discountPct: found.discountPct }
   }
 
-  const taxRate = Number(settings?.taxRate) || 0
+  // Destination-based for Canadian shops (GST/HST/PST by province)
+  const taxRate = taxRateFor(settings, contact.address)
   const totals = computeTotals(lines, promo?.discountPct, taxRate, ship)
   return { contact, promo, totals }
 }
@@ -132,9 +141,23 @@ function priceCheckout(body) {
 /**
  * Write the real records: customer, order, stock, promo uses, notification.
  * Runs post-validation (mock mode) or post-payment (Stripe), in one tx.
+ * `payment` records how money was collected so the admin can tell paid
+ * orders from preview ones and trace refunds back to the Stripe charge.
  */
-export const finalizeOrder = db.transaction(({ contact, promo, totals }) => {
+export const finalizeOrder = db.transaction(({ contact, promo, totals, payment }) => {
   const now = new Date().toISOString()
+
+  // A Stripe session can sit open for a while — someone else may have bought
+  // the last unit in the meantime. The payment already happened, so the order
+  // still lands, but flag the shortfall loudly for the owner.
+  const shortfalls = []
+  for (const l of totals.lines) {
+    const product = getCollection('products').find((p) => p.id === l.product.id)
+    const available = l.variant
+      ? (product?.variants || []).find((v) => v.id === l.variant.id)?.stock ?? 0
+      : product?.stock ?? 0
+    if (l.qty > available) shortfalls.push(`${l.name}: ${l.qty} paid, ${available} in stock`)
+  }
 
   const customers = getCollection('customers')
   let customer = customers.find((c) => c.email.trim().toLowerCase() === contact.email.toLowerCase())
@@ -152,6 +175,7 @@ export const finalizeOrder = db.transaction(({ contact, promo, totals }) => {
 
   const number = nextOrderNumber(getCollection('orders'))
   const promoNote = promo ? `Promo ${promo.code} (−${promo.discountPct}%)` : ''
+  const shortNote = shortfalls.length ? `⚠ Oversold — ${shortfalls.join('; ')}` : ''
   const order = {
     id: uid('ord'),
     number,
@@ -162,6 +186,7 @@ export const finalizeOrder = db.transaction(({ contact, promo, totals }) => {
     channel: 'Website',
     items: totals.lines.map((l) => ({
       productId: l.product.id,
+      ...(l.variant ? { variantId: l.variant.id } : {}),
       name: l.name,
       quantity: l.qty,
       unitPrice: l.discountedUnitPrice,
@@ -171,9 +196,10 @@ export const finalizeOrder = db.transaction(({ contact, promo, totals }) => {
     shippingCharged: totals.shipping,
     taxCollected: totals.tax,
     shippingAddress: contact.address,
-    notes: [promoNote, contact.notes].filter(Boolean).join(' — ') || undefined,
+    notes: [shortNote, promoNote, contact.notes].filter(Boolean).join(' — ') || undefined,
     placedAt: now,
     shipBy: new Date(Date.now() + 4 * 86_400_000).toISOString(),
+    payment: payment || { provider: 'none' },
   }
   upsertItem('orders', order)
 
@@ -219,6 +245,36 @@ export const finalizeOrder = db.transaction(({ contact, promo, totals }) => {
     read: false,
     link: '/admin/orders',
   })
+  if (shortfalls.length) {
+    upsertItem('notifications', {
+      id: uid('ntf'),
+      type: 'low-stock',
+      title: `Order ${number} was paid but stock ran short`,
+      body: shortfalls.join('; '),
+      createdAt: now,
+      read: false,
+      link: '/admin/orders',
+    })
+  }
+
+  // Storefront sales can cross a reorder point without the admin open —
+  // leave the low-stock heads-up the client-side path would have created
+  for (const l of totals.lines) {
+    const product = getCollection('products').find((p) => p.id === l.product.id)
+    if (!product || !(product.reorderPoint > 0)) continue
+    const sellable = (product.stock || 0) + (product.variants || []).reduce((a, v) => a + (v.stock || 0), 0)
+    if (sellable <= product.reorderPoint) {
+      upsertItem('notifications', {
+        id: uid('ntf'),
+        type: 'low-stock',
+        title: `Low stock: ${product.name}`,
+        body: `${sellable} left after order ${number} (reorder at ${product.reorderPoint}).`,
+        createdAt: now,
+        read: false,
+        link: '/admin/inventory',
+      })
+    }
+  }
 
   bumpRev()
   return order
@@ -229,12 +285,17 @@ storeRouter.post('/checkout', wrap(async (req, res) => {
 
   if (!stripeEnabled()) {
     // Preview mode: no payment collected, order lands immediately
-    const order = finalizeOrder(priced)
+    const order = finalizeOrder({ ...priced, payment: { provider: 'none' } })
     void sendOrderConfirmation(order)
+    void sendNewOrderAlert(order)
     return res.json({ mode: 'mock', orderId: order.id, number: order.number })
   }
 
   // Stripe mode: park the priced cart, send the shopper to Stripe Checkout.
+  // Abandoned rows are pruned after 30 days (finished ones keep the order id).
+  db.prepare("DELETE FROM pending_checkouts WHERE order_id IS NULL AND created_at < ?").run(
+    new Date(Date.now() - 30 * 86_400_000).toISOString(),
+  )
   const ref = uid('pnd')
   db.prepare('INSERT INTO pending_checkouts (id, payload, created_at) VALUES (?, ?, ?)').run(
     ref,
@@ -291,14 +352,22 @@ storeRouter.get('/order/:id', (req, res) => {
   res.json({ order: publicOrder(order) })
 })
 
-/** Finalize a paid pending checkout exactly once; returns the order id */
-function finalizePending(pendingId) {
+/** Finalize a paid pending checkout exactly once; returns the order id.
+ *  `session` (when the caller has it) puts the Stripe trail on the order. */
+function finalizePending(pendingId, session) {
   const row = db.prepare('SELECT * FROM pending_checkouts WHERE id = ?').get(pendingId)
   if (!row) return null
   if (row.order_id) return row.order_id
-  const order = finalizeOrder(JSON.parse(row.payload))
+  const payment = {
+    provider: 'stripe',
+    sessionId: session?.id || row.session_id || undefined,
+    paymentIntent: typeof session?.payment_intent === 'string' ? session.payment_intent : session?.payment_intent?.id,
+    paidAt: new Date().toISOString(),
+  }
+  const order = finalizeOrder({ ...JSON.parse(row.payload), payment })
   db.prepare('UPDATE pending_checkouts SET order_id = ? WHERE id = ?').run(order.id, pendingId)
   void sendOrderConfirmation(order)
+  void sendNewOrderAlert(order)
   return order.id
 }
 
@@ -310,7 +379,7 @@ storeRouter.get('/order/by-session/:sid', wrap(async (req, res) => {
   if (!row) return res.status(404).json({ error: 'not_found' })
   if (!row.order_id && stripeEnabled()) {
     const session = await getCheckoutSession(req.params.sid)
-    if (session.payment_status === 'paid') finalizePending(row.id)
+    if (session.payment_status === 'paid') finalizePending(row.id, session)
     else return res.json({ pending: true })
   }
   const fresh = db.prepare('SELECT order_id FROM pending_checkouts WHERE id = ?').get(row.id)
@@ -328,8 +397,9 @@ webhookRouter.post('/', (req, res) => {
   }
   const event = JSON.parse(req.body.toString('utf8'))
   if (event.type === 'checkout.session.completed') {
-    const ref = event.data?.object?.metadata?.ref
-    if (ref) finalizePending(ref)
+    const session = event.data?.object
+    const ref = session?.metadata?.ref
+    if (ref) finalizePending(ref, session)
   }
   res.json({ received: true })
 })

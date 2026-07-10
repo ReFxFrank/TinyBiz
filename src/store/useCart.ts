@@ -7,6 +7,7 @@ import { useMemo } from 'react'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { migrateKey } from '@/lib/legacyStorage'
+import { effectiveTaxRate } from '@/lib/tax'
 import { useCatalog } from '@/store/useCatalog'
 import type { Product, ProductVariant } from '@/data/types'
 
@@ -121,13 +122,15 @@ export const FLAT_SHIPPING = 4.99
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 
-/** Cart lines joined with the catalog, plus all the checkout math in one place */
-export function useCartDetails(): CartDetails {
+/** Cart lines joined with the catalog, plus all the checkout math in one place.
+ *  `province` (typed at checkout) switches Canadian shops to the destination
+ *  GST/HST/PST rate — mirrors server/store-math.js, which stays authoritative. */
+export function useCartDetails(province?: string): CartDetails {
   const items = useCart((s) => s.items)
   const promo = useCart((s) => s.promo)
   const products = useCatalog((s) => s.products)
   const shop = useCatalog((s) => s.shop)
-  const taxRate = shop?.taxRate ?? 0
+  const taxRate = effectiveTaxRate(shop?.caTaxTable, shop?.taxRate ?? 0, province)
   const freeShippingThreshold = shop?.freeShippingOver ?? FREE_SHIPPING_OVER
   const flatShipping = shop?.flatShipping ?? FLAT_SHIPPING
 
@@ -155,7 +158,8 @@ export function useCartDetails(): CartDetails {
     const discountedSubtotal = round2(lines.reduce((a, l) => a + l.discountedUnitPrice * l.item.qty, 0))
     const discount = round2(subtotal - discountedSubtotal)
     const shipping = lines.length === 0 || discountedSubtotal >= freeShippingThreshold ? 0 : flatShipping
-    const tax = round2((discountedSubtotal * taxRate) / 100)
+    // Tax applies to goods AND shipping — mirrors the server's computeTotals
+    const tax = round2(((discountedSubtotal + shipping) * taxRate) / 100)
     return {
       lines,
       count: lines.reduce((a, l) => a + l.item.qty, 0),

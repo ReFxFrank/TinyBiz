@@ -35,13 +35,16 @@ app.use('/api/store/subscribe', rateLimit({ windowMs: 10 * 60_000, max: 30, name
 app.use('/api/store/account/signup', rateLimit({ windowMs: 10 * 60_000, max: 10, name: 'shop-signup' }))
 app.use('/api/store/account/login', rateLimit({ windowMs: 10 * 60_000, max: 10, name: 'shop-login' }))
 app.use('/api/store/account/password', rateLimit({ windowMs: 10 * 60_000, max: 10, name: 'shop-password' }))
-
-// Product photos: reads are public (the storefront shows them), writes need
-// product access. The router parses its own raw image body.
-app.use('/uploads', uploadsStatic)
+app.use('/api/store/promo', rateLimit({ windowMs: 10 * 60_000, max: 30, name: 'promo' })) // brute-force guard
+app.use('/api/store/order', rateLimit({ windowMs: 10 * 60_000, max: 60, name: 'order-lookup' }))
 
 app.use(express.json({ limit: '15mb' })) // localStorage imports can be chunky
 app.use(sessionMiddleware)
+
+// Product photos are public (the storefront shows them); business documents
+// (doc_*) need an admin session. Mounted after sessionMiddleware so the
+// static handler can see req.user. Uploads themselves need product access.
+app.use('/uploads', uploadsStatic)
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, rev: currentRev(), stripe: stripeEnabled() }))
 

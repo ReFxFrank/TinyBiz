@@ -89,6 +89,8 @@ export interface ShopInfo {
   /** Conversion rates from the shop currency to the display currencies */
   currencyRates: { rates: Record<string, number>; source: 'live' | 'approx'; asOf: string | null } | null
   taxRate: number
+  /** Province → combined GST/HST/PST when the shop ships within Canada */
+  caTaxTable: Record<string, number> | null
   freeShippingOver: number
   flatShipping: number
   shippingCountry: string

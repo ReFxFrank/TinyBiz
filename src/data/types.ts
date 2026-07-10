@@ -115,10 +115,21 @@ export type SalesChannel = 'Etsy' | 'Shopify' | 'Website' | 'Market' | 'Amazon'
 
 export interface OrderItem {
   productId: ID
+  /** Which option was bought — lets cancellations restock the right variant */
+  variantId?: ID
   name: string
   quantity: number
   unitPrice: number
   unitCost: number
+}
+
+/** How (and whether) money was collected for an order */
+export interface OrderPayment {
+  provider: 'stripe' | 'none'
+  /** Stripe Checkout session + payment intent — the trail back to the charge */
+  sessionId?: string
+  paymentIntent?: string
+  paidAt?: string
 }
 
 export type Carrier = 'Canada Post' | 'USPS' | 'UPS' | 'FedEx' | 'DHL'
@@ -145,6 +156,10 @@ export interface Order {
   shipBy?: string
   shippedAt?: string
   deliveredAt?: string
+  /** Present on storefront orders; absent on hand-entered ones */
+  payment?: OrderPayment
+  /** Stamped when a cancellation/return put the items back in stock */
+  restockedAt?: string
 }
 
 export interface Customer {

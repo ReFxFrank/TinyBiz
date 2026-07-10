@@ -20,6 +20,43 @@ export function shippingConfig(settings) {
 
 export const round2 = (n) => Math.round(n * 100) / 100
 
+// ── Canadian sales tax ────────────────────────────────────────────────────────
+// Combined GST/HST/PST by destination province (mirrored in src/lib/tax.ts —
+// keep in lockstep). Applied to goods AND shipping, the common simplification
+// small shops use. Rates as of 2025 (NS dropped to 14% HST in April 2025).
+export const CA_TAX = {
+  AB: 5, BC: 12, MB: 12, NB: 15, NL: 15, NS: 14, NT: 5, NU: 5, ON: 13, PE: 15, QC: 14.975, SK: 11, YT: 5,
+}
+
+const PROVINCE_NAMES = {
+  alberta: 'AB', 'british columbia': 'BC', manitoba: 'MB', 'new brunswick': 'NB',
+  'newfoundland and labrador': 'NL', newfoundland: 'NL', 'nova scotia': 'NS',
+  'northwest territories': 'NT', nunavut: 'NU', ontario: 'ON',
+  'prince edward island': 'PE', quebec: 'QC', 'québec': 'QC', saskatchewan: 'SK', yukon: 'YT',
+}
+
+/** "BC", "bc", "British Columbia" → "BC"; anything unrecognized → null */
+export function provinceCode(input) {
+  const raw = String(input || '').trim().toLowerCase().replace(/\./g, '')
+  if (!raw) return null
+  const upper = raw.toUpperCase()
+  if (CA_TAX[upper] != null) return upper
+  return PROVINCE_NAMES[raw] || null
+}
+
+/**
+ * The tax rate for an order: destination-based for Canadian shops when the
+ * province is recognizable, otherwise the flat Settings rate.
+ */
+export function taxRateFor(settings, address) {
+  const ship = shippingConfig(settings)
+  if (/canada/i.test(ship.country)) {
+    const code = provinceCode(address?.state)
+    if (code) return CA_TAX[code]
+  }
+  return Number(settings?.taxRate) || 0
+}
+
 /**
  * Validate raw cart items against live products and price them.
  * items: [{productId, variantId?, qty}]
@@ -73,7 +110,8 @@ export function promoUsable(promo) {
   )
 }
 
-/** Totals from validated lines + optional promo pct + tax rate + shipping config */
+/** Totals from validated lines + optional promo pct + tax rate + shipping config.
+ *  Tax applies to goods AND shipping (GST/HST treats freight as taxable). */
 export function computeTotals(lines, discountPct, taxRate, ship = DEFAULT_SHIPPING) {
   const pct = discountPct || 0
   const priced = lines.map((l) => ({ ...l, discountedUnitPrice: round2(l.unitPrice * (1 - pct / 100)) }))
@@ -81,7 +119,7 @@ export function computeTotals(lines, discountPct, taxRate, ship = DEFAULT_SHIPPI
   const discountedSubtotal = round2(priced.reduce((a, l) => a + l.discountedUnitPrice * l.qty, 0))
   const discount = round2(subtotal - discountedSubtotal)
   const shipping = priced.length === 0 || discountedSubtotal >= ship.freeOver ? 0 : ship.flatRate
-  const tax = round2((discountedSubtotal * (taxRate || 0)) / 100)
+  const tax = round2(((discountedSubtotal + shipping) * (taxRate || 0)) / 100)
   const total = round2(discountedSubtotal + shipping + tax)
   return { lines: priced, subtotal, discountedSubtotal, discount, shipping, tax, total }
 }

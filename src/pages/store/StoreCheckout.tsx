@@ -23,7 +23,6 @@ type FieldKey = 'name' | 'email' | 'line1' | 'city' | 'state' | 'zip'
 const FIELD_ORDER: FieldKey[] = ['name', 'email', 'line1', 'city', 'state', 'zip']
 
 export default function StoreCheckout() {
-  const { lines, count, subtotal, promo, discount, shipping, taxRate, tax, total } = useCartDetails()
   const clear = useCart((s) => s.clear)
   const setPromo = useCart((s) => s.setPromo)
   const reloadCatalog = useCatalog((s) => s.load)
@@ -47,6 +46,9 @@ export default function StoreCheckout() {
   const [form, setForm] = useState({ name: '', email: '', line1: '', city: '', state: '', zip: '', notes: '' })
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({})
   const [submitting, setSubmitting] = useState(false)
+
+  // Totals follow the typed province — Canadian tax is destination-based
+  const { lines, count, subtotal, promo, discount, shipping, taxRate, tax, total } = useCartDetails(form.state)
 
   // Signed-in shoppers get their saved details prefilled (only into fields
   // they haven't already typed in)

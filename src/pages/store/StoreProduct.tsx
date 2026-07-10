@@ -62,13 +62,14 @@ function ProductView({ product }: { product: Product }) {
 
   const hasVariants = product.variants.length > 0
   const photos = product.photos ?? []
-  // The product's own price/stock sell as the "Standard" option alongside any
-  // variants (undefined selection = Standard). Hidden once its stock runs out,
-  // so variant-only products (base stock 0) never show a dead option.
+  // The product's own price/stock sell under the product's own name alongside
+  // any variants (undefined selection = the base product). Hidden once its
+  // stock runs out, so variant-only products (base stock 0) never show a dead
+  // option.
   const optionRows = hasVariants
     ? [
         ...(product.stock > 0
-          ? [{ variant: null as ProductVariant | null, key: 'base', name: 'Standard', price: product.price, stock: product.stock }]
+          ? [{ variant: null as ProductVariant | null, key: 'base', name: product.name, price: product.price, stock: product.stock }]
           : []),
         ...product.variants.map((v) => ({ variant: v as ProductVariant | null, key: v.id, name: v.name, price: v.price, stock: v.stock })),
       ]

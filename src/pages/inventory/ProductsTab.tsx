@@ -73,7 +73,7 @@ export default function ProductsTab({
       out.push({
         product: p,
         variant: null,
-        name: p.variants.length ? `${p.name} · Standard` : p.name,
+        name: p.name,
         sku: p.sku,
         stock: p.stock,
         cost: p.cost,

@@ -462,6 +462,27 @@ export function StoreShell() {
     void loadAccount()
   }, [loadAccount])
 
+  // Warm every storefront chunk once the first paint settles. Deploys rename
+  // the hashed files, so a page fetched only when clicked could 404 for tabs
+  // opened before the deploy — fetched NOW, it lives in the module cache and
+  // clicking Account (or checkout…) hours later just works.
+  useEffect(() => {
+    const warm = () =>
+      void Promise.allSettled([
+        import('@/pages/store/StoreHome'),
+        import('@/pages/store/StoreShop'),
+        import('@/pages/store/StoreProduct'),
+        import('@/pages/store/StoreCheckout'),
+        import('@/pages/store/StoreConfirmation'),
+        import('@/pages/store/StoreTrack'),
+        import('@/pages/store/StorePolicies'),
+        import('@/pages/store/StoreAccount'),
+      ])
+    const w = window as Window & { requestIdleCallback?: (fn: () => void) => number }
+    if (w.requestIdleCallback) w.requestIdleCallback(warm)
+    else setTimeout(warm, 2000)
+  }, [])
+
   // The storefront runs off the public catalog API — load it once, refresh on focus
   const load = useCatalog((s) => s.load)
   const status = useCatalog((s) => s.status)

@@ -363,6 +363,17 @@ configure_nginx() {
 ' "$site"
       nginx -t
     fi
+    if ! grep -q "@asset_missing" "$site"; then
+      echo "──> Teaching nginx to answer missing assets with no-store (Cloudflare caches bare 404s)…"
+      sed -i 's|try_files \$uri =404;|try_files $uri @asset_missing;|' "$site"
+      sed -i '/location \/assets\/ {/i\
+    location @asset_missing {\
+        add_header Cache-Control "no-store" always;\
+        return 404;\
+    }\
+' "$site"
+      nginx -t
+    fi
     if ! grep -q "location = /sitemap.xml" "$site"; then
       echo "──> Adding robots/sitemap proxies to the existing nginx config…"
       sed -i '/location \/assets\/ {/i\
@@ -442,10 +453,16 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
-    # Hashed build assets never change — cache hard
+    # Hashed build assets never change — cache hard. A MISSING asset must
+    # answer no-store: Cloudflare caches bare 404s for ~5 minutes, which used
+    # to keep freshly deployed chunks "missing" long after the deploy.
     location /assets/ {
         add_header Cache-Control "public, max-age=31536000, immutable";
-        try_files \$uri =404;
+        try_files \$uri @asset_missing;
+    }
+    location @asset_missing {
+        add_header Cache-Control "no-store" always;
+        return 404;
     }
 
     # SPA routing: every path falls back to index.html
@@ -575,16 +592,22 @@ main() {
   echo "──> Building…"
   cd "$APP_DIR"
   npm ci --no-audit --no-fund
-  # Keep the outgoing build's hashed chunks for one more generation: a tab
-  # opened before this deploy still lazy-loads its pages from the old file
-  # names — without this, clicking around mid-deploy blanked the site.
-  rm -rf .assets-prev
-  [ -d dist/assets ] && cp -a dist/assets .assets-prev
-  npm run build
-  if [ -d .assets-prev ]; then
-    cp -an .assets-prev/. dist/assets/ 2>/dev/null || true
-    rm -rf .assets-prev
+  # Build into a staging dir and swap. nginx keeps serving the COMPLETE old
+  # build during the ~10s build — before this, dist was emptied first, every
+  # request 404'd, and Cloudflare cached those 404s for ~5 minutes, so each
+  # deploy broke page loads well after it finished.
+  rm -rf dist-next dist-old
+  npm run build -- --outDir dist-next
+  # Previous build's hashed chunks ride along so tabs opened before this
+  # deploy still lazy-load their pages; age-pruned so they don't pile up.
+  if [ -d dist/assets ]; then
+    mkdir -p dist-next/assets
+    cp -an dist/assets/. dist-next/assets/ 2>/dev/null || true
+    find dist-next/assets -type f -mtime +14 -delete 2>/dev/null || true
   fi
+  if [ -d dist ]; then mv dist dist-old; fi
+  mv dist-next dist
+  rm -rf dist-old
 
   echo "──> Installing API server dependencies…"
   (cd "$APP_DIR/server" && npm ci --no-audit --no-fund)

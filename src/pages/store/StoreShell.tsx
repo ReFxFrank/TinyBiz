@@ -52,6 +52,19 @@ function PreviewBanner() {
   )
 }
 
+const CURRENCY_FLAG: Record<DisplayCurrencyCode, string> = {
+  USD: '🇺🇸',
+  EUR: '🇪🇺',
+  JPY: '🇯🇵',
+  GBP: '🇬🇧',
+  CNY: '🇨🇳',
+  AUD: '🇦🇺',
+  CAD: '🇨🇦',
+  CHF: '🇨🇭',
+  HKD: '🇭🇰',
+  SGD: '🇸🇬',
+}
+
 /** Compact currency picker — only currencies the day's rate sheet covers */
 function CurrencySelect() {
   const shop = useCatalog((s) => s.shop)
@@ -72,7 +85,7 @@ function CurrencySelect() {
       >
         {options.map((c) => (
           <option key={c} value={c}>
-            {c}
+            {CURRENCY_FLAG[c]} {c}
           </option>
         ))}
       </select>

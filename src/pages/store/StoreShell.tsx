@@ -2,7 +2,7 @@
 // root. Shares the workspace's theme/accent so the shop matches the brand;
 // the admin lives separately under /admin.
 
-import { Suspense, useEffect, useState } from 'react'
+import { Component, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { MotionConfig } from 'framer-motion'
 import { ArrowLeft, ChevronDown, CircleUserRound, Instagram, Moon, ShoppingBag, Sun, X, Youtube } from 'lucide-react'
@@ -53,45 +53,140 @@ function PreviewBanner() {
   )
 }
 
-const CURRENCY_FLAG: Record<DisplayCurrencyCode, string> = {
-  USD: '🇺🇸',
-  EUR: '🇪🇺',
-  JPY: '🇯🇵',
-  GBP: '🇬🇧',
-  CNY: '🇨🇳',
-  AUD: '🇦🇺',
-  CAD: '🇨🇦',
-  CHF: '🇨🇭',
-  HKD: '🇭🇰',
-  SGD: '🇸🇬',
+// Real SVG flags (src/assets/flags, from flag-icons, MIT) — emoji flags render
+// as bare letter pairs on Chrome for Windows, so images are the only way
+// every visitor actually sees a flag.
+import flagUS from '@/assets/flags/us.svg'
+import flagEU from '@/assets/flags/eu.svg'
+import flagJP from '@/assets/flags/jp.svg'
+import flagGB from '@/assets/flags/gb.svg'
+import flagCN from '@/assets/flags/cn.svg'
+import flagAU from '@/assets/flags/au.svg'
+import flagCA from '@/assets/flags/ca.svg'
+import flagCH from '@/assets/flags/ch.svg'
+import flagHK from '@/assets/flags/hk.svg'
+import flagSG from '@/assets/flags/sg.svg'
+
+const CURRENCY_META: Record<DisplayCurrencyCode, { flag: string; name: string }> = {
+  USD: { flag: flagUS, name: 'US Dollar' },
+  EUR: { flag: flagEU, name: 'Euro' },
+  JPY: { flag: flagJP, name: 'Japanese Yen' },
+  GBP: { flag: flagGB, name: 'British Pound' },
+  CNY: { flag: flagCN, name: 'Chinese Yuan' },
+  AUD: { flag: flagAU, name: 'Australian Dollar' },
+  CAD: { flag: flagCA, name: 'Canadian Dollar' },
+  CHF: { flag: flagCH, name: 'Swiss Franc' },
+  HKD: { flag: flagHK, name: 'Hong Kong Dollar' },
+  SGD: { flag: flagSG, name: 'Singapore Dollar' },
 }
 
-/** Compact currency picker — only currencies the day's rate sheet covers */
+function Flag({ code, className }: { code: DisplayCurrencyCode; className?: string }) {
+  return (
+    <img
+      src={CURRENCY_META[code].flag}
+      alt=""
+      aria-hidden
+      className={cn('h-3.5 w-5 shrink-0 rounded-[3px] object-cover ring-1 ring-black/10 dark:ring-white/10', className)}
+    />
+  )
+}
+
+/** Compact currency picker — only currencies the day's rate sheet covers.
+ *  A custom listbox (not a native select) because option rows carry flag
+ *  images, which <option> can't. */
 function CurrencySelect() {
   const shop = useCatalog((s) => s.shop)
   const selected = useStoreCurrency((s) => s.selected)
   const setSelected = useStoreCurrency((s) => s.setSelected)
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  // Outside click / Escape closes the menu
+  useEffect(() => {
+    if (!open) return
+    const onPointer = (e: PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
   const rates = shop?.currencyRates?.rates
   if (!shop || !rates) return null
   const options = DISPLAY_CURRENCIES.filter((c) => c === shop.currency || Number(rates[c]) > 0)
   if (options.length < 2) return null
   const value = selected && options.includes(selected) ? selected : shop.currency
+
+  const moveFocus = (delta: number) => {
+    const items = [...(rootRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [])]
+    const at = items.indexOf(document.activeElement as HTMLButtonElement)
+    items[(at + delta + items.length) % items.length]?.focus()
+  }
+
   return (
-    <span className="relative shrink-0" title="Prices convert at today's rate — the shop charges in its own currency">
-      <select
-        value={value}
-        onChange={(e) => setSelected(e.target.value as DisplayCurrencyCode)}
+    <div
+      ref={rootRef}
+      className="relative shrink-0"
+      title="Prices convert at today's rate — the shop charges in its own currency"
+    >
+      <button
+        type="button"
         aria-label="Display currency"
-        className="h-9 cursor-pointer appearance-none rounded-xl bg-transparent pl-2.5 pr-7 text-sm font-medium text-ink-2 transition-colors hover:bg-sunken hover:text-ink focus:outline-none"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-9 items-center gap-1.5 rounded-xl px-2.5 text-sm font-medium text-ink-2 transition-colors hover:bg-sunken hover:text-ink focus:outline-none"
       >
-        {options.map((c) => (
-          <option key={c} value={c}>
-            {CURRENCY_FLAG[c]} {c}
-          </option>
-        ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-3" />
-    </span>
+        <Flag code={value as DisplayCurrencyCode} />
+        {value}
+        <ChevronDown className={cn('h-3.5 w-3.5 text-ink-3 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          aria-label="Display currency"
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') { e.preventDefault(); moveFocus(1) }
+            if (e.key === 'ArrowUp') { e.preventDefault(); moveFocus(-1) }
+          }}
+          className="absolute right-0 top-full z-50 mt-1.5 w-56 rounded-xl border border-edge bg-surface p-1 shadow-pop"
+        >
+          {options.map((c) => {
+            const active = c === value
+            return (
+              <button
+                key={c}
+                type="button"
+                role="option"
+                aria-selected={active}
+                autoFocus={active}
+                onClick={() => {
+                  setSelected(c)
+                  setOpen(false)
+                }}
+                className={cn(
+                  'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors',
+                  active
+                    ? 'bg-accent-wash font-semibold text-accent-strong dark:text-accent'
+                    : 'text-ink-2 hover:bg-sunken hover:text-ink',
+                )}
+              >
+                <Flag code={c} />
+                <span className="w-10 shrink-0 font-medium">{c}</span>
+                <span className="truncate text-[13px] font-normal text-ink-3">{CURRENCY_META[c].name}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -255,6 +350,36 @@ function StoreFooter() {
   )
 }
 
+/**
+ * Last line of defense for the storefront: a page that throws (or a chunk
+ * that can't load even after lazyReload's one retry) shows a friendly retry
+ * card instead of unmounting the whole app into a blank page. Keyed on the
+ * pathname so back/forward navigation gets a fresh attempt automatically.
+ */
+class StoreErrorBoundary extends Component<{ children: ReactNode; resetKey: string }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null }
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+  componentDidUpdate(prev: { resetKey: string }) {
+    if (prev.resetKey !== this.props.resetKey && this.state.error) this.setState({ error: null })
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="mx-auto w-full max-w-lg px-4 py-20">
+          <ErrorState
+            title="This page hit a snag"
+            description="Something went wrong loading this page — usually a refresh sorts it right out."
+            onRetry={() => window.location.reload()}
+          />
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 function StoreFallback() {
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
@@ -366,9 +491,11 @@ export function StoreShell() {
               />
             </div>
           ) : status === 'ready' ? (
-            <Suspense fallback={<StoreFallback />}>
-              <Outlet />
-            </Suspense>
+            <StoreErrorBoundary resetKey={pathname}>
+              <Suspense fallback={<StoreFallback />}>
+                <Outlet />
+              </Suspense>
+            </StoreErrorBoundary>
           ) : (
             <StoreFallback />
           )}

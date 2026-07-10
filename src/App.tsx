@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, type ComponentType } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { StoreShell } from '@/pages/store/StoreShell'
 
@@ -8,39 +8,65 @@ function LegacyStoreRedirect() {
   return <Navigate to={pathname.replace(/^\/store\/?/, '/') + search} replace />
 }
 
-// Admin shells load on demand so the storefront entry chunk stays lean
-const AdminApp = lazy(() => import('@/AdminApp'))
+/**
+ * lazy() that survives deploys. Every build renames the hashed chunks, so a
+ * tab opened before a deploy asks for files that no longer exist the moment
+ * it navigates to a not-yet-loaded page — and a failed import used to blank
+ * the whole app. Reload once to pick up the fresh index.html; if the chunk
+ * is still missing right after that reload, let the error boundary show a
+ * real message instead. This is the ONLY chunk-failure handler on purpose:
+ * a vite:preloadError listener with preventDefault() makes Vite resolve the
+ * import as `undefined` and hard-crashes React lazy.
+ */
+const RELOAD_STAMP = 'tms-chunk-reload'
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function lazyReload<T extends ComponentType<any>>(load: () => Promise<{ default: T }>) {
+  return lazy(() =>
+    load().catch((err) => {
+      const last = Number(sessionStorage.getItem(RELOAD_STAMP) || 0)
+      if (Date.now() - last > 15_000) {
+        sessionStorage.setItem(RELOAD_STAMP, String(Date.now()))
+        window.location.reload()
+        return new Promise<never>(() => {}) // the reload takes it from here
+      }
+      throw err
+    }),
+  )
+}
 
-const Dashboard = lazy(() => import('@/pages/Dashboard'))
-const Orders = lazy(() => import('@/pages/Orders'))
-const Inventory = lazy(() => import('@/pages/Inventory'))
-const Products = lazy(() => import('@/pages/Products'))
-const Customers = lazy(() => import('@/pages/Customers'))
-const Suppliers = lazy(() => import('@/pages/Suppliers'))
-const Expenses = lazy(() => import('@/pages/Expenses'))
-const Income = lazy(() => import('@/pages/Income'))
-const Accounting = lazy(() => import('@/pages/Accounting'))
-const Shipping = lazy(() => import('@/pages/Shipping'))
-const Manufacturing = lazy(() => import('@/pages/Manufacturing'))
-const Analytics = lazy(() => import('@/pages/Analytics'))
-const Marketing = lazy(() => import('@/pages/Marketing'))
-const Newsletter = lazy(() => import('@/pages/Newsletter'))
-const SocialMedia = lazy(() => import('@/pages/SocialMedia'))
-const CalendarPage = lazy(() => import('@/pages/CalendarPage'))
-const Tasks = lazy(() => import('@/pages/Tasks'))
-const Documents = lazy(() => import('@/pages/Documents'))
-const Employees = lazy(() => import('@/pages/Employees'))
-const Settings = lazy(() => import('@/pages/Settings'))
+// Admin shells load on demand so the storefront entry chunk stays lean
+const AdminApp = lazyReload(() => import('@/AdminApp'))
+
+const Dashboard = lazyReload(() => import('@/pages/Dashboard'))
+const Orders = lazyReload(() => import('@/pages/Orders'))
+const Inventory = lazyReload(() => import('@/pages/Inventory'))
+const Products = lazyReload(() => import('@/pages/Products'))
+const Customers = lazyReload(() => import('@/pages/Customers'))
+const Suppliers = lazyReload(() => import('@/pages/Suppliers'))
+const Expenses = lazyReload(() => import('@/pages/Expenses'))
+const Income = lazyReload(() => import('@/pages/Income'))
+const Accounting = lazyReload(() => import('@/pages/Accounting'))
+const Shipping = lazyReload(() => import('@/pages/Shipping'))
+const Manufacturing = lazyReload(() => import('@/pages/Manufacturing'))
+const Analytics = lazyReload(() => import('@/pages/Analytics'))
+const Marketing = lazyReload(() => import('@/pages/Marketing'))
+const Newsletter = lazyReload(() => import('@/pages/Newsletter'))
+const SocialMedia = lazyReload(() => import('@/pages/SocialMedia'))
+const CalendarPage = lazyReload(() => import('@/pages/CalendarPage'))
+const Tasks = lazyReload(() => import('@/pages/Tasks'))
+const Documents = lazyReload(() => import('@/pages/Documents'))
+const Employees = lazyReload(() => import('@/pages/Employees'))
+const Settings = lazyReload(() => import('@/pages/Settings'))
 
 // Customer-facing storefront (no admin chrome)
-const StoreHome = lazy(() => import('@/pages/store/StoreHome'))
-const StoreShop = lazy(() => import('@/pages/store/StoreShop'))
-const StoreProduct = lazy(() => import('@/pages/store/StoreProduct'))
-const StoreCheckout = lazy(() => import('@/pages/store/StoreCheckout'))
-const StoreConfirmation = lazy(() => import('@/pages/store/StoreConfirmation'))
-const StoreTrack = lazy(() => import('@/pages/store/StoreTrack'))
-const StorePolicies = lazy(() => import('@/pages/store/StorePolicies'))
-const StoreAccount = lazy(() => import('@/pages/store/StoreAccount'))
+const StoreHome = lazyReload(() => import('@/pages/store/StoreHome'))
+const StoreShop = lazyReload(() => import('@/pages/store/StoreShop'))
+const StoreProduct = lazyReload(() => import('@/pages/store/StoreProduct'))
+const StoreCheckout = lazyReload(() => import('@/pages/store/StoreCheckout'))
+const StoreConfirmation = lazyReload(() => import('@/pages/store/StoreConfirmation'))
+const StoreTrack = lazyReload(() => import('@/pages/store/StoreTrack'))
+const StorePolicies = lazyReload(() => import('@/pages/store/StorePolicies'))
+const StoreAccount = lazyReload(() => import('@/pages/store/StoreAccount'))
 
 export default function App() {
   return (

@@ -575,7 +575,16 @@ main() {
   echo "──> Building…"
   cd "$APP_DIR"
   npm ci --no-audit --no-fund
+  # Keep the outgoing build's hashed chunks for one more generation: a tab
+  # opened before this deploy still lazy-loads its pages from the old file
+  # names — without this, clicking around mid-deploy blanked the site.
+  rm -rf .assets-prev
+  [ -d dist/assets ] && cp -a dist/assets .assets-prev
   npm run build
+  if [ -d .assets-prev ]; then
+    cp -an .assets-prev/. dist/assets/ 2>/dev/null || true
+    rm -rf .assets-prev
+  fi
 
   echo "──> Installing API server dependencies…"
   (cd "$APP_DIR/server" && npm ci --no-audit --no-fund)

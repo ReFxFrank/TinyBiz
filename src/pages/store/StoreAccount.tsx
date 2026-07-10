@@ -2,9 +2,9 @@
 // on file (they prefill checkout), and see every order placed with your email.
 
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowRight, CircleUserRound, LogOut, PackageOpen, ExternalLink, Sparkles } from 'lucide-react'
+import { ArrowRight, CircleUserRound, KeyRound, LogOut, MailCheck, PackageOpen, ExternalLink, Sparkles } from 'lucide-react'
 import { Badge, Button, Card, EmptyState, Field, Input, type BadgeTone } from '@/components/ui'
 import { api, ApiError, type PublicOrder } from '@/lib/api'
 import { useShopAccount } from '@/store/useShopAccount'
@@ -25,12 +25,13 @@ const STATUS_TONE: Partial<Record<OrderStatus, BadgeTone>> = {
 
 function AuthCard() {
   const setAccount = useShopAccount((s) => s.setAccount)
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [resetSent, setResetSent] = useState(false)
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -38,6 +39,11 @@ function AuthCard() {
     setBusy(true)
     setError(null)
     try {
+      if (mode === 'forgot') {
+        await api.account.forgot(email.trim())
+        setResetSent(true)
+        return
+      }
       const res =
         mode === 'signup'
           ? await api.account.signup({ name: name.trim(), email: email.trim(), password })
@@ -49,6 +55,61 @@ function AuthCard() {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (mode === 'forgot') {
+    return (
+      <div className="mx-auto w-full max-w-md">
+        <div className="text-center">
+          <span aria-hidden className="inline-flex h-12 w-12 items-center justify-center rounded-2xl brand-gradient-soft text-accent">
+            <KeyRound className="h-6 w-6" />
+          </span>
+          <h1 className="mt-4 text-3xl font-bold tracking-tight text-ink">Reset your password</h1>
+          <p className="mt-2 text-sm text-ink-3">
+            Tell us your email and we&rsquo;ll send a one-time reset link. It works for shopper accounts and studio
+            logins alike.
+          </p>
+        </div>
+        <Card padding="lg" className="mt-8">
+          {resetSent ? (
+            <div className="text-center">
+              <MailCheck className="mx-auto h-8 w-8 text-accent-strong dark:text-accent" aria-hidden />
+              <p className="mt-3 text-sm leading-relaxed text-ink-2">
+                If <span className="font-semibold text-ink">{email.trim()}</span> has an account here, a reset link is
+                on its way. It expires in an hour — check your spam folder if it&rsquo;s shy.
+              </p>
+              <Button
+                variant="secondary"
+                className="mt-5"
+                onClick={() => {
+                  setMode('login')
+                  setResetSent(false)
+                }}
+              >
+                Back to sign in
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={(e) => void submit(e)} className="space-y-4">
+              <Field label="Email" required>
+                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" autoFocus />
+              </Field>
+              <div aria-live="polite">{error && <p className="text-[13px] text-critical">{error}</p>}</div>
+              <Button type="submit" className="w-full" disabled={busy || !email.trim()}>
+                {busy ? 'One moment…' : 'Send reset link'}
+              </Button>
+              <button
+                type="button"
+                onClick={() => setMode('login')}
+                className="w-full text-center text-[13px] font-medium text-ink-3 hover:text-ink"
+              >
+                Never mind — back to sign in
+              </button>
+            </form>
+          )}
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -118,6 +179,75 @@ function AuthCard() {
           <Button type="submit" className="w-full" disabled={busy || !email.trim() || !password || (mode === 'signup' && !name.trim())}>
             {busy ? 'One moment…' : mode === 'signup' ? 'Create account' : 'Sign in'}
           </Button>
+          {mode === 'login' && (
+            <button
+              type="button"
+              onClick={() => {
+                setMode('forgot')
+                setError(null)
+              }}
+              className="w-full text-center text-[13px] font-medium text-ink-3 hover:text-ink"
+            >
+              Forgot password?
+            </button>
+          )}
+        </form>
+      </Card>
+    </div>
+  )
+}
+
+// ── Reset link landing (/account?reset=<token>) ──────────────────────────────
+
+function ResetCard({ token, onDone }: { token: string; onDone: () => void }) {
+  const setAccount = useShopAccount((s) => s.setAccount)
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (busy) return
+    if (password.length < 8) return setError('Passwords need at least 8 characters.')
+    if (password !== confirm) return setError('Those passwords don’t match.')
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await api.account.reset(token, password)
+      setAccount(res.account)
+      toast('Password updated — you’re signed in', { tone: 'success' })
+      onDone()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Something went wrong — try again in a moment.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-md">
+      <div className="text-center">
+        <span aria-hidden className="inline-flex h-12 w-12 items-center justify-center rounded-2xl brand-gradient-soft text-accent">
+          <KeyRound className="h-6 w-6" />
+        </span>
+        <h1 className="mt-4 text-3xl font-bold tracking-tight text-ink">Choose a new password</h1>
+        <p className="mt-2 text-sm text-ink-3">You&rsquo;ll be signed straight in once it&rsquo;s saved.</p>
+      </div>
+      <Card padding="lg" className="mt-8">
+        <form onSubmit={(e) => void submit(e)} className="space-y-4">
+          <Field label="New password" required hint="At least 8 characters.">
+            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" autoFocus />
+          </Field>
+          <Field label="Confirm new password" required>
+            <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
+          </Field>
+          <div aria-live="polite">{error && <p className="text-[13px] text-critical">{error}</p>}</div>
+          <Button type="submit" className="w-full" disabled={busy || !password || !confirm}>
+            {busy ? 'Saving…' : 'Save & sign in'}
+          </Button>
+          <button type="button" onClick={onDone} className="w-full text-center text-[13px] font-medium text-ink-3 hover:text-ink">
+            Cancel
+          </button>
         </form>
       </Card>
     </div>
@@ -319,6 +449,8 @@ export default function StoreAccount() {
   const status = useShopAccount((s) => s.status)
   const setAccount = useShopAccount((s) => s.setAccount)
   const load = useShopAccount((s) => s.load)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const resetToken = searchParams.get('reset')
   useEffect(() => {
     void load()
   }, [load])
@@ -348,6 +480,8 @@ export default function StoreAccount() {
           <div className="skeleton h-10" />
           <div className="skeleton h-64 rounded-2xl" />
         </div>
+      ) : !account && resetToken ? (
+        <ResetCard token={resetToken} onDone={() => setSearchParams({}, { replace: true })} />
       ) : !account ? (
         <AuthCard />
       ) : (

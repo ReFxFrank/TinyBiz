@@ -351,6 +351,18 @@ configure_nginx() {
       sed -i 's|proxy_set_header X-Real-IP \$remote_addr;|proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $remote_addr;|' "$site"
       nginx -t && systemctl reload nginx
     fi
+    if ! grep -q "location /product/" "$site"; then
+      echo "──> Adding the /product proxy (link previews) to the existing nginx config…"
+      sed -i '/location \/assets\/ {/i\
+    location /product/ {\
+        proxy_pass http://127.0.0.1:4000;\
+        proxy_http_version 1.1;\
+        proxy_set_header Host $host;\
+        proxy_set_header X-Forwarded-Proto $scheme;\
+    }\
+' "$site"
+      nginx -t
+    fi
     if ! grep -q "location = /sitemap.xml" "$site"; then
       echo "──> Adding robots/sitemap proxies to the existing nginx config…"
       sed -i '/location \/assets\/ {/i\
@@ -407,6 +419,15 @@ server {
         proxy_pass http://127.0.0.1:7071/;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
+    }
+
+    # Product pages go through the API so link previews (Discord, iMessage,
+    # socials) get per-product og: tags. Browsers get the same SPA shell.
+    location /product/ {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
     # SEO: the API renders these from live catalog data

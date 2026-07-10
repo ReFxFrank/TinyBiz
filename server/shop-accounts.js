@@ -10,6 +10,8 @@ import bcrypt from 'bcryptjs'
 import { db, uid, getCollection, upsertItem, bumpRev } from './db.js'
 import { publicOrder } from './store-api.js'
 import { startSession as startAdminSession } from './auth.js'
+import { issueReset, redeemReset } from './reset.js'
+import { sendPasswordReset } from './email.js'
 
 const stmtAdminByEmail = db.prepare('SELECT * FROM users WHERE email = ?')
 
@@ -206,6 +208,41 @@ shopAccountRouter.post('/password', (req, res) => {
   }
   db.prepare('UPDATE shop_accounts SET pass_hash = ? WHERE id = ?').run(bcrypt.hashSync(next, 10), sess.row.id)
   res.json({ ok: true })
+})
+
+/** Email a reset link. Staff emails get routed to the ADMIN reset form (their
+ *  password lives in the studio account). Always 200 — no account oracle. */
+shopAccountRouter.post('/forgot', (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase()
+  const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`
+  const shopper = stmtByEmail.get(email)
+  if (shopper) {
+    const token = issueReset('shopper', shopper.id)
+    void sendPasswordReset({ to: shopper.email, toName: shopper.name, resetUrl: `${origin}/account?reset=${token}` })
+  } else {
+    const admin = stmtAdminByEmail.get(email)
+    if (admin && !admin.disabled) {
+      const token = issueReset('staff', admin.id)
+      void sendPasswordReset({ to: admin.email, toName: admin.name, resetUrl: `${origin}/admin?reset=${token}` })
+    }
+  }
+  res.json({ ok: true })
+})
+
+/** Redeem the link: new password, old sessions dropped, signed straight in */
+shopAccountRouter.post('/reset', (req, res) => {
+  const { token, password } = req.body || {}
+  if (typeof password !== 'string' || password.length < 8) {
+    return res.status(400).json({ error: 'weak_password', message: 'Passwords need at least 8 characters.' })
+  }
+  const accountId = redeemReset(token, 'shopper')
+  if (!accountId) {
+    return res.status(400).json({ error: 'bad_token', message: 'That reset link has expired or was already used — request a fresh one.' })
+  }
+  db.prepare('UPDATE shop_accounts SET pass_hash = ? WHERE id = ?').run(bcrypt.hashSync(password, 10), accountId)
+  db.prepare('DELETE FROM shop_sessions WHERE account_id = ?').run(accountId)
+  startSession(req, res, accountId)
+  res.json({ ok: true, account: publicAccount(stmtById.get(accountId)) })
 })
 
 /** Every order placed with the account's email — guest orders included */

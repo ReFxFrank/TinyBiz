@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Check, MailCheck, Save } from 'lucide-react'
-import { Button, Card, CardHeader, Field, Input, Select } from '@/components/ui'
+import { Button, Card, CardHeader, Field, Input, Select, Textarea, Toggle } from '@/components/ui'
 import { useStore } from '@/store/useStore'
 import { toast } from '@/store/useUI'
 import type { NewsletterCadence, NewsletterSettings } from '@/data/types'
@@ -16,11 +16,18 @@ const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frida
 export function SettingsTab() {
   const settings = useStore((s) => s.newsletterSettings)
   const update = useStore((s) => s.updateNewsletterSettings)
+  const promoCodes = useStore((s) => s.promoCodes)
 
   // Local draft so Save is explicit for the sending identity + schedule
   const [draft, setDraft] = useState<NewsletterSettings>(settings)
   const set = (patch: Partial<NewsletterSettings>) => setDraft((d) => ({ ...d, ...patch }))
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings)
+
+  // Stores from before the welcome email existed have no `welcome` yet
+  const welcome = draft.welcome ?? { enabled: true, promoCode: undefined, message: '' }
+  const setWelcome = (patch: Partial<NonNullable<NewsletterSettings['welcome']>>) =>
+    set({ welcome: { ...welcome, ...patch } })
+  const activePromos = promoCodes.filter((p) => p.active)
 
   const emailValid = /\S+@\S+\.\S+/.test(draft.fromEmail)
   const canSave = dirty && draft.fromName.trim() !== '' && emailValid && draft.mailingAddress.trim() !== ''
@@ -175,6 +182,55 @@ export function SettingsTab() {
           </Field>
         </div>
         <p className="mt-3 text-xs text-ink-3">Don't forget to Save — the schedule is stored with your sending identity above.</p>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Welcome email"
+          subtitle="Sent automatically the moment someone joins your list from the website."
+          actions={
+            <Button size="sm" icon={<Save />} disabled={!canSave} onClick={save}>
+              Save
+            </Button>
+          }
+        />
+        <div className="space-y-4">
+          <Toggle
+            label="Send a welcome email"
+            description="A friendly hello lands in their inbox right after they subscribe (needs the mail bridge below)."
+            checked={welcome.enabled}
+            onChange={(v) => setWelcome({ enabled: v })}
+          />
+          {welcome.enabled && (
+            <>
+              <Field label="Greeting" hint="Leave blank for a friendly default.">
+                <Textarea
+                  rows={3}
+                  value={welcome.message ?? ''}
+                  onChange={(e) => setWelcome({ message: e.target.value })}
+                  placeholder="Thanks for joining the list! We're a tiny studio making small-batch 3D-printed magic…"
+                />
+              </Field>
+              <Field
+                label="Welcome gift promo code"
+                hint={
+                  activePromos.length
+                    ? 'Featured as a first-order gift inside the email — only while the code stays active.'
+                    : 'Create a promo code under Marketing to offer a first-order gift here.'
+                }
+              >
+                <Select
+                  value={welcome.promoCode ?? ''}
+                  onChange={(e) => setWelcome({ promoCode: e.target.value || undefined })}
+                  options={[
+                    { value: '', label: 'No promo code' },
+                    ...activePromos.map((p) => ({ value: p.code, label: `${p.code} — ${p.discountPct}% off` })),
+                  ]}
+                />
+              </Field>
+            </>
+          )}
+        </div>
       </Card>
 
       <Card>

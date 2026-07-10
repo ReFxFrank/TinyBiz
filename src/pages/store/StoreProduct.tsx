@@ -3,14 +3,15 @@
 // specs, and related products. Keyed by product id so state (variant, qty,
 // selected photo) resets cleanly when a shopper hops between related items.
 
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Minus, PackageCheck, Plus, Printer, ShoppingBag, Sparkles, Truck } from 'lucide-react'
-import { Badge, Button, Card, EmptyState } from '@/components/ui'
+import { BellRing, MailCheck, Minus, PackageCheck, Plus, Printer, Share2, ShoppingBag, Sparkles, Truck } from 'lucide-react'
+import { Badge, Button, Card, EmptyState, Input } from '@/components/ui'
 import { useCatalog } from '@/store/useCatalog'
 import { useCart, FREE_SHIPPING_OVER } from '@/store/useCart'
 import { toast } from '@/store/useUI'
+import { api, ApiError } from '@/lib/api'
 import { money } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { StoreProductCard } from './StoreProductCard'
@@ -26,6 +27,84 @@ function printDuration(min: number): string {
 
 function tileGradient(hue: number): string {
   return `linear-gradient(135deg, hsl(${hue}, 70%, 92%), hsl(${(hue + 40) % 360}, 60%, 86%))`
+}
+
+/** Native share sheet where the browser has one, clipboard everywhere else */
+async function shareProduct(product: Product) {
+  const url = `${window.location.origin}/product/${product.id}`
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: product.name, url })
+      return
+    } catch {
+      /* dismissed the sheet — fall through to nothing, not the clipboard */
+      return
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url)
+    toast('Link copied — paste it anywhere', { description: 'It unfurls with the product photo and price.', tone: 'success' })
+  } catch {
+    toast(url, { description: 'Copy this link to share.' })
+  }
+}
+
+/** Sold out? Leave an email, get exactly one "it's back" heads-up. */
+function NotifyMeForm({ productId }: { productId: string }) {
+  const [email, setEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState(false)
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (busy || !email.trim()) return
+    setBusy(true)
+    try {
+      await api.notifyStock(productId, email.trim())
+      setDone(true)
+    } catch (err) {
+      toast('Couldn’t sign you up', {
+        description: err instanceof ApiError ? err.message : 'Try again in a moment.',
+        tone: 'error',
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mt-4 rounded-xl border border-edge bg-surface p-4 shadow-soft">
+      {done ? (
+        <div className="flex items-center gap-3">
+          <MailCheck className="h-5 w-5 shrink-0 text-accent-strong dark:text-accent" aria-hidden />
+          <p className="text-sm text-ink-2">
+            You&rsquo;re on the list! We&rsquo;ll email you the moment it&rsquo;s back — one email, no spam.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+            <BellRing className="h-4 w-4 text-accent-strong dark:text-accent" aria-hidden />
+            Want one? Get a heads-up when it&rsquo;s back
+          </div>
+          <form onSubmit={(e) => void submit(e)} className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              aria-label="Email for back-in-stock alert"
+              autoComplete="email"
+              className="flex-1"
+            />
+            <Button type="submit" disabled={busy || !email.trim()}>
+              {busy ? 'One sec…' : 'Notify me'}
+            </Button>
+          </form>
+        </>
+      )}
+    </div>
+  )
 }
 
 export default function StoreProduct() {
@@ -207,7 +286,17 @@ function ProductView({ product }: { product: Product }) {
         {/* Details */}
         <div className="flex flex-col">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-3">{product.category}</div>
-          <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-ink sm:text-3xl">{product.name}</h1>
+          <div className="mt-1.5 flex items-start justify-between gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">{product.name}</h1>
+            <button
+              onClick={() => void shareProduct(product)}
+              aria-label="Share this product"
+              title="Share"
+              className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-edge bg-surface text-ink-2 shadow-soft transition-colors hover:border-ink-3 hover:text-ink"
+            >
+              <Share2 className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
 
           <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="text-3xl font-bold tracking-tight text-ink">{money(price)}</span>
@@ -307,6 +396,8 @@ function ProductView({ product }: { product: Product }) {
               </Button>
             </div>
           </div>
+
+          {soldOut && <NotifyMeForm productId={product.id} />}
 
           <ul className="mt-7 space-y-3.5 border-t border-hairline pt-6 text-sm text-ink-2">
             <li className="flex items-center gap-3">

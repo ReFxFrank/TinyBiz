@@ -2,7 +2,8 @@
 // bridge (mail-bridge/) when one is configured in Settings → Newsletter.
 // Fire-and-forget: a down bridge must never break checkout.
 
-import { getMeta } from './db.js'
+import { getCollection, getMeta } from './db.js'
+import { promoUsable } from './store-math.js'
 
 const money = (n) => `$${Number(n).toFixed(2)}`
 
@@ -195,7 +196,7 @@ export function buildOrderShippedText(order, settings) {
  * final failure leaves a notification in the admin bell — a silently-down
  * bridge otherwise means customers just stop hearing from the shop.
  */
-async function sendViaBridge(kind, { to, toName, subject, html, text, ref }) {
+export async function sendViaBridge(kind, { to, toName, subject, html, text, ref }) {
   const ns = getMeta('newsletterSettings')
   const settings = getMeta('settings')
   const base = String(ns?.mailBridgeUrl || '').trim().replace(/\/$/, '')
@@ -345,6 +346,199 @@ export async function sendOrderConfirmation(order) {
     html: buildOrderConfirmationHtml(order, settings),
     text: buildOrderConfirmationText(order, settings),
     ref: order.number,
+  })
+}
+
+// ── Shared shell for the lighter lifecycle emails ────────────────────────────
+
+/** Branded card wrapper: pass body rows (already <tr>-wrapped) + footer text */
+function shellHtml(settings, { title, badge, badgeColors, bodyRows, footer }) {
+  const shopName = settings?.businessName || 'Our shop'
+  return `<!doctype html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title></head>
+<body style="margin:0;padding:0;background:#f4f4f2;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f2;padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:20px;overflow:hidden;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+        <tr><td style="padding:30px 32px 0;">
+          <div style="font-size:32px;line-height:1;">${esc(settings?.logoEmoji || '🛍️')}</div>
+          <div style="color:#111;font-size:19px;font-weight:700;margin-top:8px;">${esc(shopName)}</div>
+        </td></tr>
+        ${badge ? `<tr><td style="padding:22px 32px 0;"><div style="display:inline-block;background:${badgeColors?.bg || '#eef2df'};color:${badgeColors?.fg || '#5f6f2d'};border-radius:999px;padding:6px 14px;font-size:13px;font-weight:700;">${badge}</div></td></tr>` : ''}
+        ${bodyRows}
+        <tr><td style="padding:18px 32px;background:#fafaf9;border-top:1px solid #eee;color:#999;font-size:12px;line-height:1.6;">
+          ${footer}
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
+const ctaButton = (label, url) =>
+  `<a href="${esc(url)}" style="display:inline-block;background:#5f6f2d;color:#fff;text-decoration:none;border-radius:10px;padding:12px 22px;font-size:15px;font-weight:700;">${esc(label)}</a>`
+
+// ── Password reset ───────────────────────────────────────────────────────────
+
+/** One link, one hour, one use. Same email for shoppers and studio staff. */
+export async function sendPasswordReset({ to, toName, resetUrl }) {
+  const settings = getMeta('settings')
+  const html = shellHtml(settings, {
+    title: 'Reset your password',
+    badge: '🔑 Password reset',
+    bodyRows: `
+        <tr><td style="padding:16px 32px 6px;">
+          <h1 style="margin:0 0 6px;color:#111;font-size:22px;">Hi${toName ? ` ${esc(String(toName).split(' ')[0])}` : ''},</h1>
+          <p style="margin:0;color:#555;font-size:15px;line-height:1.6;">
+            Someone (hopefully you) asked to reset the password for this email address.
+            The link below works once and expires in an hour.
+          </p>
+        </td></tr>
+        <tr><td style="padding:18px 32px 26px;">${ctaButton('Choose a new password', resetUrl)}</td></tr>`,
+    footer: `If you didn't ask for this, you can safely ignore it — your password stays as it is.`,
+  })
+  await sendViaBridge('password-reset', {
+    to,
+    toName,
+    subject: `Reset your password — ${settings?.businessName || 'your account'}`,
+    html,
+    text: `Someone asked to reset the password for this email address.\n\nChoose a new password (link works once, expires in an hour):\n${resetUrl}\n\nIf you didn't ask for this, ignore this email.`,
+  })
+}
+
+// ── Welcome email (newsletter signup) ────────────────────────────────────────
+
+const DEFAULT_WELCOME_MESSAGE =
+  "Thanks for joining the list! We're a tiny studio making small-batch 3D-printed magic, and you'll be the first to hear about new pieces, restocks and studio news."
+
+/** Owner config lives in newsletterSettings.welcome {enabled, promoCode, message} */
+export async function sendWelcomeEmail({ to, origin }) {
+  const ns = getMeta('newsletterSettings')
+  const welcome = ns?.welcome
+  if (!welcome || welcome.enabled === false) return
+  const settings = getMeta('settings')
+  const message = String(welcome.message || '').trim() || DEFAULT_WELCOME_MESSAGE
+
+  // The promo block only ships while the code is actually redeemable
+  let promo = null
+  if (welcome.promoCode) {
+    const found = getCollection('promoCodes').find(
+      (p) => p.code.toLowerCase() === String(welcome.promoCode).trim().toLowerCase(),
+    )
+    if (promoUsable(found)) promo = found
+  }
+
+  const promoRow = promo
+    ? `
+        <tr><td style="padding:6px 32px 0;">
+          <div style="background:#fafaf9;border:1px dashed #b3c375;border-radius:12px;padding:16px;text-align:center;">
+            <div style="color:#777;font-size:12px;">A little welcome gift — ${promo.discountPct}% off your order</div>
+            <div style="color:#111;font-size:22px;font-weight:800;letter-spacing:2px;font-family:ui-monospace,Menlo,Consolas,monospace;margin-top:4px;">${esc(promo.code)}</div>
+            <div style="color:#999;font-size:12px;margin-top:4px;">Paste it in at checkout</div>
+          </div>
+        </td></tr>`
+    : ''
+
+  const html = shellHtml(settings, {
+    title: `Welcome to ${settings?.businessName || 'the shop'}`,
+    badge: '✨ Welcome',
+    bodyRows: `
+        <tr><td style="padding:16px 32px 6px;">
+          <h1 style="margin:0 0 6px;color:#111;font-size:22px;">Welcome!</h1>
+          <p style="margin:0;color:#555;font-size:15px;line-height:1.6;">${esc(message)}</p>
+        </td></tr>
+        ${promoRow}
+        <tr><td style="padding:18px 32px 26px;">${ctaButton('Browse the shop', `${origin}/shop`)}</td></tr>`,
+    footer: `You're getting this one-time hello because this address just joined the ${esc(settings?.businessName || 'shop')} list.`,
+  })
+
+  await sendViaBridge('welcome', {
+    to,
+    subject: `Welcome to ${settings?.businessName || 'the shop'}! ${promo ? `Here's ${promo.discountPct}% off ✨` : '✨'}`,
+    html,
+    text: [
+      message,
+      ...(promo ? ['', `Welcome gift: ${promo.code} for ${promo.discountPct}% off — paste it in at checkout.`] : []),
+      '',
+      `Browse the shop: ${origin}/shop`,
+    ].join('\n'),
+  })
+}
+
+// ── Back in stock ────────────────────────────────────────────────────────────
+
+export async function sendBackInStock({ to, product, url }) {
+  const settings = getMeta('settings')
+  const html = shellHtml(settings, {
+    title: `${product.name} is back in stock`,
+    badge: '🎉 Back in stock',
+    bodyRows: `
+        <tr><td style="padding:16px 32px 6px;">
+          <h1 style="margin:0 0 6px;color:#111;font-size:22px;">${esc(product.name)} is back!</h1>
+          <p style="margin:0;color:#555;font-size:15px;line-height:1.6;">
+            You asked us to let you know — it's back on the shelf at <strong style="color:#111;">${money(product.price)}</strong>.
+            Small batches sell out fast, so don't wait too long.
+          </p>
+        </td></tr>
+        <tr><td style="padding:18px 32px 26px;">${ctaButton('Grab yours', url)}</td></tr>`,
+    footer: `You're getting this because you asked to be notified when this item returned. That's the only email this signup sends.`,
+  })
+  await sendViaBridge('back-in-stock', {
+    to,
+    subject: `It's back: ${product.name} — ${settings?.businessName || ''}`.trim().replace(/ —$/, ''),
+    html,
+    text: `${product.name} is back in stock at ${money(product.price)}.\n\nGrab yours: ${url}`,
+    ref: product.name,
+  })
+}
+
+// ── Abandoned checkout reminder ──────────────────────────────────────────────
+
+/** One gentle nudge, ~2h after a Stripe checkout was started but never paid */
+export async function sendCartReminder({ payload, origin }) {
+  const settings = getMeta('settings')
+  const { contact, totals } = payload
+  const items = totals.lines
+    .map(
+      (l) => `
+      <tr>
+        <td style="padding:8px 0;border-bottom:1px solid #eee;color:#111;font-size:14px;">${esc(l.name)}<span style="color:#999;"> × ${l.qty}</span></td>
+        <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;color:#111;font-size:14px;white-space:nowrap;">${money(l.discountedUnitPrice * l.qty)}</td>
+      </tr>`,
+    )
+    .join('')
+  const html = shellHtml(settings, {
+    title: 'Your cart is waiting',
+    badge: '🛒 Still in your cart',
+    bodyRows: `
+        <tr><td style="padding:16px 32px 6px;">
+          <h1 style="margin:0 0 6px;color:#111;font-size:22px;">Hi ${esc(contact.name.split(' ')[0])},</h1>
+          <p style="margin:0;color:#555;font-size:15px;line-height:1.6;">
+            Looks like checkout got interrupted — no worries, we kept your cart. Here's what's in it:
+          </p>
+        </td></tr>
+        <tr><td style="padding:14px 32px 4px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${items}</table>
+        </td></tr>
+        <tr><td style="padding:16px 32px 26px;">${ctaButton('Finish checking out', `${origin}/checkout`)}</td></tr>`,
+    footer: `This is the only reminder we'll send. If you've changed your mind, no action needed — the cart just quietly expires.`,
+  })
+  await sendViaBridge('cart-reminder', {
+    to: contact.email,
+    toName: contact.name,
+    subject: `You left something behind at ${settings?.businessName || 'the shop'} 🛒`,
+    html,
+    text: [
+      `Looks like checkout got interrupted — we kept your cart:`,
+      '',
+      ...totals.lines.map((l) => `${l.name} × ${l.qty} — ${money(l.discountedUnitPrice * l.qty)}`),
+      '',
+      `Finish checking out: ${origin}/checkout`,
+      '',
+      `This is the only reminder we'll send.`,
+    ].join('\n'),
   })
 }
 

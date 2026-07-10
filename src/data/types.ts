@@ -526,6 +526,14 @@ export interface NewsletterSettings {
   mailBridgeUrl: string
   /** Shared secret the mail bridge requires */
   mailBridgeToken: string
+  /** Automatic hello when someone joins the list from the storefront */
+  welcome?: {
+    enabled: boolean
+    /** Promo code (by code string) featured as a welcome gift; undefined = none */
+    promoCode?: string
+    /** Custom greeting paragraph; blank = a friendly default */
+    message?: string
+  }
 }
 
 // ── System ───────────────────────────────────────────────────────────────────
@@ -613,6 +621,8 @@ export interface Settings {
   taxRate: number
   notifyLowStock: boolean
   notifyNewOrders: boolean
+  /** One reminder email to shoppers who abandon a Stripe checkout (default on) */
+  abandonedCartEmails?: boolean
   notifyExpensesDue: boolean
   weeklyReports: boolean
   /** Base URL of the printer bridge, e.g. http://192.168.1.50:7070 */

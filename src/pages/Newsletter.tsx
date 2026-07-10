@@ -77,7 +77,11 @@ export default function NewsletterPage() {
   const ctx = useNewsletterContext()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  const [tab, setTab] = useState<Tab>('newsletters')
+  // Deep links (e.g. the email-failure bell notification) land on ?tab=…
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = searchParams.get('tab')
+    return t === 'subscribers' || t === 'settings' ? t : 'newsletters'
+  })
   const [composeOpen, setComposeOpen] = useState(false)
   const [editing, setEditing] = useState<Newsletter | null>(null)
   const [previewing, setPreviewing] = useState<Newsletter | null>(null)

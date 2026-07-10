@@ -16,6 +16,8 @@ import { stripeEnabled } from './stripe.js'
 import { rateLimit } from './ratelimit.js'
 import { uploadsRouter, uploadsStatic } from './uploads.js'
 import { createBackup } from './backup.js'
+import { productPage } from './product-page.js'
+import { startAbandonedCartSweep } from './abandoned.js'
 
 const app = express()
 app.set('trust proxy', 1) // nginx sits in front — respect X-Forwarded-Proto
@@ -37,6 +39,12 @@ app.use('/api/store/account/login', rateLimit({ windowMs: 10 * 60_000, max: 10, 
 app.use('/api/store/account/password', rateLimit({ windowMs: 10 * 60_000, max: 10, name: 'shop-password' }))
 app.use('/api/store/promo', rateLimit({ windowMs: 10 * 60_000, max: 30, name: 'promo' })) // brute-force guard
 app.use('/api/store/order', rateLimit({ windowMs: 10 * 60_000, max: 60, name: 'order-lookup' }))
+// Forgot-password endpoints send email — keep them from becoming spam cannons
+app.use('/api/auth/forgot', rateLimit({ windowMs: 10 * 60_000, max: 5, name: 'forgot' }))
+app.use('/api/auth/reset', rateLimit({ windowMs: 10 * 60_000, max: 10, name: 'reset' }))
+app.use('/api/store/account/forgot', rateLimit({ windowMs: 10 * 60_000, max: 5, name: 'shop-forgot' }))
+app.use('/api/store/account/reset', rateLimit({ windowMs: 10 * 60_000, max: 10, name: 'shop-reset' }))
+app.use('/api/store/notify-stock', rateLimit({ windowMs: 10 * 60_000, max: 20, name: 'notify-stock' }))
 
 app.use(express.json({ limit: '15mb' })) // localStorage imports can be chunky
 app.use(sessionMiddleware)
@@ -68,6 +76,10 @@ app.get('/sitemap.xml', (req, res) => {
 })
 app.get('/api/stripe/status', requireAuth, (_req, res) => res.json({ enabled: stripeEnabled() }))
 
+// Link previews: nginx proxies /product/ here so each product page carries its
+// own og: tags + schema.org data. Browsers get the same SPA shell as ever.
+app.get('/product/:id', productPage)
+
 app.use('/api/auth', authRouter)
 app.use('/api/team', teamRouter)
 app.use('/api/store/account', shopAccountRouter)
@@ -91,6 +103,9 @@ app.use((err, _req, res, _next) => {
   if (status >= 500) console.error('[tinymagic-api]', err)
   res.status(status).json({ error: err?.error || 'server_error', message: err?.message || 'Something went wrong.' })
 })
+
+// One nudge per abandoned Stripe checkout, ~2h after it stalls
+startAbandonedCartSweep()
 
 const port = Number(process.env.PORT) || 4000
 app.listen(port, '127.0.0.1', () => {

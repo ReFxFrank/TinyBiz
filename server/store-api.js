@@ -7,7 +7,8 @@ import { db, uid, getCollection, getMeta, upsertItem, bumpRev } from './db.js'
 import { buildLines, computeTotals, promoUsable, nextOrderNumber, shippingConfig, taxRateFor, CA_TAX } from './store-math.js'
 import { currencyRates } from './rates.js'
 import { stripeEnabled, createCheckoutSession, getCheckoutSession, verifyWebhookSignature } from './stripe.js'
-import { sendOrderConfirmation, sendNewOrderAlert } from './email.js'
+import { sendOrderConfirmation, sendNewOrderAlert, sendWelcomeEmail } from './email.js'
+import { addStockAlert, processStockAlerts } from './stock-alerts.js'
 
 export const storeRouter = Router()
 
@@ -74,11 +75,13 @@ storeRouter.post('/promo', (req, res) => {
 storeRouter.post('/subscribe', (req, res) => {
   const email = String(req.body?.email || '').trim()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'bad_email' })
+  const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`
   const existing = getCollection('subscribers').find((s) => s.email.toLowerCase() === email.toLowerCase())
   if (existing) {
     if (existing.status === 'subscribed') return res.json({ ok: true, already: true })
     upsertItem('subscribers', { ...existing, status: 'subscribed' })
     bumpRev()
+    void sendWelcomeEmail({ to: existing.email, origin }) // welcome back
     return res.json({ ok: true, resubscribed: true })
   }
   upsertItem('subscribers', {
@@ -91,7 +94,25 @@ storeRouter.post('/subscribe', (req, res) => {
     createdAt: new Date().toISOString(),
   })
   bumpRev()
+  void sendWelcomeEmail({ to: email, origin })
   res.json({ ok: true })
+})
+
+/** "Notify me when it's back" — sold-out products collect emails to ping once
+ *  restocked. Idempotent per email, rate-limited in index.js. */
+storeRouter.post('/notify-stock', (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase()
+  const productId = String(req.body?.productId || '')
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'bad_email', message: 'That doesn’t look like an email address.' })
+  }
+  const product = getCollection('products').find((p) => p.id === productId && p.active)
+  if (!product) return res.status(404).json({ error: 'not_found' })
+  const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`
+  const result = addStockAlert({ productId, email, origin })
+  // Race guard: if it restocked between page load and signup, resolve right away
+  processStockAlerts()
+  res.json(result)
 })
 
 // ── Checkout ─────────────────────────────────────────────────────────────────
@@ -297,12 +318,14 @@ storeRouter.post('/checkout', wrap(async (req, res) => {
     new Date(Date.now() - 30 * 86_400_000).toISOString(),
   )
   const ref = uid('pnd')
-  db.prepare('INSERT INTO pending_checkouts (id, payload, created_at) VALUES (?, ?, ?)').run(
+  const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`
+  // origin rides along so the abandoned-cart reminder can link back to checkout
+  db.prepare('INSERT INTO pending_checkouts (id, payload, created_at, origin) VALUES (?, ?, ?, ?)').run(
     ref,
     JSON.stringify(priced),
     new Date().toISOString(),
+    origin,
   )
-  const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`
   const session = await createCheckoutSession({ priced, ref, origin })
   db.prepare('UPDATE pending_checkouts SET session_id = ? WHERE id = ?').run(session.id, ref)
   res.json({ mode: 'stripe', checkoutUrl: session.url })

@@ -69,6 +69,22 @@ db.exec(`
     account_id TEXT NOT NULL REFERENCES shop_accounts(id) ON DELETE CASCADE,
     expires_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS reset_tokens (
+    token TEXT PRIMARY KEY,
+    kind TEXT NOT NULL, -- 'shopper' (shop_accounts) or 'staff' (users)
+    account_id TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    used INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS stock_alerts (
+    id TEXT PRIMARY KEY,
+    product_id TEXT NOT NULL,
+    email TEXT NOT NULL,
+    origin TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    notified_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_stock_alerts_open ON stock_alerts(product_id) WHERE notified_at IS NULL;
 `)
 
 // Migration: staff accounts — pre-existing users tables lack these columns.
@@ -85,6 +101,18 @@ db.exec(`
     db.prepare(
       "UPDATE users SET role = 'owner' WHERE id = (SELECT id FROM users ORDER BY created_at ASC LIMIT 1)",
     ).run()
+  }
+}
+
+// Migration: abandoned-cart reminders — pre-existing pending_checkouts tables
+// lack the reminder stamp and the request origin (used for the checkout link).
+{
+  const cols = db.prepare("PRAGMA table_info('pending_checkouts')").all().map((c) => c.name)
+  if (!cols.includes('reminded_at')) {
+    db.exec(`
+      ALTER TABLE pending_checkouts ADD COLUMN reminded_at TEXT;
+      ALTER TABLE pending_checkouts ADD COLUMN origin TEXT NOT NULL DEFAULT '';
+    `)
   }
 }
 

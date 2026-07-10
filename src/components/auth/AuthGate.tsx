@@ -4,7 +4,7 @@
 // engine, then renders the admin.
 
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { KeyRound, Rocket, ServerOff } from 'lucide-react'
+import { KeyRound, MailCheck, Rocket, ServerOff } from 'lucide-react'
 import { Button, Field, Input } from '@/components/ui'
 import { api, ApiError } from '@/lib/api'
 import { useAuth } from '@/store/useAuth'
@@ -136,10 +136,12 @@ function SetupScreen({ onDone }: { onDone: () => Promise<void> }) {
 }
 
 function LoginScreen({ onDone }: { onDone: () => Promise<void> }) {
+  const [mode, setMode] = useState<'login' | 'forgot'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -147,8 +149,14 @@ function LoginScreen({ onDone }: { onDone: () => Promise<void> }) {
     setBusy(true)
     setError(null)
     try {
+      if (mode === 'forgot') {
+        await api.forgotPassword(email.trim())
+        setResetSent(true)
+        return
+      }
       await api.login(email.trim(), password)
       await onDone()
+      return
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 401
@@ -157,8 +165,58 @@ function LoginScreen({ onDone }: { onDone: () => Promise<void> }) {
             ? err.message // rate limited — the server says how long to wait
             : 'Could not sign in — is the server running?',
       )
-      setBusy(false)
     }
+    setBusy(false)
+  }
+
+  if (mode === 'forgot') {
+    return (
+      <Shell>
+        <BrandHeader subtitle="Reset your password" />
+        <div className="card space-y-4 p-6">
+          {resetSent ? (
+            <div className="text-center">
+              <MailCheck className="mx-auto h-8 w-8 text-accent" aria-hidden />
+              <p className="mt-3 text-sm leading-relaxed text-ink-2">
+                If <span className="font-semibold text-ink">{email.trim()}</span> is a studio account, a reset link is
+                on its way (it expires in an hour). Delivery uses the mail bridge configured in Settings → Newsletter.
+              </p>
+              <Button
+                className="mt-5"
+                variant="secondary"
+                onClick={() => {
+                  setMode('login')
+                  setResetSent(false)
+                  setBusy(false)
+                }}
+              >
+                Back to sign in
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={submit} className="space-y-4">
+              <Field label="Email" required>
+                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus autoComplete="username" />
+              </Field>
+              <div aria-live="polite">{error && <p className="text-[13px] text-critical">{error}</p>}</div>
+              <Button type="submit" size="lg" className="w-full" disabled={busy || !email.trim()}>
+                {busy ? 'Sending…' : 'Send reset link'}
+              </Button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('login')
+                  setError(null)
+                }}
+                className="w-full text-center text-[13px] font-medium text-ink-3 hover:text-ink"
+              >
+                Never mind — back to sign in
+              </button>
+            </form>
+          )}
+        </div>
+      </Shell>
+    )
   }
 
   return (
@@ -175,6 +233,61 @@ function LoginScreen({ onDone }: { onDone: () => Promise<void> }) {
         <Button type="submit" size="lg" className="w-full" icon={<KeyRound />} disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}
         </Button>
+        <button
+          type="button"
+          onClick={() => {
+            setMode('forgot')
+            setError(null)
+          }}
+          className="w-full text-center text-[13px] font-medium text-ink-3 hover:text-ink"
+        >
+          Forgot password?
+        </button>
+      </form>
+    </Shell>
+  )
+}
+
+/** Landing for /admin?reset=<token> — choose a new password, sign right in */
+function ResetScreen({ token, onDone, onCancel }: { token: string; onDone: () => Promise<void>; onCancel: () => void }) {
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (busy) return
+    if (password.length < 8) return setError('Password must be at least 8 characters.')
+    if (password !== confirm) return setError('Passwords do not match.')
+    setBusy(true)
+    setError(null)
+    try {
+      await api.resetPassword(token, password)
+      await onDone()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not reset — is the server running?')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Shell>
+      <BrandHeader subtitle="Choose a new password — you'll be signed straight in" />
+      <form onSubmit={submit} className="card space-y-4 p-6">
+        <Field label="New password" required hint="At least 8 characters.">
+          <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus autoComplete="new-password" />
+        </Field>
+        <Field label="Confirm new password" required>
+          <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
+        </Field>
+        <div aria-live="polite">{error && <p className="text-[13px] text-critical">{error}</p>}</div>
+        <Button type="submit" size="lg" className="w-full" icon={<KeyRound />} disabled={busy}>
+          {busy ? 'Saving…' : 'Save & sign in'}
+        </Button>
+        <button type="button" onClick={onCancel} className="w-full text-center text-[13px] font-medium text-ink-3 hover:text-ink">
+          Cancel — back to sign in
+        </button>
       </form>
     </Shell>
   )
@@ -201,6 +314,15 @@ function OfflineScreen({ onRetry }: { onRetry: () => void }) {
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const [phase, setPhase] = useState<Phase>('checking')
+  // Reset links land on /admin?reset=<token>. Handled outside the router —
+  // AuthGate renders before any admin routes exist.
+  const [resetToken, setResetToken] = useState<string | null>(
+    () => new URLSearchParams(window.location.search).get('reset'),
+  )
+  const clearResetParam = () => {
+    setResetToken(null)
+    window.history.replaceState(null, '', window.location.pathname)
+  }
 
   const enter = async () => {
     // Re-fetch /me so the freshly-created session's perms are in hand before
@@ -233,6 +355,18 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (phase === 'ready') return <>{children}</>
   if (phase === 'setup') return <SetupScreen onDone={enter} />
+  if (phase === 'login' && resetToken) {
+    return (
+      <ResetScreen
+        token={resetToken}
+        onDone={async () => {
+          clearResetParam()
+          await enter()
+        }}
+        onCancel={clearResetParam}
+      />
+    )
+  }
   if (phase === 'login') return <LoginScreen onDone={enter} />
   if (phase === 'offline') return <OfflineScreen onRetry={() => void check()} />
   return (

@@ -8,6 +8,8 @@ import crypto from 'node:crypto'
 import bcrypt from 'bcryptjs'
 import { db, uid, importState, bumpRev } from './db.js'
 import { computeAccess, sanitizePerms } from './perms.js'
+import { issueReset, redeemReset } from './reset.js'
+import { sendPasswordReset } from './email.js'
 
 const COOKIE = 'tms_session'
 const LEGACY_COOKIE = 'tb_session' // pre-rename sessions keep working
@@ -166,6 +168,36 @@ authRouter.post('/password', requireAuth, (req, res) => {
   }
   db.prepare('UPDATE users SET pass_hash = ? WHERE id = ?').run(bcrypt.hashSync(next, 10), req.user.id)
   res.json({ ok: true })
+})
+
+/** Email a one-hour reset link. Always 200 — a different answer for unknown
+ *  emails would let strangers probe which addresses have studio accounts. */
+authRouter.post('/forgot', (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase()
+  const user = stmtUserByEmail.get(email)
+  if (user && !user.disabled) {
+    const token = issueReset('staff', user.id)
+    const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`
+    void sendPasswordReset({ to: user.email, toName: user.name, resetUrl: `${origin}/admin?reset=${token}` })
+  }
+  res.json({ ok: true })
+})
+
+/** Redeem the link: set the new password, drop old sessions, sign them in */
+authRouter.post('/reset', (req, res) => {
+  const { token, password } = req.body || {}
+  if (typeof password !== 'string' || password.length < 8) {
+    return res.status(400).json({ error: 'weak_password', message: 'Password must be at least 8 characters.' })
+  }
+  const userId = redeemReset(token, 'staff')
+  if (!userId) {
+    return res.status(400).json({ error: 'bad_token', message: 'That reset link has expired or was already used — request a fresh one.' })
+  }
+  db.prepare('UPDATE users SET pass_hash = ? WHERE id = ?').run(bcrypt.hashSync(password, 10), userId)
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId)
+  startSession(req, res, userId)
+  const user = db.prepare('SELECT email FROM users WHERE id = ?').get(userId)
+  res.json({ ok: true, user: { email: user?.email } })
 })
 
 // ── Team management (owner only) ─────────────────────────────────────────────

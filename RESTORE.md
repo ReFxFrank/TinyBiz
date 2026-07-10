@@ -52,7 +52,9 @@ a scratch path (`gunzip -c … > /tmp/check.db && sqlite3 /tmp/check.db
 
 ## Related recovery notes
 
-- **Forgot the owner password** (no reset flow yet): over SSH,
+- **Forgot the owner password**: use "Forgot password?" on the `/admin` login —
+  the reset link arrives through the mail bridge. If the bridge is down or was
+  never configured, the SSH fallback still works:
   `sudo sqlite3 /var/lib/tinymagic/tinymagic.db "DELETE FROM sessions;"` then
   delete your user row and reload `/admin` — it offers first-run setup again
   **only if no users remain**, so remove staff rows too or recreate them after.

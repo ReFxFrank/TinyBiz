@@ -538,7 +538,7 @@ function AppearanceCard() {
 
 // Only toggles that are actually wired up — anything else would be lying
 const NOTIFICATION_PREFS: Array<{
-  key: 'notifyLowStock' | 'notifyNewOrders'
+  key: 'notifyLowStock' | 'notifyNewOrders' | 'abandonedCartEmails'
   label: string
   description: string
 }> = [
@@ -551,6 +551,12 @@ const NOTIFICATION_PREFS: Array<{
     key: 'notifyNewOrders',
     label: 'New orders',
     description: 'An email to your business address whenever a website order lands.',
+  },
+  {
+    key: 'abandonedCartEmails',
+    label: 'Abandoned cart reminders',
+    description:
+      'One nudge to shoppers who start paying but never finish, about two hours later. Kicks in once Stripe payments are on.',
   },
 ]
 
@@ -568,7 +574,7 @@ function NotificationsCard() {
             className="py-3 first:pt-0 last:pb-0"
             label={pref.label}
             description={pref.description}
-            checked={settings[pref.key]}
+            checked={settings[pref.key] !== false} // optional prefs default on
             onChange={(checked) => updateSettings({ [pref.key]: checked })}
           />
         ))}

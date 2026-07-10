@@ -690,6 +690,11 @@ export const seedNewsletterSettings: NewsletterSettings = {
   sendHour: 9,
   mailBridgeUrl: '',
   mailBridgeToken: '',
+  welcome: {
+    enabled: true,
+    promoCode: undefined,
+    message: '',
+  },
 }
 
 // ── Notifications ────────────────────────────────────────────────────────────

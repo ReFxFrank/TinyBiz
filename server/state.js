@@ -11,6 +11,7 @@ import { COLLECTIONS, db, getCollection, getItem, getMeta, currentRev, bumpRev, 
 import { requireAuth, requireOwner } from './auth.js'
 import { computeAccess } from './perms.js'
 import { sendOrderShipped, sendOrderCancelled } from './email.js'
+import { processStockAlerts } from './stock-alerts.js'
 
 export const stateRouter = Router()
 stateRouter.use(requireAuth)
@@ -139,6 +140,9 @@ stateRouter.post('/ops', (req, res) => {
   // Fire-and-forget after the tx commits — email must never block the sync
   for (const order of shipped) void sendOrderShipped(order)
   for (const order of cancelled) void sendOrderCancelled(order)
+  // Any of these ops (restocks, returns, adjustments) can bring a sold-out
+  // product back — resolve waiting back-in-stock signups
+  if (ops.some((op) => op.collection === 'products' || op.collection === 'orders')) processStockAlerts()
   res.json({ rev, ...(skipped ? { skipped } : {}) })
 })
 

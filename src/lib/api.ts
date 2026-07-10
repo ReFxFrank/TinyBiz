@@ -145,6 +145,10 @@ export const api = {
   logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
   changePassword: (current: string, next: string) =>
     request<{ ok: true }>('/api/auth/password', { method: 'POST', body: JSON.stringify({ current, next }) }),
+  forgotPassword: (email: string) =>
+    request<{ ok: true }>('/api/auth/forgot', { method: 'POST', body: JSON.stringify({ email }) }),
+  resetPassword: (token: string, password: string) =>
+    request<{ ok: true }>('/api/auth/reset', { method: 'POST', body: JSON.stringify({ token, password }) }),
 
   // team management (owner only)
   team: {
@@ -190,6 +194,10 @@ export const api = {
       request<{ account: ShopAccount }>('/api/store/account/me', { method: 'PATCH', body: JSON.stringify(patch) }),
     password: (input: { current: string; next: string }) =>
       request<{ ok: true }>('/api/store/account/password', { method: 'POST', body: JSON.stringify(input) }),
+    forgot: (email: string) =>
+      request<{ ok: true }>('/api/store/account/forgot', { method: 'POST', body: JSON.stringify({ email }) }),
+    reset: (token: string, password: string) =>
+      request<{ account: ShopAccount }>('/api/store/account/reset', { method: 'POST', body: JSON.stringify({ token, password }) }),
     orders: () => request<{ orders: PublicOrder[] }>('/api/store/account/orders'),
   },
 
@@ -218,4 +226,9 @@ export const api = {
     request<{ order?: PublicOrder; pending?: true }>(`/api/store/order/by-session/${encodeURIComponent(sid)}`),
   subscribe: (email: string) =>
     request<{ ok: true; already?: boolean }>('/api/store/subscribe', { method: 'POST', body: JSON.stringify({ email }) }),
+  notifyStock: (productId: string, email: string) =>
+    request<{ ok?: true; already?: boolean }>('/api/store/notify-stock', {
+      method: 'POST',
+      body: JSON.stringify({ productId, email }),
+    }),
 }

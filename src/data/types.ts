@@ -392,6 +392,9 @@ export interface SocialAccount {
   id: ID
   platform: SocialPlatform
   handle: string
+  /** Full profile URL — what "linked" means; footer-eligible platforms sync to settings.social */
+  url?: string
+  /** Manually tracked follower counts — update whenever, the charts follow */
   followers: number
   followersLastMonth: number
   connected: boolean

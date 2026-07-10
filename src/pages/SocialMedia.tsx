@@ -1,9 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { CalendarClock, CheckCircle2, MegaphoneOff, MoreHorizontal, PenSquare, Send, Trash2, Unplug } from 'lucide-react'
+import {
+  CalendarClock,
+  CheckCircle2,
+  ExternalLink,
+  MegaphoneOff,
+  MoreHorizontal,
+  PenSquare,
+  Plus,
+  Send,
+  Trash2,
+} from 'lucide-react'
 import { useStore } from '@/store/useStore'
 import { toast } from '@/store/useUI'
-import type { SocialAccount, SocialPlatform, SocialPost } from '@/data/types'
+import type { SocialAccount, SocialLinks, SocialPlatform, SocialPost } from '@/data/types'
 import {
   Badge,
   Button,
@@ -43,6 +53,13 @@ const PLATFORM_META: Record<SocialPlatform, { emoji: string; hue: number }> = {
 
 const ALL_PLATFORMS = Object.keys(PLATFORM_META) as SocialPlatform[]
 
+/** Platforms with a matching storefront-footer slot (settings.social) */
+const FOOTER_KEY: Partial<Record<SocialPlatform, keyof SocialLinks>> = {
+  Instagram: 'instagram',
+  TikTok: 'tiktok',
+  YouTube: 'youtube',
+}
+
 const MAX_CHARS = 280
 
 /** "YYYY-MM-DDTHH:mm" for a datetime-local input, in local time */
@@ -67,12 +84,18 @@ export default function SocialMedia() {
   const posts = useStore((s) => s.socialPosts)
   const updateItem = useStore((s) => s.updateItem)
   const removeItem = useStore((s) => s.removeItem)
+  const settings = useStore((s) => s.settings)
+  const updateSettings = useStore((s) => s.updateSettings)
 
   const [searchParams, setSearchParams] = useSearchParams()
   const [composeOpen, setComposeOpen] = useState(false)
   const [editingPost, setEditingPost] = useState<SocialPost | null>(null)
   const [deletePost, setDeletePost] = useState<SocialPost | null>(null)
   const [removeAccount, setRemoveAccount] = useState<SocialAccount | null>(null)
+  const [accountModal, setAccountModal] = useState<{ open: boolean; account: SocialAccount | null }>({
+    open: false,
+    account: null,
+  })
 
   // "?new=1" auto-opens the compose modal
   useEffect(() => {
@@ -204,13 +227,23 @@ export default function SocialMedia() {
 
       {/* Accounts */}
       <section id="social-accounts" className="scroll-mt-20 space-y-3">
-        <h2 className="text-sm font-semibold text-ink">Accounts</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-ink">Accounts</h2>
+          <Button variant="secondary" size="sm" icon={<Plus />} onClick={() => setAccountModal({ open: true, account: null })}>
+            Add account
+          </Button>
+        </div>
         {accounts.length === 0 ? (
           <Card>
             <EmptyState
               icon={<MegaphoneOff />}
-              title="No accounts yet"
-              description="Your social accounts will appear here. Reset the demo data to bring back the sample accounts."
+              title="No accounts linked yet"
+              description="Add your profiles — Instagram, TikTok and YouTube links also appear in your storefront footer."
+              action={
+                <Button size="sm" icon={<Plus />} onClick={() => setAccountModal({ open: true, account: null })}>
+                  Add account
+                </Button>
+              }
             />
           </Card>
         ) : (
@@ -219,12 +252,7 @@ export default function SocialMedia() {
               <AccountCard
                 key={account.id}
                 account={account}
-                onToggleConnected={() => {
-                  updateItem('socialAccounts', account.id, { connected: !account.connected })
-                  toast(account.connected ? `Disconnected ${account.platform}` : `Reconnected ${account.platform}`, {
-                    tone: 'success',
-                  })
-                }}
+                onEdit={() => setAccountModal({ open: true, account })}
                 onRemove={() => setRemoveAccount(account)}
               />
             ))}
@@ -379,6 +407,13 @@ export default function SocialMedia() {
         danger
       />
 
+      {/* Add / edit account */}
+      <AccountModal
+        open={accountModal.open}
+        editing={accountModal.account}
+        onClose={() => setAccountModal({ open: false, account: null })}
+      />
+
       {/* Remove account */}
       <ConfirmDialog
         open={removeAccount !== null}
@@ -386,13 +421,20 @@ export default function SocialMedia() {
         onConfirm={() => {
           if (removeAccount) {
             removeItem('socialAccounts', removeAccount.id)
+            // If this account fed a storefront footer icon, clear it too
+            const key = FOOTER_KEY[removeAccount.platform]
+            if (key && removeAccount.url && settings.social?.[key] === removeAccount.url) {
+              updateSettings({ social: { ...settings.social, [key]: undefined } })
+            }
             toast(`${removeAccount.platform} account removed`, { tone: 'success' })
           }
         }}
         title="Remove account?"
         description={
           removeAccount
-            ? `${removeAccount.platform} (${removeAccount.handle}) will be removed from your dashboard.`
+            ? `${removeAccount.platform} (${removeAccount.handle}) will be removed from your dashboard${
+                FOOTER_KEY[removeAccount.platform] && removeAccount.url ? ' and your storefront footer' : ''
+              }.`
             : undefined
         }
         confirmLabel="Remove"
@@ -404,15 +446,7 @@ export default function SocialMedia() {
 
 // ── Account card ─────────────────────────────────────────────────────────────
 
-function AccountCard({
-  account,
-  onToggleConnected,
-  onRemove,
-}: {
-  account: SocialAccount
-  onToggleConnected: () => void
-  onRemove: () => void
-}) {
+function AccountCard({ account, onEdit, onRemove }: { account: SocialAccount; onEdit: () => void; onRemove: () => void }) {
   const meta = PLATFORM_META[account.platform]
   const growth =
     account.followersLastMonth > 0
@@ -433,8 +467,8 @@ function AccountCard({
             </IconButton>
           }
         >
-          <MenuItem icon={<Unplug />} onSelect={onToggleConnected}>
-            {account.connected ? 'Disconnect' : 'Reconnect'}
+          <MenuItem icon={<PenSquare />} onSelect={onEdit}>
+            Edit
           </MenuItem>
           <MenuSeparator />
           <MenuItem icon={<Trash2 />} danger onSelect={onRemove}>
@@ -451,16 +485,130 @@ function AccountCard({
           <span className="text-ink-3">vs last month</span>
         </div>
       </div>
-      <div>
-        {account.connected ? (
-          <Badge tone="green">Connected</Badge>
+      <div className="flex items-center gap-2">
+        {account.url ? (
+          <>
+            <Badge tone="green">Linked</Badge>
+            <a
+              href={account.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-medium text-accent-strong hover:underline dark:text-accent"
+            >
+              Open profile <ExternalLink className="h-3 w-3" />
+            </a>
+          </>
         ) : (
-          <Button variant="outline" size="sm" onClick={() => toast('Integrations are coming soon')}>
-            Connect
+          <Button variant="outline" size="sm" onClick={onEdit}>
+            Add profile link
           </Button>
         )}
       </div>
     </Card>
+  )
+}
+
+// ── Add / edit account modal ─────────────────────────────────────────────────
+
+function AccountModal({ open, editing, onClose }: { open: boolean; editing: SocialAccount | null; onClose: () => void }) {
+  const addItem = useStore((s) => s.addItem)
+  const updateItem = useStore((s) => s.updateItem)
+  const settings = useStore((s) => s.settings)
+  const updateSettings = useStore((s) => s.updateSettings)
+
+  const [platform, setPlatform] = useState<SocialPlatform>('Instagram')
+  const [handle, setHandle] = useState('')
+  const [url, setUrl] = useState('')
+  const [followers, setFollowers] = useState('0')
+  const [followersLastMonth, setFollowersLastMonth] = useState('0')
+
+  useEffect(() => {
+    if (open) {
+      setPlatform(editing?.platform ?? 'Instagram')
+      setHandle(editing?.handle ?? '')
+      setUrl(editing?.url ?? '')
+      setFollowers(String(editing?.followers ?? 0))
+      setFollowersLastMonth(String(editing?.followersLastMonth ?? 0))
+    }
+  }, [open, editing])
+
+  const valid = handle.trim().length > 0
+
+  const submit = () => {
+    if (!valid) return
+    const cleanUrl = url.trim() ? (url.trim().startsWith('http') ? url.trim() : `https://${url.trim()}`) : undefined
+    const base = {
+      platform,
+      handle: handle.trim().startsWith('@') || !handle.trim() ? handle.trim() : `@${handle.trim()}`,
+      url: cleanUrl,
+      followers: Math.max(0, Math.round(Number(followers) || 0)),
+      followersLastMonth: Math.max(0, Math.round(Number(followersLastMonth) || 0)),
+      connected: Boolean(cleanUrl),
+    }
+    if (editing) updateItem('socialAccounts', editing.id, base)
+    else addItem('socialAccounts', { id: uid('soc'), ...base })
+
+    // Footer-eligible platforms keep the storefront icons in sync
+    const key = FOOTER_KEY[platform]
+    if (key && cleanUrl) {
+      updateSettings({ social: { ...settings.social, [key]: cleanUrl } })
+      toast(`${platform} linked`, { description: 'The link also shows in your storefront footer.', tone: 'success' })
+    } else {
+      toast(editing ? 'Account updated' : 'Account added', { tone: 'success' })
+    }
+    onClose()
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={editing ? 'Edit account' : 'Add account'}
+      description="Link a profile and keep a light touch on its follower counts — update them whenever."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={!valid}>
+            {editing ? 'Save changes' : 'Add account'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Platform" required>
+            <Select
+              value={platform}
+              onChange={(e) => setPlatform(e.target.value as SocialPlatform)}
+              options={ALL_PLATFORMS.map((p) => ({ value: p, label: `${PLATFORM_META[p].emoji}  ${p}` }))}
+            />
+          </Field>
+          <Field label="Handle" required>
+            <Input value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="@thetinymagicstudio" />
+          </Field>
+        </div>
+        <Field
+          label="Profile URL"
+          hint={
+            FOOTER_KEY[platform]
+              ? 'This link also appears as an icon in your storefront footer.'
+              : 'The link customers use to find you — shown as “Open profile” here.'
+          }
+        >
+          <Input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://instagram.com/yourshop" />
+        </Field>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Followers now" hint="Tracked by hand — the chart follows.">
+            <Input type="number" min={0} value={followers} onChange={(e) => setFollowers(e.target.value)} />
+          </Field>
+          <Field label="A month ago">
+            <Input type="number" min={0} value={followersLastMonth} onChange={(e) => setFollowersLastMonth(e.target.value)} />
+          </Field>
+        </div>
+      </div>
+    </Modal>
   )
 }
 

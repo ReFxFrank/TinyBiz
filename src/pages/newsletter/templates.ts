@@ -50,7 +50,7 @@ export const NEWSLETTER_TEMPLATES: NewsletterTemplate[] = [
       includeBestSellers: false,
       includeNewProducts: true,
       ctaLabel: 'Shop the drop',
-      ctaUrl: 'https://',
+      ctaUrl: '', // filled with the shop's own address when the template is applied
     },
   },
   {
@@ -66,7 +66,7 @@ export const NEWSLETTER_TEMPLATES: NewsletterTemplate[] = [
       includeBestSellers: true,
       includeNewProducts: false,
       ctaLabel: 'Shop the sale',
-      ctaUrl: 'https://',
+      ctaUrl: '', // filled with the shop's own address when the template is applied
     },
   },
   {
@@ -82,7 +82,7 @@ export const NEWSLETTER_TEMPLATES: NewsletterTemplate[] = [
       includeBestSellers: true,
       includeNewProducts: false,
       ctaLabel: 'Browse the shop',
-      ctaUrl: 'https://',
+      ctaUrl: '', // filled with the shop's own address when the template is applied
     },
   },
   {
@@ -98,7 +98,7 @@ export const NEWSLETTER_TEMPLATES: NewsletterTemplate[] = [
       includeBestSellers: true,
       includeNewProducts: false,
       ctaLabel: 'Grab yours',
-      ctaUrl: 'https://',
+      ctaUrl: '', // filled with the shop's own address when the template is applied
     },
   },
 ]

@@ -100,6 +100,7 @@ function renderBlocks(
   accent: string,
   merged: (t: string) => string,
   abs: (u: string) => string,
+  link: (u?: string) => string,
 ): string {
   return blocks
     .map((b) => {
@@ -112,7 +113,7 @@ function renderBlocks(
         const align = b.align || 'center'
         const width = Math.min(100, Math.max(40, b.widthPct || 100))
         const img = `<img src="${esc(abs(b.url))}" alt="${esc(b.text || '')}" style="display:inline-block;width:${width}%;max-width:100%;border-radius:12px;" />`
-        const linked = b.linkUrl?.trim() ? `<a href="${esc(b.linkUrl.trim())}">${img}</a>` : img
+        const linked = b.linkUrl?.trim() ? `<a href="${esc(link(b.linkUrl))}">${img}</a>` : img
         const caption = b.text?.trim()
           ? `<div style="color:#777;font-size:13px;margin-top:6px;">${esc(merged(b.text))}</div>`
           : ''
@@ -122,7 +123,7 @@ function renderBlocks(
       </td></tr></table>`
       }
       if (b.type === 'button' && b.text?.trim()) {
-        return buttonHtml(b.text, (b.url || '#').trim(), accent, b.align || 'center')
+        return buttonHtml(b.text, link(b.url), accent, b.align || 'center')
       }
       if (b.type === 'divider') {
         return `<div style="border-top:1px solid #e8e8e3;margin:20px 0;"></div>`
@@ -145,7 +146,16 @@ export function buildNewsletterHtml(n: Newsletter, s: NewsletterSettings, ctx: N
   const unsubHref = opts.forSend ? '{{unsubscribe}}' : '#unsubscribe'
   // Emails need absolute URLs — /uploads photos get the site origin prefixed
   const abs = (u: string) => (u.startsWith('/') && ctx.origin ? ctx.origin + u : u)
-  const bodyHtml = renderBlocks(effectiveBlocks(n), accent, merged, abs)
+  // Button/image links: half-typed targets (blank, "#", a bare "https://")
+  // fall back to the shop itself; site-relative paths and bare domains are
+  // made absolute so they survive in email clients.
+  const link = (u?: string) => {
+    const t = (u || '').trim()
+    if (!t || t === '#' || /^https?:\/{0,2}$/i.test(t)) return ctx.origin || '#'
+    if (t.startsWith('/')) return abs(t)
+    return /^https?:\/\//i.test(t) ? t : `https://${t}`
+  }
+  const bodyHtml = renderBlocks(effectiveBlocks(n), accent, merged, abs, link)
 
   // Best sellers module
   let bestSellersBlock = ''

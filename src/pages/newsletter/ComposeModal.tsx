@@ -170,14 +170,15 @@ export function ComposeModal({
     const p = t.preset
     setSubject(p.subject ?? '')
     setPreheader(p.preheader ?? '')
-    // Presets describe a legacy intro + CTA — run them through the same converter editing uses
+    // Presets describe a legacy intro + CTA — run them through the same converter editing uses.
+    // Template shop buttons point at the live storefront out of the box.
     setBlocks(
       effectiveBlocks({
         id: 'preset',
         subject: '',
         intro: p.intro ?? '',
         ctaLabel: p.ctaLabel,
-        ctaUrl: p.ctaUrl,
+        ctaUrl: p.ctaUrl || (p.ctaLabel ? window.location.origin : undefined),
         cadence: 'one-time',
         status: 'draft',
         includeBestSellers: false,

@@ -380,8 +380,25 @@ function startServer(config) {
         c.uniqueClicks.add(rec.email)
         scheduleSave()
       }
-      let target = parsed.searchParams.get('u')
-      if (!target || !/^https?:\/\//i.test(target)) target = config.publicUrl
+      // Only redirect to a well-formed http(s) URL with a real host. A
+      // half-typed target like the bare "https://" passes a scheme check but
+      // makes an invalid Location header, which browsers turn into a file
+      // download. Anything broken lands on the shop itself instead.
+      let target = parsed.searchParams.get('u') || ''
+      let valid = false
+      try {
+        const t = new URL(target)
+        valid = (t.protocol === 'http:' || t.protocol === 'https:') && Boolean(t.hostname)
+      } catch {
+        /* not a URL at all */
+      }
+      if (!valid) {
+        try {
+          target = new URL(config.publicUrl).origin
+        } catch {
+          target = config.publicUrl
+        }
+      }
       res.writeHead(302, { Location: target })
       return res.end()
     }

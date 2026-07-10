@@ -527,6 +527,11 @@ export interface AppNotification {
 
 export type CurrencyCode = 'USD' | 'EUR' | 'GBP' | 'CAD' | 'AUD'
 
+/** The ten most-used currencies — customers can browse prices in any of
+ *  these, while the shop still charges in its own currency. */
+export const DISPLAY_CURRENCIES = ['USD', 'EUR', 'JPY', 'GBP', 'CNY', 'AUD', 'CAD', 'CHF', 'HKD', 'SGD'] as const
+export type DisplayCurrencyCode = (typeof DISPLAY_CURRENCIES)[number]
+
 /** Owner-editable wording on the storefront — blank fields use defaults */
 export interface StorefrontContent {
   heroBadge: string

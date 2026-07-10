@@ -1,4 +1,4 @@
-import type { CurrencyCode } from '@/data/types'
+import type { CurrencyCode, DisplayCurrencyCode } from '@/data/types'
 
 let activeCurrency: CurrencyCode = 'USD'
 
@@ -11,18 +11,47 @@ export function getActiveCurrency(): CurrencyCode {
   return activeCurrency
 }
 
+// Storefront display currency: when a visitor picks e.g. USD, every money()
+// call without an explicit currency converts at the day's rate. The admin
+// never sets this, and passing a currency explicitly always shows raw,
+// unconverted amounts (used for "you'll be charged …" lines).
+let displayCurrency: DisplayCurrencyCode | null = null
+let displayRate = 1
+
+export function setDisplayCurrency(c: DisplayCurrencyCode | null, rate = 1): void {
+  displayCurrency = c
+  displayRate = rate > 0 ? rate : 1
+}
+
+/** The currency prices are currently converted into, if any */
+export function getDisplayCurrency(): DisplayCurrencyCode | null {
+  return displayCurrency
+}
+
+function resolve(n: number, currency?: CurrencyCode): { n: number; currency: string } {
+  if (currency) return { n, currency }
+  if (displayCurrency) return { n: n * displayRate, currency: displayCurrency }
+  return { n, currency: activeCurrency }
+}
+
+/** Currencies with no minor unit — forcing cents would show ¥1,644.00 */
+const ZERO_DECIMAL = new Set(['JPY'])
+
 /** $1,284.50 — full-precision money */
-export function money(n: number, currency: CurrencyCode = activeCurrency): string {
+export function money(amount: number, cur?: CurrencyCode): string {
+  const { n, currency } = resolve(amount, cur)
+  const digits = ZERO_DECIMAL.has(currency) ? 0 : 2
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency,
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 2,
+    maximumFractionDigits: digits,
+    minimumFractionDigits: digits,
   }).format(n)
 }
 
 /** $1,284 — whole-dollar money for stats and axis ticks */
-export function money0(n: number, currency: CurrencyCode = activeCurrency): string {
+export function money0(amount: number, cur?: CurrencyCode): string {
+  const { n, currency } = resolve(amount, cur)
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency,
@@ -31,8 +60,9 @@ export function money0(n: number, currency: CurrencyCode = activeCurrency): stri
 }
 
 /** $12.9K / $4.2M — compact money for tiles and axes */
-export function moneyCompact(n: number, currency: CurrencyCode = activeCurrency): string {
-  if (Math.abs(n) < 10000) return money0(n, currency)
+export function moneyCompact(amount: number, cur?: CurrencyCode): string {
+  if (Math.abs(amount) < 10000) return money0(amount, cur)
+  const { n, currency } = resolve(amount, cur)
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency,

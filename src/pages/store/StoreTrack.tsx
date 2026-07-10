@@ -7,6 +7,7 @@ import { motion } from 'framer-motion'
 import { CheckCircle2, ExternalLink, PackageSearch, Printer, Package, Truck, Home } from 'lucide-react'
 import { Button, Card, Field, Input } from '@/components/ui'
 import { api, ApiError, type PublicOrder } from '@/lib/api'
+import { useCatalog } from '@/store/useCatalog'
 import { fmtDate, money } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { Carrier, OrderStatus } from '@/data/types'
@@ -135,6 +136,9 @@ export default function StoreTrack() {
 
   const canceled = order && (order.status === 'Cancelled' || order.status === 'Returned')
   const itemsSubtotal = order ? order.items.reduce((a, i) => a + i.unitPrice * i.quantity, 0) : 0
+  // Order records show what was actually charged — never the display-currency estimate
+  const shopCurrency = useCatalog((s) => s.shop?.currency)
+  const charged = (n: number) => money(n, shopCurrency ?? 'USD')
 
   return (
     <motion.div
@@ -175,7 +179,7 @@ export default function StoreTrack() {
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-[15px] font-semibold text-ink">
               Order {order.number}
-              <span className="ml-2 font-normal text-ink-3">· {order.items.reduce((a, i) => a + i.quantity, 0)} items · {money(itemsSubtotal + order.shippingCharged + order.taxCollected)}</span>
+              <span className="ml-2 font-normal text-ink-3">· {order.items.reduce((a, i) => a + i.quantity, 0)} items · {charged(itemsSubtotal + order.shippingCharged + order.taxCollected)}</span>
             </h2>
             <span className="text-[13px] text-ink-3">Placed {fmtDate(order.placedAt)}</span>
           </div>
@@ -198,7 +202,7 @@ export default function StoreTrack() {
                   <span className="truncate">
                     {i.name} <span className="text-ink-3">× {i.quantity}</span>
                   </span>
-                  <span className="shrink-0 font-medium text-ink">{money(i.unitPrice * i.quantity)}</span>
+                  <span className="shrink-0 font-medium text-ink">{charged(i.unitPrice * i.quantity)}</span>
                 </li>
               ))}
             </ul>

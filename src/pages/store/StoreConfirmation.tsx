@@ -28,6 +28,8 @@ export default function StoreConfirmation() {
   const clear = useCart((s) => s.clear)
   const products = useCatalog((s) => s.products)
   const shop = useCatalog((s) => s.shop)
+  // Receipts show what was actually charged — never the display-currency estimate
+  const charged = (n: number) => money(n, shop?.currency ?? 'USD')
 
   const [order, setOrder] = useState<PublicOrder | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'pending' | 'notfound'>('loading')
@@ -187,10 +189,10 @@ export default function StoreConfirmation() {
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[13px] font-medium text-ink">{it.name}</div>
                     <div className="text-xs text-ink-3">
-                      {it.quantity} × {money(it.unitPrice)}
+                      {it.quantity} × {charged(it.unitPrice)}
                     </div>
                   </div>
-                  <div className="text-[13px] font-semibold text-ink">{money(it.unitPrice * it.quantity)}</div>
+                  <div className="text-[13px] font-semibold text-ink">{charged(it.unitPrice * it.quantity)}</div>
                 </li>
               )
             })}
@@ -201,23 +203,23 @@ export default function StoreConfirmation() {
           <div className="mt-4 space-y-1.5 border-t border-hairline pt-3 text-sm">
             <div className="flex items-center justify-between text-ink-2">
               <span>Subtotal</span>
-              <span className="font-medium text-ink">{money(itemsSubtotal)}</span>
+              <span className="font-medium text-ink">{charged(itemsSubtotal)}</span>
             </div>
             <div className="flex items-center justify-between text-ink-2">
               <span>Shipping</span>
               {order.shippingCharged === 0 ? (
                 <span className="font-medium text-[#006300] dark:text-good">Free</span>
               ) : (
-                <span className="font-medium text-ink">{money(order.shippingCharged)}</span>
+                <span className="font-medium text-ink">{charged(order.shippingCharged)}</span>
               )}
             </div>
             <div className="flex items-center justify-between text-ink-2">
               <span>Tax</span>
-              <span className="font-medium text-ink">{money(order.taxCollected)}</span>
+              <span className="font-medium text-ink">{charged(order.taxCollected)}</span>
             </div>
             <div className="flex items-center justify-between border-t border-hairline pt-2 text-[15px] font-semibold text-ink">
               <span>Total</span>
-              <span>{money(total)}</span>
+              <span>{charged(total)}</span>
             </div>
           </div>
 

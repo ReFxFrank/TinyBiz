@@ -86,6 +86,8 @@ export interface ShopInfo {
   city: string
   state: string
   currency: CurrencyCode
+  /** Conversion rates from the shop currency to the display currencies */
+  currencyRates: { rates: Record<string, number>; source: 'live' | 'approx'; asOf: string | null } | null
   taxRate: number
   freeShippingOver: number
   flatShipping: number

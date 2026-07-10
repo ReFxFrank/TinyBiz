@@ -11,7 +11,7 @@ import { useCart, useCartDetails } from '@/store/useCart'
 import { useCatalog } from '@/store/useCatalog'
 import { api, ApiError } from '@/lib/api'
 import { toast } from '@/store/useUI'
-import { money } from '@/lib/format'
+import { getDisplayCurrency, money } from '@/lib/format'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -29,6 +29,7 @@ export default function StoreCheckout() {
   // Where the shop ships (Settings → Shipping & delivery) — flips the address
   // wording between Canadian (province/postal code) and US (state/ZIP) forms
   const country = useCatalog((s) => s.shop?.shippingCountry) || 'Canada'
+  const shopCurrency = useCatalog((s) => s.shop?.currency)
   const isCanada = /canada/i.test(country)
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -353,6 +354,12 @@ export default function StoreCheckout() {
                 <span>{money(total)}</span>
               </div>
             </div>
+            {getDisplayCurrency() && shopCurrency && (
+              <p className="mt-3 text-xs leading-relaxed text-ink-3">
+                Prices in {getDisplayCurrency()} are estimates at today&rsquo;s rate — your card is charged{' '}
+                <span className="font-medium text-ink-2">{money(total, shopCurrency)}</span>.
+              </p>
+            )}
           </Card>
 
           <Button type="submit" size="lg" className="mt-4 w-full lg:hidden" disabled={submitting}>

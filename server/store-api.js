@@ -5,6 +5,7 @@
 import { Router } from 'express'
 import { db, uid, getCollection, getMeta, upsertItem, bumpRev } from './db.js'
 import { buildLines, computeTotals, promoUsable, nextOrderNumber, shippingConfig } from './store-math.js'
+import { currencyRates } from './rates.js'
 import { stripeEnabled, createCheckoutSession, getCheckoutSession, verifyWebhookSignature } from './stripe.js'
 import { sendOrderConfirmation } from './email.js'
 
@@ -24,6 +25,7 @@ function shopInfo() {
     city: s.address?.city || '',
     state: s.address?.state || '',
     currency: s.currency || 'USD',
+    currencyRates: currencyRates(s.currency || 'USD'),
     taxRate: Number(s.taxRate) || 0,
     freeShippingOver: shippingConfig(s).freeOver,
     flatShipping: shippingConfig(s).flatRate,

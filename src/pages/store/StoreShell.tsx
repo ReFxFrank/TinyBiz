@@ -5,14 +5,17 @@
 import { Suspense, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { MotionConfig } from 'framer-motion'
-import { ArrowLeft, Instagram, Moon, ShoppingBag, Sun, X, Youtube } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Instagram, Moon, ShoppingBag, Sun, X, Youtube } from 'lucide-react'
 import { Toaster } from '@/components/ui/Toaster'
 import { ErrorState } from '@/components/ui/EmptyState'
 import { useUI } from '@/store/useUI'
 import { api } from '@/lib/api'
+import { setDisplayCurrency } from '@/lib/format'
 import { useCatalog } from '@/store/useCatalog'
 import { useCart, useCartDetails } from '@/store/useCart'
 import { useStoreTheme } from '@/store/useStoreTheme'
+import { useStoreCurrency } from '@/store/useStoreCurrency'
+import { DISPLAY_CURRENCIES, type DisplayCurrencyCode } from '@/data/types'
 import { CartDrawer } from './CartDrawer'
 import { cn } from '@/lib/utils'
 
@@ -46,6 +49,35 @@ function PreviewBanner() {
         <X className="h-3.5 w-3.5" />
       </button>
     </div>
+  )
+}
+
+/** Compact currency picker — only currencies the day's rate sheet covers */
+function CurrencySelect() {
+  const shop = useCatalog((s) => s.shop)
+  const selected = useStoreCurrency((s) => s.selected)
+  const setSelected = useStoreCurrency((s) => s.setSelected)
+  const rates = shop?.currencyRates?.rates
+  if (!shop || !rates) return null
+  const options = DISPLAY_CURRENCIES.filter((c) => c === shop.currency || Number(rates[c]) > 0)
+  if (options.length < 2) return null
+  const value = selected && options.includes(selected) ? selected : shop.currency
+  return (
+    <span className="relative shrink-0" title="Prices convert at today's rate — the shop charges in its own currency">
+      <select
+        value={value}
+        onChange={(e) => setSelected(e.target.value as DisplayCurrencyCode)}
+        aria-label="Display currency"
+        className="h-9 cursor-pointer appearance-none rounded-xl bg-transparent pl-2.5 pr-7 text-sm font-medium text-ink-2 transition-colors hover:bg-sunken hover:text-ink focus:outline-none"
+      >
+        {options.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-3" />
+    </span>
   )
 }
 
@@ -85,6 +117,8 @@ function StoreHeader() {
             </NavLink>
           ))}
         </nav>
+
+        <CurrencySelect />
 
         <button
           onClick={toggleTheme}
@@ -250,8 +284,25 @@ function useStorefrontTheme() {
   }, [shop])
 }
 
+/**
+ * Applies the visitor's display currency to the money formatters. Runs during
+ * render (not in an effect) so the page tree below — remounted via key when
+ * the currency changes — formats with the new currency on its first paint.
+ */
+function useDisplayCurrency(): string {
+  const shop = useCatalog((s) => s.shop)
+  const selected = useStoreCurrency((s) => s.selected)
+  const rates = shop?.currencyRates?.rates
+  const rate = selected && rates ? Number(rates[selected]) : 0
+  const active = shop && selected && selected !== shop.currency && rate > 0 ? selected : null
+  setDisplayCurrency(active, rate)
+  useEffect(() => () => setDisplayCurrency(null), [])
+  return active ?? shop?.currency ?? 'shop'
+}
+
 export function StoreShell() {
   useStorefrontTheme()
+  const displayCur = useDisplayCurrency()
   const reduceMotion = useUI((s) => s.reduceMotion)
   const { pathname } = useLocation()
   useEffect(() => window.scrollTo(0, 0), [pathname])
@@ -273,7 +324,9 @@ export function StoreShell() {
       <div className="flex min-h-screen flex-col bg-page">
         <PreviewBanner />
         <StoreHeader />
-        <main className="flex-1">
+        {/* Keyed on the display currency: memoized price strings anywhere in
+            the tree re-derive the moment the visitor switches currency */}
+        <main className="flex-1" key={`main-${displayCur}`}>
           {status === 'error' ? (
             <div className="mx-auto w-full max-w-lg px-4 py-20">
               <ErrorState
@@ -291,7 +344,7 @@ export function StoreShell() {
           )}
         </main>
         <StoreFooter />
-        <CartDrawer />
+        <CartDrawer key={`cart-${displayCur}`} />
         <Toaster />
       </div>
     </MotionConfig>

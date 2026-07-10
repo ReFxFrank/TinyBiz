@@ -601,6 +601,8 @@ export interface Settings {
   printerBridgeUrl: string
   /** Storefront wording overrides — see StorefrontContent */
   storefront?: Partial<StorefrontContent>
+  /** Uploaded photo for the "About the maker" section — blank uses the logo */
+  makerPhotoUrl?: string
   /** Storefront shipping configuration */
   shipping?: ShippingConfig
   /** Store policy overrides — see PolicyContent */

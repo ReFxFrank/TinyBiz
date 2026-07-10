@@ -94,6 +94,8 @@ export interface ShopInfo {
   shippingCountry: string
   shippingRegion: string
   storefront: Partial<StorefrontContent>
+  /** Owner's uploaded photo for the About the maker section (null = logo) */
+  makerPhoto: string | null
   policies: Partial<PolicyContent>
   social: SocialLinks
   promoBanner: PromoBanner | null

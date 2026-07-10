@@ -569,10 +569,11 @@ export default function StoreHome() {
             </div>
             <div className="relative grid sm:grid-cols-[260px_1fr]">
               <div aria-hidden className="flex min-h-[180px] items-center justify-center brand-gradient-soft">
+                {/* The owner's photo when they've added one, else the shop logo */}
                 <img
-                  src="/brand/logo.png"
+                  src={shop?.makerPhoto || '/brand/logo.png'}
                   alt=""
-                  className="tb-bob h-32 w-32 rounded-full shadow-lifted ring-2 ring-edge sm:h-36 sm:w-36"
+                  className="tb-bob h-32 w-32 rounded-full object-cover shadow-lifted ring-2 ring-edge sm:h-36 sm:w-36"
                   style={{ '--bob-rot': '-4deg' } as CSSProperties}
                 />
               </div>

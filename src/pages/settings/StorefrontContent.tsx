@@ -2,11 +2,13 @@
 // page, editable. Blank fields fall back to defaults built from the business
 // identity, so clearing a field is always safe.
 
-import { useMemo, useState } from 'react'
-import { ExternalLink, Save } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { ExternalLink, ImagePlus, Save, X } from 'lucide-react'
 import { Button, Card, CardHeader, Field, Input, Textarea } from '@/components/ui'
 import { useStore } from '@/store/useStore'
 import { toast } from '@/store/useUI'
+import { api, ApiError } from '@/lib/api'
+import { prepareImageForUpload } from '@/lib/image'
 import { defaultStorefrontCopy, STOREFRONT_FIELDS } from '@/lib/storefrontCopy'
 import { emojify } from '@/lib/emoji'
 import { DEFAULT_SHIPPING, type StorefrontContent as Content } from '@/data/types'
@@ -27,6 +29,27 @@ export function StorefrontContentCard() {
   }, [settings.businessName, settings.ownerName, settings.address.city, settings.shipping])
 
   const [draft, setDraft] = useState<Partial<Content>>(settings.storefront ?? {})
+  const [uploading, setUploading] = useState(false)
+  const photoInputRef = useRef<HTMLInputElement>(null)
+
+  // The maker photo applies immediately (like an avatar) — no Save needed
+  const pickMakerPhoto = async (file: File | null) => {
+    if (!file) return
+    setUploading(true)
+    try {
+      const blob = await prepareImageForUpload(file)
+      const { url } = await api.upload(blob)
+      updateSettings({ makerPhotoUrl: url })
+      toast('Maker photo updated', { description: 'The About the maker section shows it right away.', tone: 'success' })
+    } catch (err) {
+      toast('Couldn’t upload that photo', {
+        description: err instanceof ApiError ? err.message : 'Could not read that image.',
+        tone: 'error',
+      })
+    } finally {
+      setUploading(false)
+    }
+  }
   // emojify as-you-type: ":sparkles:" becomes ✨ the moment the closing colon lands
   const set = (key: keyof Content, value: string) => setDraft((d) => ({ ...d, [key]: emojify(value) }))
 
@@ -66,6 +89,54 @@ export function StorefrontContentCard() {
           </div>
         }
       />
+      <div className="mb-5">
+        <Field
+          label="Maker photo"
+          hint="Shows in the About the maker section — a photo of you! Leave it empty to use your logo."
+        >
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="hidden"
+            onChange={(e) => {
+              void pickMakerPhoto(e.target.files?.[0] ?? null)
+              e.target.value = '' // allow re-picking the same file
+            }}
+          />
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <img
+                src={settings.makerPhotoUrl || '/brand/logo.png'}
+                alt="Maker photo"
+                className="h-16 w-16 rounded-full border border-hairline object-cover"
+              />
+              {settings.makerPhotoUrl && (
+                <button
+                  type="button"
+                  aria-label="Remove maker photo"
+                  onClick={() => {
+                    updateSettings({ makerPhotoUrl: '' })
+                    toast('Back to the logo', { description: 'The About section shows your logo again.', tone: 'success' })
+                  }}
+                  className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-critical text-white shadow-soft"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<ImagePlus />}
+              disabled={uploading}
+              onClick={() => photoInputRef.current?.click()}
+            >
+              {uploading ? 'Uploading…' : settings.makerPhotoUrl ? 'Swap photo' : 'Add photo'}
+            </Button>
+          </div>
+        </Field>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
         {STOREFRONT_FIELDS.map(({ key, label, hint, multiline }) => (
           <Field key={key} label={label} hint={hint} className={multiline ? 'sm:col-span-2' : undefined}>

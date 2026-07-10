@@ -62,6 +62,48 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Boot guard: if the app never mounts, don't sit on a silent black page.
+      // The entry <script> below flags a hard load failure (cached 404,
+      // blocked file, mid-deploy hiccup) → reload once, then a real message.
+      // A slow connection (no failure flag) just gets more patience.
+      (function () {
+        var start = Date.now();
+        // Resource errors don't bubble, but capture phase sees them — this is
+        // how a failed entry chunk is told apart from a merely slow network.
+        // (An onerror attribute on the script tag doesn't survive the build.)
+        window.addEventListener(
+          'error',
+          function (e) {
+            var t = e.target;
+            if (t && t.tagName === 'SCRIPT' && t.src) window.__tmsEntryFailed = 1;
+          },
+          true
+        );
+        function stuck() {
+          var root = document.getElementById('root');
+          if (!root || root.childElementCount > 0) return; // booted — all good
+          var failed = window.__tmsEntryFailed;
+          if (!failed && Date.now() - start < 40000) return void setTimeout(stuck, 4000); // still downloading
+          var last = Number(sessionStorage.getItem('tms-boot-retry') || 0);
+          if (failed && Date.now() - last > 60000) {
+            sessionStorage.setItem('tms-boot-retry', String(Date.now()));
+            location.reload();
+            return;
+          }
+          var dark = document.documentElement.classList.contains('dark');
+          root.innerHTML =
+            '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:-apple-system,Segoe UI,Roboto,sans-serif;padding:24px;">' +
+            '<div style="max-width:420px;text-align:center;color:' + (dark ? '#e8e6df' : '#2b2a26') + ';">' +
+            '<div style="font-size:40px;">✨</div>' +
+            '<h1 style="font-size:20px;margin:14px 0 8px;">The shop is having trouble loading</h1>' +
+            '<p style="font-size:14px;line-height:1.6;opacity:.75;margin:0 0 20px;">We may have just published an update. It usually sorts itself out within a minute or two.</p>' +
+            '<button onclick="sessionStorage.removeItem(\'tms-boot-retry\');location.reload()" style="background:#b3c375;color:#26290f;border:0;border-radius:12px;padding:11px 22px;font-size:15px;font-weight:700;cursor:pointer;">Try again</button>' +
+            '</div></div>';
+        }
+        setTimeout(stuck, 8000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

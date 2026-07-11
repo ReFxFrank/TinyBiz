@@ -367,25 +367,47 @@ function OrdersCard() {
   const shopCurrency = useCatalog((s) => s.shop?.currency)
   const [orders, setOrders] = useState<PublicOrder[] | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
+  const loadOrders = () =>
     api.account
       .orders()
-      .then((r) => {
-        if (!cancelled) setOrders(r.orders)
-      })
-      .catch(() => {
-        if (!cancelled) setOrders([])
-      })
-    return () => {
-      cancelled = true
-    }
+      .then((r) => setOrders(r.orders))
+      .catch(() => setOrders((prev) => prev ?? []))
+
+  useEffect(() => {
+    void loadOrders()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Bought as a guest (maybe under a different email) before making the
+  // account? Number + purchase email links that order into this history.
+  const [claimOpen, setClaimOpen] = useState(false)
+  const [claimNumber, setClaimNumber] = useState('')
+  const [claimEmail, setClaimEmail] = useState('')
+  const [claiming, setClaiming] = useState(false)
+  const claim = async () => {
+    if (claiming || !claimNumber.trim() || !claimEmail.trim()) return
+    setClaiming(true)
+    try {
+      const r = await api.account.claim(claimNumber.trim(), claimEmail.trim())
+      toast(`Order ${r.order.number} added to your history`, { tone: 'success' })
+      setClaimNumber('')
+      setClaimEmail('')
+      setClaimOpen(false)
+      await loadOrders()
+    } catch (err) {
+      toast('Couldn’t find that order', {
+        description: err instanceof ApiError ? err.message : 'Try again in a moment.',
+        tone: 'error',
+      })
+    } finally {
+      setClaiming(false)
+    }
+  }
 
   // Receipts show what was actually charged — never the display-currency estimate
   const charged = (n: number) => money(n, shopCurrency ?? 'USD')
   const total = (o: PublicOrder) =>
-    o.items.reduce((a, i) => a + i.unitPrice * i.quantity, 0) + o.shippingCharged + o.taxCollected
+    o.items.reduce((a, i) => a + i.unitPrice * i.quantity, 0) + o.shippingCharged + o.taxCollected - (o.discountTotal ?? 0)
 
   return (
     <Card padding="lg">
@@ -436,6 +458,56 @@ function OrdersCard() {
             </li>
           ))}
         </ul>
+      )}
+
+      {/* Staff accounts see their studio email's orders only — claiming is a shopper thing */}
+      {!account?.staff && (
+        <div className="mt-5 border-t border-hairline pt-4">
+          {claimOpen ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                void claim()
+              }}
+              className="space-y-3"
+            >
+              <p className="text-[13px] text-ink-3">
+                Enter the order number from your confirmation email, and the email address you used at checkout.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input
+                  value={claimNumber}
+                  onChange={(e) => setClaimNumber(e.target.value)}
+                  placeholder="TMS-1024"
+                  aria-label="Order number"
+                  className="font-mono"
+                />
+                <Input
+                  type="email"
+                  value={claimEmail}
+                  onChange={(e) => setClaimEmail(e.target.value)}
+                  placeholder="Email used at checkout"
+                  aria-label="Email used at checkout"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button type="submit" size="sm" disabled={claiming || !claimNumber.trim() || !claimEmail.trim()}>
+                  {claiming ? 'Looking…' : 'Add to my history'}
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setClaimOpen(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <button
+              onClick={() => setClaimOpen(true)}
+              className="text-[13px] font-medium text-accent-strong hover:underline dark:text-accent"
+            >
+              Bought something before creating your account? Link that order →
+            </button>
+          )}
+        </div>
       )}
     </Card>
   )

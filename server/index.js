@@ -47,6 +47,8 @@ app.use('/api/auth/reset', rateLimit({ windowMs: 10 * 60_000, max: 10, name: 're
 app.use('/api/store/account/forgot', rateLimit({ windowMs: 10 * 60_000, max: 5, name: 'shop-forgot' }))
 app.use('/api/store/account/reset', rateLimit({ windowMs: 10 * 60_000, max: 10, name: 'shop-reset' }))
 app.use('/api/store/notify-stock', rateLimit({ windowMs: 10 * 60_000, max: 20, name: 'notify-stock' }))
+// Claiming needs number+email proof — rate-limit like /track so it can't be fished
+app.use('/api/store/account/claim', rateLimit({ windowMs: 10 * 60_000, max: 20, name: 'claim' }))
 
 app.use(express.json({ limit: '15mb' })) // localStorage imports can be chunky
 app.use(sessionMiddleware)

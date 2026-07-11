@@ -21,7 +21,10 @@ export interface CartItem {
 /** A promo the server has validated — set via api.promo() */
 export interface AppliedPromo {
   code: string
+  /** undefined = 'percent' (older persisted promos) */
+  type?: 'percent' | 'fixed' | 'freeship'
   discountPct: number
+  amountOff?: number
 }
 
 const itemKey = (productId: string, variantId?: string) => `${productId}::${variantId ?? ''}`
@@ -143,6 +146,8 @@ export interface CartDetails {
   subtotal: number
   promo: AppliedPromo | null
   discount: number
+  /** True when the applied promo is a free-shipping code */
+  freeShip: boolean
   /** Free over the threshold; flat rate below it */
   shipping: number
   freeShippingThreshold: number
@@ -153,6 +158,14 @@ export interface CartDetails {
 
 export const FREE_SHIPPING_OVER = 50
 export const FLAT_SHIPPING = 4.99
+
+/** Human label for what a promo does — "−15%", "−$5.00", "free shipping" */
+export function promoLabel(p: AppliedPromo): string {
+  const t = p.type ?? 'percent'
+  if (t === 'freeship') return 'free shipping'
+  if (t === 'fixed') return `−$${(p.amountOff ?? 0).toFixed(2)}`
+  return `−${p.discountPct}%`
+}
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 
@@ -169,7 +182,8 @@ export function useCartDetails(province?: string): CartDetails {
   const flatShipping = shop?.flatShipping ?? FLAT_SHIPPING
 
   return useMemo(() => {
-    const pct = promo?.discountPct ?? 0
+    const promoType = promo ? (promo.type ?? 'percent') : null
+    const pct = promoType === 'percent' ? (promo?.discountPct ?? 0) : 0
     const lines: CartLine[] = []
     // Belt over braces: the persist merge sanitizes, but this runs in the
     // HEADER on every page — it must survive anything
@@ -193,21 +207,27 @@ export function useCartDetails(province?: string): CartDetails {
     }
     const subtotal = lines.reduce((a, l) => a + l.lineTotal, 0)
     const discountedSubtotal = round2(lines.reduce((a, l) => a + l.discountedUnitPrice * l.item.qty, 0))
-    const discount = round2(subtotal - discountedSubtotal)
-    const shipping = lines.length === 0 || discountedSubtotal >= freeShippingThreshold ? 0 : flatShipping
-    // Tax applies to goods AND shipping — mirrors the server's computeTotals
-    const tax = round2(((discountedSubtotal + shipping) * taxRate) / 100)
+    // Fixed-amount promos discount the ORDER, not the unit prices; free
+    // shipping zeroes the shipping line — mirrors server computePromoTotals
+    const fixedOff = promoType === 'fixed' ? Math.min(discountedSubtotal, round2(promo?.amountOff ?? 0)) : 0
+    const goods = round2(discountedSubtotal - fixedOff)
+    const freeShip = promoType === 'freeship'
+    const discount = round2(subtotal - discountedSubtotal + fixedOff)
+    const shipping = lines.length === 0 || freeShip || goods >= freeShippingThreshold ? 0 : flatShipping
+    // Tax applies to what's charged: discounted goods AND shipping
+    const tax = round2(((goods + shipping) * taxRate) / 100)
     return {
       lines,
       count: lines.reduce((a, l) => a + l.item.qty, 0),
       subtotal,
       promo,
       discount,
+      freeShip,
       shipping,
       freeShippingThreshold,
       taxRate,
       tax,
-      total: round2(discountedSubtotal + shipping + tax),
+      total: round2(goods + shipping + tax),
     }
   }, [items, promo, products, taxRate, freeShippingThreshold, flatShipping])
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { CheckCircle2, Copy, Megaphone, MoreHorizontal, Pause, Pencil, Play, Plus, TicketPercent, Trash2 } from 'lucide-react'
-import type { Campaign, CampaignChannel, CampaignStatus, PromoCode } from '@/data/types'
+import type { Campaign, CampaignChannel, CampaignStatus, PromoCode, PromoType } from '@/data/types'
 import { useStore } from '@/store/useStore'
 import { toast } from '@/store/useUI'
 import { uid, sum, useLoaded, useDebounced, cn } from '@/lib/utils'
@@ -210,31 +210,48 @@ function CampaignModal({ open, onClose, editing }: { open: boolean; onClose: () 
 
 // ── Promo code modal ─────────────────────────────────────────────────────────
 
+const PROMO_TYPES: Array<{ value: PromoType; label: string }> = [
+  { value: 'percent', label: 'Percent off' },
+  { value: 'fixed', label: 'Dollars off' },
+  { value: 'freeship', label: 'Free shipping' },
+]
+
 function PromoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const addItem = useStore((s) => s.addItem)
   const [code, setCode] = useState('')
+  const [type, setType] = useState<PromoType>('percent')
   const [discount, setDiscount] = useState('10')
+  const [amount, setAmount] = useState('5')
   const [maxUses, setMaxUses] = useState('')
   const [expiresAt, setExpiresAt] = useState('')
 
   useEffect(() => {
     if (open) {
       setCode('')
+      setType('percent')
       setDiscount('10')
+      setAmount('5')
       setMaxUses('')
       setExpiresAt('')
     }
   }, [open])
 
   const discountNum = Number(discount)
-  const valid = code.trim().length > 0 && Number.isFinite(discountNum) && discountNum >= 1 && discountNum <= 100
+  const amountNum = Number(amount)
+  const valid =
+    code.trim().length > 0 &&
+    (type === 'freeship' ||
+      (type === 'percent' && Number.isFinite(discountNum) && discountNum >= 1 && discountNum <= 100) ||
+      (type === 'fixed' && Number.isFinite(amountNum) && amountNum > 0))
 
   const submit = () => {
     if (!valid) return
     const promo: PromoCode = {
       id: uid('promo'),
       code: code.trim().toUpperCase(),
-      discountPct: Math.round(discountNum),
+      type,
+      discountPct: type === 'percent' ? Math.round(discountNum) : 0,
+      amountOff: type === 'fixed' ? Math.round(amountNum * 100) / 100 : undefined,
       uses: 0,
       maxUses: maxUses ? Math.max(1, Number(maxUses) || 1) : undefined,
       active: true,
@@ -273,9 +290,24 @@ function PromoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
             autoFocus
           />
         </Field>
-        <Field label="Discount %" required hint="Between 1 and 100">
-          <Input type="number" min={1} max={100} step="1" value={discount} onChange={(e) => setDiscount(e.target.value)} />
+        <Field label="What it does" required>
+          <Select value={type} onChange={(e) => setType(e.target.value as PromoType)} options={PROMO_TYPES} />
         </Field>
+        {type === 'percent' && (
+          <Field label="Discount %" required hint="Between 1 and 100">
+            <Input type="number" min={1} max={100} step="1" value={discount} onChange={(e) => setDiscount(e.target.value)} />
+          </Field>
+        )}
+        {type === 'fixed' && (
+          <Field label="Amount off ($)" required hint="Taken off the order subtotal">
+            <Input type="number" min={0.5} step="0.5" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          </Field>
+        )}
+        {type === 'freeship' && (
+          <p className="rounded-xl bg-sunken px-3 py-2 text-[13px] text-ink-3">
+            Shipping is free on any order using this code, no minimum.
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-4">
           <Field label="Max uses" hint="Optional">
             <Input type="number" min={1} step="1" value={maxUses} onChange={(e) => setMaxUses(e.target.value)} placeholder="Unlimited" />
@@ -491,8 +523,16 @@ export default function Marketing() {
       key: 'discount',
       header: 'Discount',
       align: 'right',
-      sortValue: (p) => p.discountPct,
-      render: (p) => <span className="tnum">{p.discountPct}%</span>,
+      sortValue: (p) => ((p.type ?? 'percent') === 'fixed' ? (p.amountOff ?? 0) : p.discountPct),
+      render: (p) => (
+        <span className="tnum">
+          {(p.type ?? 'percent') === 'freeship'
+            ? 'Free shipping'
+            : (p.type ?? 'percent') === 'fixed'
+              ? `$${(p.amountOff ?? 0).toFixed(2)} off`
+              : `${p.discountPct}%`}
+        </span>
+      ),
     },
     {
       key: 'usage',

@@ -245,14 +245,49 @@ shopAccountRouter.post('/reset', (req, res) => {
   res.json({ ok: true, account: publicAccount(stmtById.get(accountId)) })
 })
 
-/** Every order placed with the account's email — guest orders included */
+/** Every order placed with the account's email — guest orders included —
+ *  plus any order the shopper explicitly claimed with number + email */
 shopAccountRouter.get('/orders', (req, res) => {
   const sess = shopperSession(req)
   const email = sess ? sess.row.email : req.user ? String(req.user.email).toLowerCase() : null
   if (!email) return res.status(401).json({ error: 'unauthorized' })
+  const accountId = sess?.row.id
   const orders = getCollection('orders')
-    .filter((o) => String(o.email || '').trim().toLowerCase() === email)
+    .filter(
+      (o) =>
+        String(o.email || '').trim().toLowerCase() === email ||
+        (accountId && o.claimedByAccountId === accountId),
+    )
     .sort((a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime())
     .map(publicOrder)
   res.json({ orders })
+})
+
+/** Bought as a guest with a different email, made the account after? Claim
+ *  the order into this account's history. Same proof as the Track page —
+ *  order number PLUS the email used at purchase — so numbers alone can't be
+ *  fished for other people's orders. */
+shopAccountRouter.post('/claim', (req, res) => {
+  const sess = shopperSession(req)
+  if (!sess) return res.status(401).json({ error: 'unauthorized' })
+  const rawNumber = String(req.body?.number || '').trim().toUpperCase()
+  const email = String(req.body?.email || '').trim().toLowerCase()
+  const digits = rawNumber.replace(/\D/g, '')
+  if (!rawNumber || !email) {
+    return res.status(400).json({ error: 'bad_request', message: 'Enter the order number and the email you used at checkout.' })
+  }
+  const order = getCollection('orders').find((o) => {
+    if (String(o.email || '').trim().toLowerCase() !== email) return false
+    const num = String(o.number || '').toUpperCase()
+    return num === rawNumber || (digits.length > 0 && num.replace(/\D/g, '') === digits)
+  })
+  if (!order) {
+    return res.status(404).json({ error: 'not_found', message: 'No order matches that number and email.' })
+  }
+  if (order.claimedByAccountId && order.claimedByAccountId !== sess.row.id) {
+    return res.status(409).json({ error: 'claimed', message: 'That order is already linked to another account.' })
+  }
+  upsertItem('orders', { ...order, claimedByAccountId: sess.row.id })
+  bumpRev()
+  res.json({ ok: true, order: publicOrder(order) })
 })

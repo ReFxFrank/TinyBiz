@@ -66,11 +66,12 @@ export async function createPayPalOrder({ priced, ref, origin }) {
         amount: {
           currency_code: currency,
           value: amt(t.total),
-          // PayPal validates: item_total + shipping + tax_total must equal value
+          // PayPal validates: item_total + shipping + tax_total − discount = value
           breakdown: {
             item_total: { currency_code: currency, value: amt(t.discountedSubtotal) },
             shipping: { currency_code: currency, value: amt(t.shipping) },
             tax_total: { currency_code: currency, value: amt(t.tax) },
+            ...(t.fixedOff > 0 ? { discount: { currency_code: currency, value: amt(t.fixedOff) } } : {}),
           },
         },
         items: t.lines.map((l) => ({

@@ -57,14 +57,51 @@ function cancelTransition(oldOrder, newOrder) {
 }
 
 /**
- * Put a cancelled/returned order's items back in stock. Only website orders —
- * they're the ones whose stock was decremented at checkout (hand-entered
- * Etsy/market orders never touched stock). Returns the order stamped with
- * restockedAt so a later status flip-flop can't double-restock.
+ * Hand-entered orders (market day, DMs, duplicates) sold real units too —
+ * deduct their stock the moment they're created, with an adjustment trail.
+ * Website orders deduct at checkout and Etsy imports deduct in the sync, so
+ * this only fires for orders INSERTED through the admin's sync ops. Returns
+ * the order stamped stockDeductedAt so the cancel path knows to restock.
+ */
+function deductOrderStock(order) {
+  const now = new Date().toISOString()
+  for (const it of order.items || []) {
+    const product = getItem('products', it.productId)
+    if (!product) continue // free-text or Etsy-placeholder line — nothing to move
+    if (it.variantId) {
+      upsertItem('products', {
+        ...product,
+        variants: (product.variants || []).map((v) =>
+          v.id === it.variantId ? { ...v, stock: Math.max(0, (v.stock || 0) - it.quantity) } : v,
+        ),
+      })
+    } else {
+      const applied = Math.min(product.stock || 0, it.quantity)
+      upsertItem('products', { ...product, stock: Math.max(0, (product.stock || 0) - it.quantity) })
+      upsertItem('adjustments', {
+        id: uid('adj'),
+        date: now,
+        itemType: 'product',
+        itemId: product.id,
+        itemName: it.name,
+        delta: -applied,
+        reason: 'Manual',
+        notes: `Order ${order.number} — manual entry`,
+      })
+    }
+  }
+  return { ...order, stockDeductedAt: now }
+}
+
+/**
+ * Put a cancelled/returned order's items back in stock — for any order whose
+ * stock was actually deducted: website checkouts, and manual orders stamped
+ * stockDeductedAt above. Returns the order stamped with restockedAt so a
+ * later status flip-flop can't double-restock.
  */
 function restockOrder(order) {
   const now = new Date().toISOString()
-  if (order.channel !== 'Website') return { ...order, restockedAt: now }
+  if (order.channel !== 'Website' && !order.stockDeductedAt) return { ...order, restockedAt: now }
   for (const it of order.items || []) {
     const product = getItem('products', it.productId)
     if (!product) continue
@@ -108,9 +145,14 @@ const applyOps = db.transaction((ops, access) => {
       let item = op.item
       if (op.collection === 'orders') {
         const old = getItem('orders', op.item.id)
+        // Brand-new order from the admin (manual entry / duplicate) — stock
+        // follows the sale. Website + Etsy orders never arrive as ops inserts.
+        if (!old && !item.stockDeductedAt && !isDeadStatus(item.status)) {
+          item = deductOrderStock(item)
+        }
         if (shippedTransition(old, op.item)) shipped.push(op.item)
-        if (cancelTransition(old, op.item)) {
-          item = restockOrder(op.item)
+        if (cancelTransition(old, item)) {
+          item = restockOrder(item)
           cancelled.push(item)
         }
       }

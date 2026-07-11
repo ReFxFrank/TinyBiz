@@ -7,14 +7,16 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type Ref
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, CreditCard, Lock, ShoppingBag, Tag } from 'lucide-react'
 import { Button, Card, CardHeader, EmptyState, Field, Input, Textarea } from '@/components/ui'
-import { useCart, useCartDetails } from '@/store/useCart'
+import { promoLabel, useCart, useCartDetails } from '@/store/useCart'
 import { useCatalog } from '@/store/useCatalog'
 import { useShopAccount } from '@/store/useShopAccount'
 import { api, ApiError } from '@/lib/api'
 import { toast } from '@/store/useUI'
 import { getDisplayCurrency, money } from '@/lib/format'
+import { provinceCode } from '@/lib/tax'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const CA_POSTAL_RE = /^[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d$/
 
 const tileGradient = (hue: number) =>
   `linear-gradient(135deg, hsl(${hue}, 70%, 92%), hsl(${(hue + 40) % 360}, 60%, 86%))`
@@ -103,7 +105,9 @@ export default function StoreCheckout() {
     if (!form.line1.trim()) errs.line1 = 'Please enter your street address'
     if (!form.city.trim()) errs.city = 'Required'
     if (!form.state.trim()) errs.state = 'Required'
+    else if (isCanada && !provinceCode(form.state)) errs.state = 'Use a province, like BC or Ontario'
     if (!form.zip.trim()) errs.zip = 'Required'
+    else if (isCanada && !CA_POSTAL_RE.test(form.zip.trim())) errs.zip = 'Format: A1A 1A1'
     return errs
   }
 
@@ -400,10 +404,10 @@ export default function StoreCheckout() {
                 <span className="flex min-w-0 items-center gap-1.5">
                   <Tag className="h-3 w-3 shrink-0" />
                   <span className="truncate">
-                    {promo.code} · −{promo.discountPct}%
+                    {promo.code} · {promoLabel(promo)}
                   </span>
                 </span>
-                <span className="shrink-0">−{money(discount)}</span>
+                {(promo.type ?? 'percent') !== 'freeship' && <span className="shrink-0">−{money(discount)}</span>}
               </div>
             )}
 

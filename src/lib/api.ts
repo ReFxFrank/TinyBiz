@@ -120,7 +120,8 @@ export interface ShopAccount {
 export type PublicOrder = Pick<
   Order,
   | 'id' | 'number' | 'customerName' | 'email' | 'status' | 'items' | 'shippingCharged' | 'taxCollected'
-  | 'shippingAddress' | 'notes' | 'placedAt' | 'shipBy' | 'trackingNumber' | 'carrier' | 'shippedAt' | 'deliveredAt'
+  | 'discountTotal' | 'shippingAddress' | 'notes' | 'placedAt' | 'shipBy' | 'trackingNumber' | 'carrier'
+  | 'shippedAt' | 'deliveredAt'
 >
 
 export interface CheckoutPayload {
@@ -204,6 +205,11 @@ export const api = {
     reset: (token: string, password: string) =>
       request<{ account: ShopAccount }>('/api/store/account/reset', { method: 'POST', body: JSON.stringify({ token, password }) }),
     orders: () => request<{ orders: PublicOrder[] }>('/api/store/account/orders'),
+    claim: (number: string, email: string) =>
+      request<{ ok: true; order: PublicOrder }>('/api/store/account/claim', {
+        method: 'POST',
+        body: JSON.stringify({ number, email }),
+      }),
   },
 
   // owner state sync
@@ -231,10 +237,10 @@ export const api = {
   // public storefront
   catalog: () => request<{ products: Product[]; shop: ShopInfo; bestSellerIds: string[] }>('/api/store/catalog'),
   promo: (code: string) =>
-    request<{ valid: boolean; code?: string; discountPct?: number }>('/api/store/promo', {
-      method: 'POST',
-      body: JSON.stringify({ code }),
-    }),
+    request<{ valid: boolean; code?: string; type?: 'percent' | 'fixed' | 'freeship'; discountPct?: number; amountOff?: number }>(
+      '/api/store/promo',
+      { method: 'POST', body: JSON.stringify({ code }) },
+    ),
   checkout: (payload: CheckoutPayload) =>
     request<CheckoutResponse>('/api/store/checkout', { method: 'POST', body: JSON.stringify(payload) }),
   order: (id: string) => request<{ order: PublicOrder }>(`/api/store/order/${encodeURIComponent(id)}`),

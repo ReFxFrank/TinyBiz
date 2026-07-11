@@ -66,10 +66,25 @@ export async function createCheckoutSession({ priced, ref, origin }) {
       price_data: { currency, unit_amount: Math.round(priced.totals.tax * 100), product_data: { name: 'Sales tax' } },
     })
   }
+  // Fixed-amount promos ride as a one-off coupon — Stripe rejects negative
+  // line items. Tax was already computed on the discounted goods, so the
+  // final charge lands exactly on priced.totals.total.
+  let discounts
+  if (priced.totals.fixedOff > 0) {
+    const coupon = await stripeRequest('POST', '/coupons', {
+      amount_off: Math.round(priced.totals.fixedOff * 100),
+      currency,
+      duration: 'once',
+      name: (priced.promo?.code || 'Discount').slice(0, 40),
+    })
+    discounts = [{ coupon: coupon.id }]
+  }
+
   return stripeRequest('POST', '/checkout/sessions', {
     mode: 'payment',
     customer_email: priced.contact.email,
     line_items,
+    ...(discounts ? { discounts } : {}),
     metadata: { ref },
     // Shortest expiry Stripe allows — an open session holds no stock, so the
     // window where someone else can buy the last unit stays small

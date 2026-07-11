@@ -643,6 +643,68 @@ function startServer(config) {
   process.on('SIGTERM', flushAndExit)
 }
 
+// ── API watchdog ─────────────────────────────────────────────────────────────
+// The bridge is a separate process, so it survives an API crash — make it the
+// canary. Every WATCHDOG_EVERY_MS (5 min) it pings the API's health endpoint;
+// after 3 straight failures it emails WATCHDOG_EMAIL once (and once more on
+// recovery). Needs real SMTP — in demo mode it only logs. Note the honest
+// limit: if the whole VPS goes down, both processes die together — an external
+// pinger (e.g. uptimerobot.com, free) is the belt to this suspender.
+
+function startWatchdog(config) {
+  const to = String(process.env.WATCHDOG_EMAIL || '').trim()
+  if (!to) return
+  const target = process.env.WATCHDOG_URL || 'http://127.0.0.1:4000/api/health'
+  const every = Number(process.env.WATCHDOG_EVERY_MS) || 5 * 60_000
+  let failures = 0
+  let alerted = false
+
+  // WATCHDOG_FROM should be a sender the SMTP provider accepts (same domain
+  // as the newsletter from-address); defaults to the alert recipient.
+  const fromEmail = String(process.env.WATCHDOG_FROM || to).trim()
+  const notify = async (subject, text) => {
+    console.log(`[watchdog] ${subject}`)
+    if (isDemo(config)) return
+    try {
+      await realSendAll(config, { name: 'Tiny Magic watchdog', email: fromEmail }, null, [
+        { email: to, subject, html: `<pre style="font:14px monospace">${text}</pre>`, text },
+      ])
+    } catch (err) {
+      console.warn(`[watchdog] could not send alert: ${err.message}`)
+    }
+  }
+
+  const tick = async () => {
+    let ok = false
+    try {
+      const res = await fetch(target, { signal: AbortSignal.timeout(10_000) })
+      ok = res.ok
+    } catch {
+      ok = false
+    }
+    if (ok) {
+      if (alerted) {
+        alerted = false
+        void notify('✅ Shop API is back up', `${target} is answering again as of ${new Date().toISOString()}.`)
+      }
+      failures = 0
+      return
+    }
+    failures++
+    if (failures >= 3 && !alerted) {
+      alerted = true
+      void notify(
+        '🚨 Shop API is DOWN',
+        `${target} has failed ${failures} checks in a row (as of ${new Date().toISOString()}).\n` +
+          `SSH in and check: systemctl status tinymagic-api && journalctl -u tinymagic-api -n 50`,
+      )
+    }
+  }
+
+  setInterval(tick, every).unref()
+  console.log(`Watchdog: pinging ${target} every ${Math.round(every / 1000)}s → alerts to ${to}`)
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 function main() {
@@ -654,6 +716,7 @@ function main() {
   }
   loadStore()
   startServer(config)
+  startWatchdog(config)
 }
 
 main()

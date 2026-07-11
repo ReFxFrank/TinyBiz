@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Copy, CopyPlus, ExternalLink, Trash2 } from 'lucide-react'
+import { Copy, CopyPlus, ExternalLink, Printer, Trash2 } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -24,6 +24,7 @@ import { dueIn, fmtDateShort, fmtDateTime, money } from '@/lib/format'
 import { addDays } from '@/lib/dates'
 import { cn, uid } from '@/lib/utils'
 import { toast } from '@/store/useUI'
+import { printPackingSlip } from '@/lib/packingSlip'
 
 export interface OrderDrawerProps {
   order: Order | null
@@ -116,6 +117,8 @@ export default function OrderDrawer({ order, onClose, onOpenOrder }: OrderDrawer
       deliveredAt: undefined,
       payment: undefined, // the copy hasn't collected anything
       restockedAt: undefined,
+      stockDeductedAt: undefined, // server deducts fresh stock for the copy
+      etsyReceiptId: undefined,
     }
     addItem('orders', clone)
     toast(`Order duplicated as ${clone.number}`, { tone: 'success' })
@@ -139,6 +142,13 @@ export default function OrderDrawer({ order, onClose, onOpenOrder }: OrderDrawer
           <>
             <Button variant="ghost" icon={<Trash2 />} className="mr-auto text-critical hover:text-critical" onClick={() => setConfirmDelete(true)}>
               Delete
+            </Button>
+            <Button
+              variant="secondary"
+              icon={<Printer />}
+              onClick={() => printPackingSlip(o, products, useStore.getState().settings)}
+            >
+              Packing slip
             </Button>
             <Button variant="secondary" icon={<CopyPlus />} onClick={duplicate}>
               Duplicate
@@ -204,6 +214,11 @@ export default function OrderDrawer({ order, onClose, onOpenOrder }: OrderDrawer
             <DetailRow label="Shipping charged">
               <span className="tnum">{money(o.shippingCharged)}</span>
             </DetailRow>
+            {(o.discountTotal ?? 0) > 0 && (
+              <DetailRow label="Discount">
+                <span className="tnum text-[#006300] dark:text-good">−{money(o.discountTotal!)}</span>
+              </DetailRow>
+            )}
             <div className="border-t border-hairline">
               <DetailRow label="Revenue">
                 <span className="tnum">{money(revenue)}</span>

@@ -266,6 +266,11 @@ PUBLIC_URL=${base}
 # SMTP_SECURE=true
 # SMTP_USER=resend
 # SMTP_PASS=re_your_api_key
+# Downtime alerts: the bridge pings the API every 5 minutes and emails you if
+# it stops answering (needs the SMTP settings above). WATCHDOG_FROM must be a
+# sender your provider accepts (same domain as your newsletter from-address).
+# WATCHDOG_EMAIL=you@example.com
+# WATCHDOG_FROM=alerts@yourdomain.ca
 ENV
     chmod 600 "$MAIL_ENV_FILE"
     echo "    Mail bridge URL for Settings → Newsletter: ${base}"

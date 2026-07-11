@@ -118,7 +118,8 @@ export default function StoreConfirmation() {
 
   const firstName = order.customerName.split(' ')[0]
   const itemsSubtotal = order.items.reduce((a, i) => a + i.unitPrice * i.quantity, 0)
-  const total = itemsSubtotal + order.shippingCharged + order.taxCollected
+  const orderDiscount = order.discountTotal ?? 0
+  const total = itemsSubtotal + order.shippingCharged + order.taxCollected - orderDiscount
   const promoNote = order.notes?.match(PROMO_NOTE_RE)?.[0]
 
   const steps = [
@@ -208,6 +209,12 @@ export default function StoreConfirmation() {
               <span>Subtotal</span>
               <span className="font-medium text-ink">{charged(itemsSubtotal)}</span>
             </div>
+            {orderDiscount > 0 && (
+              <div className="flex items-center justify-between font-medium text-[#006300] dark:text-good">
+                <span>Discount</span>
+                <span>−{charged(orderDiscount)}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-ink-2">
               <span>Shipping</span>
               {order.shippingCharged === 0 ? (

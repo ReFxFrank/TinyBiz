@@ -4,7 +4,7 @@
 
 import { Router } from 'express'
 import { db, uid, getCollection, getMeta, upsertItem, bumpRev } from './db.js'
-import { buildLines, computeTotals, promoUsable, nextOrderNumber, shippingConfig, taxRateFor, CA_TAX } from './store-math.js'
+import { buildLines, computePromoTotals, promoUsable, nextOrderNumber, shippingConfig, taxRateFor, provinceCode, CA_TAX } from './store-math.js'
 import { currencyRates } from './rates.js'
 import { stripeEnabled, createCheckoutSession, getCheckoutSession, verifyWebhookSignature } from './stripe.js'
 import { paypalEnabled, createPayPalOrder, capturePayPalOrder } from './paypal.js'
@@ -72,7 +72,13 @@ storeRouter.post('/promo', (req, res) => {
   if (!code) return res.status(400).json({ valid: false })
   const promo = getCollection('promoCodes').find((p) => p.code.toLowerCase() === code.toLowerCase())
   if (!promoUsable(promo)) return res.json({ valid: false })
-  res.json({ valid: true, code: promo.code, discountPct: promo.discountPct })
+  res.json({
+    valid: true,
+    code: promo.code,
+    type: promo.type || 'percent',
+    discountPct: promo.discountPct,
+    amountOff: promo.amountOff,
+  })
 })
 
 storeRouter.post('/subscribe', (req, res) => {
@@ -134,6 +140,16 @@ function validateContact(body, country) {
   if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !address.line1 || !address.city || !address.state || !address.zip) {
     throw { status: 400, error: 'bad_form', message: 'Please fill in your contact and shipping details.' }
   }
+  // A parcel with a malformed postal code becomes an undeliverable parcel —
+  // catch it before the label does
+  if (/canada/i.test(country)) {
+    if (!/^[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d$/.test(address.zip)) {
+      throw { status: 400, error: 'bad_form', message: 'That postal code doesn’t look right — the format is A1A 1A1.' }
+    }
+    if (!provinceCode(address.state)) {
+      throw { status: 400, error: 'bad_form', message: 'Please enter a Canadian province, like BC or Ontario.' }
+    }
+  }
   return { name, email, address, notes: String(body?.notes || '').trim().slice(0, 2000) }
 }
 
@@ -153,12 +169,18 @@ function priceCheckout(body) {
     if (!promoUsable(found)) {
       throw { status: 409, error: 'promo', message: 'That promo code is no longer valid.' }
     }
-    promo = { id: found.id, code: found.code, discountPct: found.discountPct }
+    promo = {
+      id: found.id,
+      code: found.code,
+      type: found.type || 'percent',
+      discountPct: found.discountPct,
+      amountOff: found.amountOff,
+    }
   }
 
   // Destination-based for Canadian shops (GST/HST/PST by province)
   const taxRate = taxRateFor(settings, contact.address)
-  const totals = computeTotals(lines, promo?.discountPct, taxRate, ship)
+  const totals = computePromoTotals(lines, promo, taxRate, ship)
   return { contact, promo, totals }
 }
 
@@ -198,7 +220,11 @@ export const finalizeOrder = db.transaction(({ contact, promo, totals, payment }
   }
 
   const number = nextOrderNumber(getCollection('orders'))
-  const promoNote = promo ? `Promo ${promo.code} (−${promo.discountPct}%)` : ''
+  const promoNote = promo
+    ? `Promo ${promo.code} (${
+        promo.type === 'freeship' ? 'free shipping' : promo.type === 'fixed' ? `−$${Number(promo.amountOff || 0).toFixed(2)}` : `−${promo.discountPct}%`
+      })`
+    : ''
   const shortNote = shortfalls.length ? `⚠ Oversold — ${shortfalls.join('; ')}` : ''
   const order = {
     id: uid('ord'),
@@ -219,6 +245,8 @@ export const finalizeOrder = db.transaction(({ contact, promo, totals, payment }
     shippingCost: 0,
     shippingCharged: totals.shipping,
     taxCollected: totals.tax,
+    // Fixed-amount promo lives at order level; percent is inside unit prices
+    ...(totals.fixedOff > 0 ? { discountTotal: totals.fixedOff } : {}),
     shippingAddress: contact.address,
     notes: [shortNote, promoNote, contact.notes].filter(Boolean).join(' — ') || undefined,
     placedAt: now,
@@ -362,6 +390,7 @@ export function publicOrder(o) {
     items: o.items,
     shippingCharged: o.shippingCharged,
     taxCollected: o.taxCollected,
+    discountTotal: o.discountTotal,
     shippingAddress: o.shippingAddress,
     notes: o.notes,
     placedAt: o.placedAt,

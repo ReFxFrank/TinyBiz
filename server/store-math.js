@@ -124,11 +124,38 @@ export function computeTotals(lines, discountPct, taxRate, ship = DEFAULT_SHIPPI
   return { lines: priced, subtotal, discountedSubtotal, discount, shipping, tax, total }
 }
 
-/** Next order number — mirrors src/lib/metrics.ts nextOrderNumber */
+/**
+ * Promo-aware totals — mirrors src/store/useCart.ts useCartDetails.
+ * Percent promos live INSIDE per-unit prices (discountedUnitPrice); fixed
+ * promos are an order-level line (fixedOff) so receipts stay honest; free
+ * shipping just zeroes the shipping line. Tax applies to what's actually
+ * charged: (goods − fixed discount) + shipping.
+ */
+export function computePromoTotals(lines, promo, taxRate, ship = DEFAULT_SHIPPING) {
+  const type = promo ? promo.type || 'percent' : null
+  const pct = type === 'percent' ? Number(promo.discountPct) || 0 : 0
+  const priced = lines.map((l) => ({ ...l, discountedUnitPrice: round2(l.unitPrice * (1 - pct / 100)) }))
+  const subtotal = round2(priced.reduce((a, l) => a + l.unitPrice * l.qty, 0))
+  const discountedSubtotal = round2(priced.reduce((a, l) => a + l.discountedUnitPrice * l.qty, 0))
+  const fixedOff = type === 'fixed' ? Math.min(discountedSubtotal, round2(Number(promo.amountOff) || 0)) : 0
+  const goods = round2(discountedSubtotal - fixedOff)
+  const freeShip = type === 'freeship'
+  const shipping = priced.length === 0 || freeShip || goods >= ship.freeOver ? 0 : ship.flatRate
+  const tax = round2(((goods + shipping) * (taxRate || 0)) / 100)
+  const total = round2(goods + shipping + tax)
+  const discount = round2(subtotal - discountedSubtotal + fixedOff)
+  return { lines: priced, subtotal, discountedSubtotal, fixedOff, discount, shipping, tax, total, freeShip }
+}
+
+/** Next order number ("TMS-1001") — mirrors src/lib/metrics.ts. Etsy imports
+ *  keep their own ETSY-<receipt> numbers (9+ digits) and must never advance
+ *  this sequence; old NP-* demo numbers still count toward the max. */
 export function nextOrderNumber(orders) {
   const max = orders.reduce((m, o) => {
-    const n = Number(String(o.number || '').replace(/\D/g, ''))
+    const num = String(o.number || '')
+    if (num.startsWith('ETSY-')) return m
+    const n = Number(num.replace(/\D/g, ''))
     return Number.isFinite(n) ? Math.max(m, n) : m
   }, 1000)
-  return `NP-${max + 1}`
+  return `TMS-${max + 1}`
 }

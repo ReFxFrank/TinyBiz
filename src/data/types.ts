@@ -151,6 +151,9 @@ export interface Order {
   /** What the customer paid for shipping */
   shippingCharged: number
   taxCollected: number
+  /** Order-level discount (fixed-amount promo codes) — percent promos live
+   *  inside the items' unit prices instead */
+  discountTotal?: number
   trackingNumber?: string
   carrier?: Carrier
   shippingAddress: Address
@@ -163,8 +166,12 @@ export interface Order {
   payment?: OrderPayment
   /** Stamped when a cancellation/return put the items back in stock */
   restockedAt?: string
+  /** Stamped when the server deducted stock for a hand-entered order */
+  stockDeductedAt?: string
   /** Set on orders imported by the Etsy sync — the dedupe key */
   etsyReceiptId?: string
+  /** Shopper account that claimed this guest order into their history */
+  claimedByAccountId?: string
 }
 
 export interface Customer {
@@ -396,10 +403,17 @@ export interface Campaign {
   endDate?: string
 }
 
+/** What a promo code does: percent off items, dollars off, or free shipping */
+export type PromoType = 'percent' | 'fixed' | 'freeship'
+
 export interface PromoCode {
   id: ID
   code: string
+  /** undefined = 'percent' (codes created before types existed) */
+  type?: PromoType
   discountPct: number
+  /** Dollar amount off the order — used when type === 'fixed' */
+  amountOff?: number
   uses: number
   maxUses?: number
   active: boolean

@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Minus, Plus, ShoppingBag, Tag, X } from 'lucide-react'
 import { Button, Drawer, EmptyState, Input, Progress } from '@/components/ui'
-import { useCart, useCartDetails } from '@/store/useCart'
+import { promoLabel, useCart, useCartDetails } from '@/store/useCart'
 import { api } from '@/lib/api'
 import { money } from '@/lib/format'
 
@@ -27,7 +27,8 @@ export function CartDrawer() {
   const [applying, setApplying] = useState(false)
 
   const afterDiscount = subtotal - discount
-  const remaining = freeShippingThreshold - afterDiscount
+  // Shipping already free (threshold met OR a free-shipping code) → celebrate
+  const remaining = shipping === 0 ? 0 : freeShippingThreshold - afterDiscount
 
   // The server owns promo validity; keep the typed code on rejection so the
   // shopper can fix a typo instead of retyping.
@@ -38,8 +39,8 @@ export function CartDrawer() {
     setPromoError(null)
     try {
       const res = await api.promo(code)
-      if (res.valid && res.code && res.discountPct != null) {
-        setPromo({ code: res.code, discountPct: res.discountPct })
+      if (res.valid && res.code) {
+        setPromo({ code: res.code, type: res.type, discountPct: res.discountPct ?? 0, amountOff: res.amountOff })
         setCodeInput('')
       } else {
         setPromoError('That code isn\u2019t valid or has expired')
@@ -218,8 +219,8 @@ export function CartDrawer() {
                 <div className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-accent-strong dark:text-accent">
                   <Tag className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">
-                    <span className="font-semibold">{promo.code}</span> · −{promo.discountPct}% · saving{' '}
-                    {money(discount)}
+                    <span className="font-semibold">{promo.code}</span> · {promoLabel(promo)}
+                    {(promo.type ?? 'percent') !== 'freeship' && <> · saving {money(discount)}</>}
                   </span>
                 </div>
                 <button

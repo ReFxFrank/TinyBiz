@@ -19,7 +19,8 @@ function esc(s) {
 export function buildOrderConfirmationHtml(order, settings) {
   const shopName = settings?.businessName || 'Our shop'
   const itemsSubtotal = order.items.reduce((a, i) => a + i.unitPrice * i.quantity, 0)
-  const total = itemsSubtotal + order.shippingCharged + order.taxCollected
+  const orderDiscount = order.discountTotal || 0
+  const total = itemsSubtotal + order.shippingCharged + order.taxCollected - orderDiscount
   const rows = order.items
     .map(
       (i) => `
@@ -62,6 +63,7 @@ export function buildOrderConfirmationHtml(order, settings) {
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${rows}</table>
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:10px;">
             ${totalRow('Subtotal', money(itemsSubtotal))}
+            ${orderDiscount > 0 ? totalRow('Discount', `−${money(orderDiscount)}`) : ''}
             ${totalRow('Shipping', order.shippingCharged === 0 ? 'Free' : money(order.shippingCharged))}
             ${totalRow('Tax', money(order.taxCollected))}
             ${totalRow('Total', money(total), true)}
@@ -87,13 +89,15 @@ export function buildOrderConfirmationHtml(order, settings) {
 
 export function buildOrderConfirmationText(order, settings) {
   const itemsSubtotal = order.items.reduce((a, i) => a + i.unitPrice * i.quantity, 0)
-  const total = itemsSubtotal + order.shippingCharged + order.taxCollected
+  const orderDiscount = order.discountTotal || 0
+  const total = itemsSubtotal + order.shippingCharged + order.taxCollected - orderDiscount
   const lines = [
     `${settings?.businessName || 'Our shop'} — order ${order.number} confirmed`,
     '',
     ...order.items.map((i) => `${i.name} × ${i.quantity} — ${money(i.unitPrice * i.quantity)}`),
     '',
     `Subtotal: ${money(itemsSubtotal)}`,
+    ...(orderDiscount > 0 ? [`Discount: −${money(orderDiscount)}`] : []),
     `Shipping: ${order.shippingCharged === 0 ? 'Free' : money(order.shippingCharged)}`,
     `Tax: ${money(order.taxCollected)}`,
     `Total: ${money(total)}`,
@@ -548,8 +552,17 @@ export async function sendNewOrderAlert(order) {
   if (settings?.notifyNewOrders === false) return
   const to = String(settings?.email || '').trim()
   if (!to || to.toLowerCase() === String(order.email || '').toLowerCase()) return
-  const total = order.items.reduce((a, i) => a + i.unitPrice * i.quantity, 0) + order.shippingCharged + order.taxCollected
-  const paid = order.payment?.provider === 'stripe' ? 'PAID via Stripe' : 'no payment collected (preview mode)'
+  const total =
+    order.items.reduce((a, i) => a + i.unitPrice * i.quantity, 0) +
+    order.shippingCharged +
+    order.taxCollected -
+    (order.discountTotal || 0)
+  const paid =
+    order.payment?.provider === 'stripe'
+      ? 'PAID via Stripe'
+      : order.payment?.provider === 'paypal'
+        ? 'PAID via PayPal'
+        : 'no payment collected (preview mode)'
   const lines = order.items.map((i) => `• ${i.name} × ${i.quantity}`).join('<br>')
   await sendViaBridge('new-order alert', {
     to,

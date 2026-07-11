@@ -25,7 +25,9 @@ const NAV = [
   // cart/account icons off a 390px screen
   { path: '/', label: 'Home', end: true, hideOnPhone: true },
   { path: '/shop', label: 'Shop', end: false },
-  { path: '/support', label: 'Support', end: false },
+  // "Help" on phones: the shorter label is what lets the theme toggle
+  // stay in the header down to 360px
+  { path: '/support', label: 'Support', phoneLabel: 'Help', end: false },
 ]
 
 function PreviewBanner() {
@@ -145,7 +147,7 @@ function CurrencySelect() {
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="flex h-9 items-center gap-1.5 rounded-xl px-2.5 text-sm font-medium text-ink-2 transition-colors hover:bg-sunken hover:text-ink focus:outline-none"
+        className="flex h-9 items-center gap-1.5 rounded-xl px-1.5 text-sm font-medium text-ink-2 transition-colors hover:bg-sunken hover:text-ink focus:outline-none sm:px-2.5"
       >
         <Flag code={value as DisplayCurrencyCode} />
         <span className="hidden sm:inline">{value}</span>
@@ -207,16 +209,16 @@ function StoreHeader() {
       // Tailwind can't alpha the --surface var (no <alpha-value>), so mix it here
       style={{ backgroundColor: 'color-mix(in srgb, var(--surface) 82%, transparent)' }}
     >
-      {/* Phone header is compact: logo-only brand, flag-only currency, no theme
-          toggle — otherwise the cart gets pushed off a 360-390px screen */}
-      <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-2 px-4 sm:gap-6 sm:px-6">
+      {/* Phone header is compact: logo-only brand, flag-only currency, tighter
+          gaps — otherwise the cart gets pushed off a 360-390px screen */}
+      <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-1.5 px-4 sm:gap-3 sm:px-6 md:gap-6">
         {/* min-w-9 floor: the name truncates under pressure, the logo never does */}
         <Link to="/" className="flex min-w-9 items-center gap-2.5" aria-label="Home">
           <img src="/brand/logo.png" alt="" className="h-9 w-9 shrink-0 rounded-full ring-1 ring-edge" />
           <span className="hidden truncate text-[15px] font-semibold text-ink sm:block">{shop?.businessName ?? 'Shop'}</span>
         </Link>
 
-        <nav className="flex flex-1 items-center gap-1" aria-label="Store">
+        <nav className="flex flex-1 items-center gap-0.5 sm:gap-1" aria-label="Store">
           {NAV.map((item) => (
             <NavLink
               key={item.path}
@@ -224,13 +226,20 @@ function StoreHeader() {
               end={item.end}
               className={({ isActive }) =>
                 cn(
-                  'rounded-lg px-2 py-1.5 text-sm font-medium transition-colors sm:px-3',
+                  'rounded-lg px-1.5 py-1.5 text-sm font-medium transition-colors sm:px-3',
                   item.hideOnPhone && 'hidden sm:block',
                   isActive ? 'bg-accent-wash text-accent-strong dark:text-accent' : 'text-ink-2 hover:bg-sunken hover:text-ink',
                 )
               }
             >
-              {item.label}
+              {item.phoneLabel ? (
+                <>
+                  <span className="sm:hidden">{item.phoneLabel}</span>
+                  <span className="hidden sm:inline">{item.label}</span>
+                </>
+              ) : (
+                item.label
+              )}
             </NavLink>
           ))}
         </nav>
@@ -248,7 +257,7 @@ function StoreHeader() {
 
         <button
           onClick={toggleTheme}
-          className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl text-ink-2 transition-colors hover:bg-sunken hover:text-ink sm:flex"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-ink-2 transition-colors hover:bg-sunken hover:text-ink"
           aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
           title={theme === 'dark' ? 'Light theme' : 'Dark theme'}
         >

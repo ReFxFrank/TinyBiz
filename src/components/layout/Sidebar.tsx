@@ -8,7 +8,18 @@ import { useAuth, canOpen, pathPerm } from '@/store/useAuth'
 import { Tip } from '@/components/ui/Tooltip'
 import { cn } from '@/lib/utils'
 
-function NavRow({ item, collapsed, onNavigate }: { item: NavItem; collapsed: boolean; onNavigate?: () => void }) {
+function NavRow({
+  item,
+  collapsed,
+  badge,
+  onNavigate,
+}: {
+  item: NavItem
+  collapsed: boolean
+  /** Live count pill (e.g. support requests needing a reply); hidden when 0 */
+  badge?: number
+  onNavigate?: () => void
+}) {
   const Icon = item.icon
   const link = (
     <NavLink
@@ -36,12 +47,21 @@ function NavRow({ item, collapsed, onNavigate }: { item: NavItem; collapsed: boo
           )}
           <Icon className="h-[18px] w-[18px] shrink-0" />
           {!collapsed && <span className="truncate">{item.label}</span>}
+          {badge ? (
+            collapsed ? (
+              <span aria-hidden className="absolute right-1 top-1 h-2 w-2 rounded-full bg-accent" />
+            ) : (
+              <span className="ml-auto shrink-0 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-bold leading-none text-[color:var(--accent-fg)]">
+                {badge > 99 ? '99+' : badge}
+              </span>
+            )
+          ) : null}
         </>
       )}
     </NavLink>
   )
   return collapsed ? (
-    <Tip content={item.label} side="right">
+    <Tip content={badge ? `${item.label} (${badge})` : item.label} side="right">
       {link}
     </Tip>
   ) : (
@@ -77,6 +97,9 @@ function SidebarContent({ collapsed, onNavigate }: { collapsed: boolean; onNavig
   const settings = useStore((s) => s.settings)
   const toggleSidebar = useUI((s) => s.toggleSidebar)
   const user = useAuth((s) => s.user)
+  // Support requests waiting on the studio — an inbox count, live via sync
+  const needsReply = useStore((s) => s.tickets.reduce((n, t) => n + (t.status === 'open' ? 1 : 0), 0))
+  const badgeFor = (path: string) => (path === '/admin/support' ? needsReply : 0)
   const groups = NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => canOpen(user, pathPerm(i.path))) })).filter(
     (g) => g.items.length > 0,
   )
@@ -104,7 +127,7 @@ function SidebarContent({ collapsed, onNavigate }: { collapsed: boolean; onNavig
             {group.label && collapsed && gi > 0 && <div className="mx-3 mb-2 h-px bg-hairline" />}
             <div className="space-y-0.5">
               {group.items.map((item) => (
-                <NavRow key={item.path} item={item} collapsed={collapsed} onNavigate={onNavigate} />
+                <NavRow key={item.path} item={item} collapsed={collapsed} badge={badgeFor(item.path)} onNavigate={onNavigate} />
               ))}
             </div>
           </div>

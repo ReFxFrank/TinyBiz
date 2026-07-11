@@ -6,12 +6,12 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowRight, CircleUserRound, KeyRound, LifeBuoy, LogOut, MailCheck, PackageOpen, ExternalLink, Sparkles } from 'lucide-react'
 import { Badge, Button, Card, EmptyState, Field, Input, type BadgeTone } from '@/components/ui'
-import { api, ApiError, type PublicOrder } from '@/lib/api'
+import { api, ApiError, type PublicOrder, type PublicTicket } from '@/lib/api'
 import { useShopAccount } from '@/store/useShopAccount'
 import { useCatalog } from '@/store/useCatalog'
 import { toast } from '@/store/useUI'
 import { fmtDate, money } from '@/lib/format'
-import type { OrderStatus } from '@/data/types'
+import type { OrderStatus, TicketStatus } from '@/data/types'
 
 const STATUS_TONE: Partial<Record<OrderStatus, BadgeTone>> = {
   New: 'blue',
@@ -513,26 +513,70 @@ function OrdersCard() {
   )
 }
 
-/** Pointer to the support hub — the requests themselves live at /support */
+/** Customer-friendly status labels — mirrors the /support page */
+const TICKET_TONE: Record<TicketStatus, BadgeTone> = { open: 'blue', awaiting_customer: 'green', resolved: 'neutral' }
+const TICKET_LABEL: Record<TicketStatus, string> = { open: "We're on it", awaiting_customer: 'Replied', resolved: 'Resolved' }
+
+/** The shopper's support requests, loaded automatically — no lookup needed.
+ *  Guest requests made with the same email show up here too. */
 function SupportCard() {
+  const [tickets, setTickets] = useState<PublicTicket[] | null>(null)
+  useEffect(() => {
+    api.support
+      .mine()
+      .then((r) => setTickets(r.tickets))
+      .catch(() => setTickets((prev) => prev ?? []))
+  }, [])
+
   return (
     <Card padding="lg">
-      <div className="flex items-start gap-3">
-        <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-wash text-accent-strong dark:text-accent">
-          <LifeBuoy className="h-5 w-5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-[15px] font-semibold text-ink">Need a hand?</h2>
-          <p className="mt-1 text-[13px] leading-relaxed text-ink-3">
-            Open a support request about any order — you'll see our replies here and by email.
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-[15px] font-semibold text-ink">Support requests</h2>
+          <p className="mt-1 text-[13px] text-ink-3">Anything you've asked us — replies land here and in your inbox.</p>
         </div>
         <Link to="/support" className="shrink-0">
           <Button variant="secondary" size="sm">
-            Support <ArrowRight className="h-3.5 w-3.5" />
+            New request <ArrowRight className="h-3.5 w-3.5" />
           </Button>
         </Link>
       </div>
+      {tickets === null ? (
+        <div className="mt-4 space-y-2">
+          <div className="skeleton h-12" />
+        </div>
+      ) : tickets.length === 0 ? (
+        <p className="mt-4 flex items-center gap-2 rounded-xl bg-sunken px-3.5 py-3 text-[13px] text-ink-3">
+          <LifeBuoy className="h-4 w-4 shrink-0" />
+          No requests yet — if anything's ever not right with an order, we'll sort it out.
+        </p>
+      ) : (
+        <ul className="mt-4 divide-y divide-hairline">
+          {tickets.map((t) => (
+            <li key={t.id}>
+              <Link
+                to={`/support?t=${encodeURIComponent(t.id)}`}
+                className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-3 first:pt-0 last:pb-0"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="truncate text-sm font-semibold text-ink">{t.subject}</span>
+                    <Badge tone={TICKET_TONE[t.status]} dot>
+                      {TICKET_LABEL[t.status]}
+                    </Badge>
+                  </div>
+                  <div className="mt-0.5 truncate text-xs text-ink-3">
+                    {t.number}
+                    {t.orderNumber ? ` · order ${t.orderNumber}` : ''} · updated {fmtDate(t.updatedAt)}
+                    {t.lastReplyBy === 'staff' && t.status !== 'resolved' ? ' · we replied ✨' : ''}
+                  </div>
+                </div>
+                <span className="text-[13px] font-medium text-accent-strong dark:text-accent">View →</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </Card>
   )
 }

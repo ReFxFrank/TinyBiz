@@ -174,6 +174,17 @@ export interface Order {
   claimedByAccountId?: string
   /** Stamped when the one review-request email went out (on Delivered) */
   reviewRequestedAt?: string
+  /** Money sent back through the original charge — written by /api/orders/:id/refund */
+  refunds?: Array<{
+    id: ID
+    provider: 'stripe' | 'paypal'
+    /** The provider's refund id — the trail back to the transaction */
+    refundId?: string
+    amount: number
+    at: string
+    /** Which studio account issued it */
+    by?: string
+  }>
 }
 
 export interface Customer {
@@ -520,6 +531,14 @@ export interface Newsletter {
   ctaLabel?: string
   ctaUrl?: string
   scheduledFor?: string
+  /** Template snapshot (merge tags intact) rendered at schedule time — the
+   *  SERVER posts it to the mail bridge when scheduledFor arrives, so the
+   *  send happens even with every admin tab closed */
+  renderedHtml?: string
+  renderedText?: string
+  /** Scheduler bookkeeping (server-written): retry count + in-flight lock */
+  sendAttempts?: number
+  sendingAt?: string
   sentAt?: string
   recipientCount?: number
   opens?: number
@@ -726,6 +745,8 @@ export interface Settings {
   notifySupport?: boolean
   /** Email the business address when a review lands in moderation (default on) */
   notifyReviews?: boolean
+  /** Discord channel webhook — orders/support/reviews ping it when set */
+  discordWebhookUrl?: string
   notifyExpensesDue: boolean
   weeklyReports: boolean
   /** Base URL of the printer bridge, e.g. http://192.168.1.50:7070 */

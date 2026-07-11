@@ -94,6 +94,16 @@ export async function createPayPalOrder({ priced, ref, origin }) {
   return { id: order.id, approveUrl }
 }
 
+/** Refund a capture (full when amount is omitted). Returns { id, status }. */
+export async function refundPayPalCapture({ captureId, amount, currency }) {
+  const refund = await ppRequest(
+    'POST',
+    `/v2/payments/captures/${encodeURIComponent(captureId)}/refund`,
+    amount != null ? { amount: { value: amt(amount), currency_code: currency } } : {},
+  )
+  return { id: refund.id, status: refund.status }
+}
+
 /**
  * Capture after the shopper approves. Returns { completed, captureId } and
  * treats "already captured" as success — the return-URL poll and a repeat

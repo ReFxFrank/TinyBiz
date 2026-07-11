@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Copy, CopyPlus, ExternalLink, Printer, Trash2 } from 'lucide-react'
+import { Copy, CopyPlus, ExternalLink, Printer, Trash2, Undo2 } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -25,6 +25,119 @@ import { addDays } from '@/lib/dates'
 import { cn, uid } from '@/lib/utils'
 import { toast } from '@/store/useUI'
 import { printPackingSlip } from '@/lib/packingSlip'
+import { api, ApiError } from '@/lib/api'
+
+const round2 = (n: number) => Math.round(n * 100) / 100
+/** What the customer actually paid (mirrors server/refunds.js) */
+const paidTotal = (o: Order) =>
+  round2(o.items.reduce((a, i) => a + i.unitPrice * i.quantity, 0) + o.shippingCharged + o.taxCollected - (o.discountTotal ?? 0))
+const refundedTotal = (o: Order) => round2((o.refunds ?? []).reduce((a, r) => a + r.amount, 0))
+
+/** The refund trail inside the money summary */
+function RefundRows({ order: o }: { order: Order }) {
+  if (!o.refunds?.length) return null
+  return (
+    <div className="border-t border-hairline">
+      {o.refunds.map((r) => (
+        <DetailRow key={r.id} label={`Refunded ${fmtDateShort(r.at)}`}>
+          <span className="tnum text-critical">−{money(r.amount)}</span>
+        </DetailRow>
+      ))}
+    </div>
+  )
+}
+
+/** One-click refunds — replaces the old "do it in the dashboard" links */
+function RefundControl({ order: o }: { order: Order }) {
+  const updateItem = useStore((s) => s.updateItem)
+  const [open, setOpen] = useState(false)
+  const [amount, setAmount] = useState('')
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    setOpen(false)
+    setAmount('')
+  }, [o.id])
+
+  const refundable = o.payment?.provider === 'stripe' || o.payment?.provider === 'paypal'
+  if (!refundable) return null
+  const remaining = round2(paidTotal(o) - refundedTotal(o))
+  if (remaining <= 0) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl bg-sunken/60 px-4 py-3 text-sm text-ink-2">
+        <Undo2 className="h-4 w-4 shrink-0 text-ink-3" />
+        Fully refunded — the money went back through {o.payment?.provider === 'paypal' ? 'PayPal' : 'Stripe'}.
+      </div>
+    )
+  }
+
+  const parsed = amount.trim() === '' ? remaining : round2(Number(amount))
+  const valid = Number.isFinite(parsed) && parsed > 0 && parsed <= remaining
+
+  const refund = async () => {
+    if (busy || !valid) return
+    setBusy(true)
+    try {
+      const r = await api.refundOrder(o.id, parsed === remaining ? undefined : parsed)
+      updateItem('orders', o.id, { refunds: r.order.refunds })
+      setOpen(false)
+      setAmount('')
+      toast(`Refunded ${money(r.refund.amount)}`, {
+        description: 'The customer gets a confirmation email — banks show it within 5–10 days.',
+        tone: 'success',
+      })
+    } catch (err) {
+      toast('Refund failed', {
+        description: err instanceof ApiError ? err.message : 'Try again in a moment.',
+        tone: 'error',
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-hairline bg-surface p-3.5">
+      {open ? (
+        <div>
+          <div className="text-[13px] font-medium text-ink-2">
+            Refund through {o.payment?.provider === 'paypal' ? 'PayPal' : 'Stripe'} — up to {money(remaining)}
+            {refundedTotal(o) > 0 ? ` (${money(refundedTotal(o))} already refunded)` : ''}
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <Input
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder={remaining.toFixed(2)}
+              inputMode="decimal"
+              aria-label="Refund amount"
+              className="w-32 tnum"
+            />
+            <Button size="sm" disabled={busy || !valid} onClick={() => void refund()}>
+              {busy ? 'Refunding…' : `Refund ${valid ? money(parsed) : ''}`.trim()}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+          <p className="mt-2 text-xs text-ink-3">
+            Goes straight back to the customer's original payment method — they get an email confirmation.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-[13px] text-ink-2">
+            {refundedTotal(o) > 0
+              ? `${money(refundedTotal(o))} refunded so far · ${money(remaining)} left`
+              : 'Need to send money back? One click, no dashboards.'}
+          </span>
+          <Button size="sm" variant="secondary" icon={<Undo2 />} onClick={() => setOpen(true)}>
+            Refund…
+          </Button>
+        </div>
+      )}
+    </section>
+  )
+}
 
 export interface OrderDrawerProps {
   order: Order | null
@@ -116,9 +229,11 @@ export default function OrderDrawer({ order, onClose, onOpenOrder }: OrderDrawer
       shippedAt: undefined,
       deliveredAt: undefined,
       payment: undefined, // the copy hasn't collected anything
+      refunds: undefined,
       restockedAt: undefined,
       stockDeductedAt: undefined, // server deducts fresh stock for the copy
       etsyReceiptId: undefined,
+      reviewRequestedAt: undefined,
     }
     addItem('orders', clone)
     toast(`Order duplicated as ${clone.number}`, { tone: 'success' })
@@ -176,7 +291,7 @@ export default function OrderDrawer({ order, onClose, onOpenOrder }: OrderDrawer
                   (o.payment?.provider === 'stripe' || o.payment?.provider === 'paypal')
                 ) {
                   toast(`${o.number} ${next.toLowerCase()} — don't forget the refund`, {
-                    description: `Items restock automatically; issue the refund from the ${o.payment.provider === 'paypal' ? 'PayPal' : 'Stripe'} link below.`,
+                    description: 'Items restock automatically; the Refund button below sends the money back in one click.',
                     tone: 'default',
                   })
                 } else {
@@ -240,33 +355,21 @@ export default function OrderDrawer({ order, onClose, onOpenOrder }: OrderDrawer
             {o.payment && (
               <div className="border-t border-hairline">
                 <DetailRow label="Payment">
-                  {o.payment.provider === 'stripe' ? (
+                  {o.payment.provider === 'stripe' || o.payment.provider === 'paypal' ? (
                     <span className="inline-flex flex-wrap items-center gap-2">
-                      <Badge tone="green">Paid via Stripe</Badge>
-                      {o.payment.paymentIntent && (
-                        <a
-                          href={`https://dashboard.stripe.com/payments/${encodeURIComponent(o.payment.paymentIntent)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs font-medium text-accent-strong hover:underline dark:text-accent"
-                        >
-                          View / refund in Stripe <ExternalLink className="h-3 w-3" />
-                        </a>
-                      )}
-                    </span>
-                  ) : o.payment.provider === 'paypal' ? (
-                    <span className="inline-flex flex-wrap items-center gap-2">
-                      <Badge tone="green">Paid via PayPal</Badge>
-                      {o.payment.captureId && (
-                        <a
-                          href={`https://www.paypal.com/activity/payment/${encodeURIComponent(o.payment.captureId)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs font-medium text-accent-strong hover:underline dark:text-accent"
-                        >
-                          View / refund in PayPal <ExternalLink className="h-3 w-3" />
-                        </a>
-                      )}
+                      <Badge tone="green">Paid via {o.payment.provider === 'paypal' ? 'PayPal' : 'Stripe'}</Badge>
+                      <a
+                        href={
+                          o.payment.provider === 'paypal'
+                            ? `https://www.paypal.com/activity/payment/${encodeURIComponent(o.payment.captureId ?? '')}`
+                            : `https://dashboard.stripe.com/payments/${encodeURIComponent(o.payment.paymentIntent ?? '')}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-ink-3 hover:text-ink hover:underline"
+                      >
+                        View <ExternalLink className="h-3 w-3" />
+                      </a>
                     </span>
                   ) : o.payment.provider === 'etsy' ? (
                     <Badge tone="green">Paid on Etsy</Badge>
@@ -276,7 +379,10 @@ export default function OrderDrawer({ order, onClose, onOpenOrder }: OrderDrawer
                 </DetailRow>
               </div>
             )}
+            <RefundRows order={o} />
           </section>
+
+          <RefundControl order={o} />
 
           <section>
             <DetailLabel>Customer</DetailLabel>

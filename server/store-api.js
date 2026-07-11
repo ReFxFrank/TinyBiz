@@ -11,6 +11,7 @@ import { paypalEnabled, createPayPalOrder, capturePayPalOrder } from './paypal.j
 import { sendOrderConfirmation, sendNewOrderAlert, sendWelcomeEmail } from './email.js'
 import { addStockAlert, processStockAlerts } from './stock-alerts.js'
 import { ratingSummaries } from './reviews.js'
+import { discordOrderAlert } from './discord.js'
 
 export const storeRouter = Router()
 
@@ -352,6 +353,7 @@ storeRouter.post('/checkout', wrap(async (req, res) => {
     const order = finalizeOrder({ ...priced, payment: { provider: 'none' } })
     void sendOrderConfirmation(order)
     void sendNewOrderAlert(order)
+    void discordOrderAlert(order)
     return res.json({ mode: 'mock', orderId: order.id, number: order.number })
   }
 
@@ -436,6 +438,7 @@ function finalizePaid(pendingId, payment) {
   db.prepare('UPDATE pending_checkouts SET order_id = ? WHERE id = ?').run(order.id, pendingId)
   void sendOrderConfirmation(order)
   void sendNewOrderAlert(order)
+  void discordOrderAlert(order)
   return order.id
 }
 

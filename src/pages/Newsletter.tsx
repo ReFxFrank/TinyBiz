@@ -133,6 +133,10 @@ export default function NewsletterPage() {
       subject: `${n.subject} (copy)`,
       status: 'draft',
       scheduledFor: undefined,
+      renderedHtml: undefined,
+      renderedText: undefined,
+      sendAttempts: undefined,
+      sendingAt: undefined,
       sentAt: undefined,
       recipientCount: undefined,
       opens: undefined,
@@ -143,7 +147,14 @@ export default function NewsletterPage() {
   }
 
   const unschedule = (n: Newsletter) => {
-    updateItem('newsletters', n.id, { status: 'draft', scheduledFor: undefined })
+    updateItem('newsletters', n.id, {
+      status: 'draft',
+      scheduledFor: undefined,
+      renderedHtml: undefined,
+      renderedText: undefined,
+      sendAttempts: undefined,
+      sendingAt: undefined,
+    })
     toast('Moved back to draft', { tone: 'success' })
   }
 
@@ -162,6 +173,10 @@ export default function NewsletterPage() {
         recipientCount: recipients.length,
         opens: 0,
         clicks: 0,
+        renderedHtml: undefined, // send-now supersedes any scheduled snapshot
+        renderedText: undefined,
+        sendAttempts: undefined,
+        sendingAt: undefined,
       })
       toast(
         demo ? `Sent in demo mode to ${recipients.length}` : `Newsletter sent to ${recipients.length}`,
@@ -310,8 +325,20 @@ export default function NewsletterPage() {
         onClose={() => setScheduling(null)}
         onConfirm={(iso) => {
           if (scheduling) {
-            updateItem('newsletters', scheduling.id, { status: 'scheduled', scheduledFor: iso })
-            toast('Newsletter scheduled', { tone: 'success', description: `Sends ${fmtDateTime(iso)}.` })
+            // Snapshot the rendered template now — the SERVER posts it to the
+            // bridge when the time comes, no admin tab needed
+            updateItem('newsletters', scheduling.id, {
+              status: 'scheduled',
+              scheduledFor: iso,
+              renderedHtml: buildNewsletterHtml(scheduling, nlSettings, ctx, { forSend: true }),
+              renderedText: buildNewsletterText(scheduling, nlSettings, ctx, { forSend: true }),
+              sendAttempts: undefined,
+              sendingAt: undefined,
+            })
+            toast('Newsletter scheduled', {
+              tone: 'success',
+              description: `Sends ${fmtDateTime(iso)} — even with this tab closed.`,
+            })
           }
         }}
       />
@@ -669,8 +696,8 @@ function ScheduleModal({
         <Input type="datetime-local" value={value} onChange={(e) => setValue(e.target.value)} />
       </Field>
       <p className="mt-2 text-xs text-ink-3">
-        Suggested from your {cadenceLabel(newsletter?.cadence ?? 'monthly').toLowerCase()} schedule in Settings. In this
-        demo, scheduled newsletters wait here until you send them.
+        Suggested from your {cadenceLabel(newsletter?.cadence ?? 'monthly').toLowerCase()} schedule in Settings. The
+        server sends it right on time — no need to keep this tab open.
       </p>
     </Modal>
   )

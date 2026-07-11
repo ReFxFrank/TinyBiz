@@ -15,7 +15,7 @@ import { Button, Field, IconButton, Input, Modal, Segmented, Select, Textarea, T
 import { useStore } from '@/store/useStore'
 import { toast } from '@/store/useUI'
 import type { Newsletter, NewsletterBlock, NewsletterCadence, NewsletterStyle } from '@/data/types'
-import { buildNewsletterHtml, effectiveBlocks, MERGE_TAGS, newsletterRecipients } from '@/lib/newsletter'
+import { buildNewsletterHtml, buildNewsletterText, effectiveBlocks, MERGE_TAGS, newsletterRecipients } from '@/lib/newsletter'
 import { api, ApiError } from '@/lib/api'
 import { prepareImageForUpload } from '@/lib/image'
 import { cn, uid } from '@/lib/utils'
@@ -336,7 +336,16 @@ export function ComposeModal({
       promoCode: promoCode || undefined,
     }
     if (editing) {
-      updateItem('newsletters', editing.id, payload)
+      // Editing a SCHEDULED campaign refreshes its send snapshot — the server
+      // posts renderedHtml verbatim, so it must always match the latest edit
+      const rerender =
+        editing.status === 'scheduled'
+          ? {
+              renderedHtml: buildNewsletterHtml({ ...editing, ...payload }, nlSettings, ctx, { forSend: true }),
+              renderedText: buildNewsletterText({ ...editing, ...payload }, nlSettings, ctx, { forSend: true }),
+            }
+          : {}
+      updateItem('newsletters', editing.id, { ...payload, ...rerender })
       toast('Newsletter updated', { tone: 'success' })
     } else {
       addItem('newsletters', { id: uid('nws'), status: 'draft', createdAt: new Date().toISOString(), ...payload })

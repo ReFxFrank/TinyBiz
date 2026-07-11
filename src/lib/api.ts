@@ -248,6 +248,7 @@ export const api = {
   import: (state: unknown) => request<{ rev: number }>('/api/import', { method: 'POST', body: JSON.stringify({ state }) }),
   stripeStatus: () => request<{ enabled: boolean }>('/api/stripe/status'),
   paymentsStatus: () => request<{ stripe: boolean; paypal: boolean }>('/api/payments/status'),
+  discordTest: () => request<{ ok: true }>('/api/discord/test', { method: 'POST' }),
 
   // Support tickets — staff side. Every mutation goes through these endpoints
   // (never sync ops) so the server can apply status flips + emails.
@@ -301,6 +302,14 @@ export const api = {
     sync: () => request<{ imported: number }>('/api/etsy/sync', { method: 'POST' }),
     disconnect: () => request<{ ok: true }>('/api/etsy/disconnect', { method: 'POST' }),
   },
+
+  // One-click refunds through the original charge (owner / orders staff).
+  // Omit amount to refund everything that's left.
+  refundOrder: (id: string, amount?: number) =>
+    request<{ ok: true; order: Order; refund: NonNullable<Order['refunds']>[number] }>(
+      `/api/orders/${encodeURIComponent(id)}/refund`,
+      { method: 'POST', body: JSON.stringify(amount != null ? { amount } : {}) },
+    ),
 
   // Product reviews — admin moderation side
   reviewsAdmin: {

@@ -3,11 +3,12 @@
 //   STRIPE_SECRET_KEY      sk_live_… or sk_test_…   (absent → mock checkout)
 //   STRIPE_WEBHOOK_SECRET  whsec_…                  (optional; the return-URL
 //                          poll finalizes paid orders even without webhooks)
+//   STRIPE_API_BASE        endpoint override — tests point it at a mock
 
 import crypto from 'node:crypto'
 import { getMeta } from './db.js'
 
-const API = 'https://api.stripe.com/v1'
+const API = process.env.STRIPE_API_BASE || 'https://api.stripe.com/v1'
 
 export function stripeEnabled() {
   return Boolean(process.env.STRIPE_SECRET_KEY)
@@ -96,6 +97,15 @@ export async function createCheckoutSession({ priced, ref, origin }) {
 
 export function getCheckoutSession(id) {
   return stripeRequest('GET', `/checkout/sessions/${encodeURIComponent(id)}`)
+}
+
+/** Refund a payment (full when amountCents is omitted). Returns { id, status }. */
+export async function createStripeRefund({ paymentIntent, amountCents }) {
+  const refund = await stripeRequest('POST', '/refunds', {
+    payment_intent: paymentIntent,
+    ...(amountCents != null ? { amount: amountCents } : {}),
+  })
+  return { id: refund.id, status: refund.status }
 }
 
 /**

@@ -643,6 +643,39 @@ export async function sendSupportResolved({ ticket, origin }) {
   })
 }
 
+// ── Refund confirmation ──────────────────────────────────────────────────────
+
+/** "$X is on its way back" — sent the moment a refund is issued */
+export async function sendRefundIssued({ order, amount, origin }) {
+  if (!order?.email) return
+  const settings = getMeta('settings')
+  const provider = order.payment?.provider === 'paypal' ? 'PayPal' : 'card'
+  const html = shellHtml(settings, {
+    title: `Refund issued for ${order.number}`,
+    badge: '↩️ Refund issued',
+    badgeColors: { bg: '#e7f6e7', fg: '#1c7a1c' },
+    bodyRows: `
+        <tr><td style="padding:16px 32px 6px;">
+          <h1 style="margin:0 0 6px;color:#111;font-size:22px;">Hi ${esc(order.customerName.split(' ')[0])},</h1>
+          <p style="margin:0;color:#555;font-size:15px;line-height:1.6;">
+            We've sent <strong style="color:#111;">${money(amount)}</strong> back to your original ${provider === 'PayPal' ? 'PayPal account' : 'payment method'}
+            for order <strong style="color:#111;">${esc(order.number)}</strong>.
+            ${provider === 'PayPal' ? 'PayPal usually shows it within minutes.' : 'Most banks show it within 5–10 business days.'}
+          </p>
+        </td></tr>
+        <tr><td style="padding:18px 32px 26px;">${ctaButton('Get help with this order', `${origin}/support?order=${encodeURIComponent(order.number)}`)}</td></tr>`,
+    footer: `Questions about the refund? Just reply to this email${settings?.email ? ` or write to ${esc(settings.email)}` : ''}.`,
+  })
+  await sendViaBridge('refund', {
+    to: order.email,
+    toName: order.customerName,
+    subject: `Refund issued: ${money(amount)} for order ${order.number} — ${settings?.businessName || ''}`.trim().replace(/ —$/, ''),
+    html,
+    text: `We've sent ${money(amount)} back to your original ${provider === 'PayPal' ? 'PayPal account' : 'payment method'} for order ${order.number}.\n\n${provider === 'PayPal' ? 'PayPal usually shows it within minutes.' : 'Most banks show it within 5–10 business days.'}\n\nQuestions? ${origin}/support?order=${encodeURIComponent(order.number)}`,
+    ref: order.number,
+  })
+}
+
 // ── Product reviews ──────────────────────────────────────────────────────────
 
 /** "How did it go?" — sent once when an order is marked Delivered. Each item

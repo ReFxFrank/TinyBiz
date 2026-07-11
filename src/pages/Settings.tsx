@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Check, Pipette, RefreshCw, RotateCcw, Save } from 'lucide-react'
-import { api } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
 import { DEFAULT_SHIPPING, type CurrencyCode, type Settings as SettingsType } from '@/data/types'
 import { useStore } from '@/store/useStore'
 import { useUI, toast, ACCENTS, ACCENT_META, type Accent, type Radius, type Theme, type UIScale } from '@/store/useUI'
@@ -881,11 +881,78 @@ function IntegrationsCard() {
             </>
           )}
         </IntegrationTile>
+
+        <DiscordTile />
       </div>
       <p className="mt-4 text-xs text-ink-3">
-        Square, QuickBooks and Discord alerts are on the roadmap — say the word when you want one.
+        Square and QuickBooks are on the roadmap — say the word when you want one.
       </p>
     </Card>
+  )
+}
+
+/** Discord alerts: paste a channel webhook URL, get pinged on shop activity */
+function DiscordTile() {
+  const settings = useStore((s) => s.settings)
+  const updateSettings = useStore((s) => s.updateSettings)
+  const [url, setUrl] = useState(settings.discordWebhookUrl ?? '')
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    setUrl(settings.discordWebhookUrl ?? '')
+  }, [settings.discordWebhookUrl])
+
+  const connected = Boolean((settings.discordWebhookUrl ?? '').trim())
+  const dirty = url.trim() !== (settings.discordWebhookUrl ?? '')
+
+  const save = () => {
+    updateSettings({ discordWebhookUrl: url.trim() || undefined })
+    toast(url.trim() ? 'Discord webhook saved' : 'Discord alerts turned off', { tone: 'success' })
+  }
+
+  const test = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await api.discordTest()
+      toast('Test ping sent', { description: 'Check your Discord channel.', tone: 'success' })
+    } catch (e) {
+      toast('Couldn’t ping Discord', {
+        description: e instanceof ApiError ? e.message : 'Double-check the webhook URL.',
+        tone: 'error',
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <IntegrationTile
+      emoji="🎮"
+      name="Discord alerts"
+      badge={connected ? <Badge tone="green">Connected</Badge> : <Badge tone="neutral">Not set up</Badge>}
+    >
+      <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
+        Pings a channel the moment an order, support request or review lands. In Discord: channel settings →
+        Integrations → Webhooks → New webhook → copy its URL.
+      </p>
+      <div className="mt-3 flex gap-2">
+        <Input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://discord.com/api/webhooks/…"
+          className="flex-1 font-mono text-xs"
+          aria-label="Discord webhook URL"
+        />
+        <Button variant="outline" size="sm" disabled={!dirty} onClick={save}>
+          Save
+        </Button>
+      </div>
+      {connected && !dirty && (
+        <Button size="sm" variant="ghost" className="mt-2" disabled={busy} onClick={() => void test()}>
+          {busy ? 'Pinging…' : 'Send a test ping'}
+        </Button>
+      )}
+    </IntegrationTile>
   )
 }
 

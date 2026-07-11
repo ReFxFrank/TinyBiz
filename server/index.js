@@ -17,11 +17,14 @@ import { paypalEnabled } from './paypal.js'
 import { etsyRouter, startEtsySync } from './etsy.js'
 import { supportPublicRouter, supportAdminRouter } from './support.js'
 import { reviewsPublicRouter, reviewsAdminRouter } from './reviews.js'
+import { refundsRouter } from './refunds.js'
+import { discordRouter } from './discord.js'
 import { rateLimit } from './ratelimit.js'
 import { uploadsRouter, uploadsStatic } from './uploads.js'
 import { createBackup } from './backup.js'
 import { productPage } from './product-page.js'
 import { startAbandonedCartSweep } from './abandoned.js'
+import { startNewsletterScheduler } from './newsletter-scheduler.js'
 
 const app = express()
 app.set('trust proxy', 1) // nginx sits in front — respect X-Forwarded-Proto
@@ -101,6 +104,9 @@ app.use('/api/support', supportAdminRouter)
 // owner-side moderation endpoints
 app.use('/api/store/reviews', reviewsPublicRouter)
 app.use('/api/reviews', reviewsAdminRouter)
+// One-click refunds back through the original charge (owner/orders staff)
+app.use('/api/orders', refundsRouter)
+app.use('/api/discord', discordRouter)
 app.use('/api/store', storeRouter)
 app.use('/api/uploads', uploadsRouter)
 
@@ -126,6 +132,8 @@ app.use((err, _req, res, _next) => {
 startAbandonedCartSweep()
 // Etsy receipts → Orders queue, every 10 minutes once connected
 startEtsySync()
+// Scheduled newsletters go out on time even with every admin tab closed
+startNewsletterScheduler()
 
 const port = Number(process.env.PORT) || 4000
 app.listen(port, '127.0.0.1', () => {

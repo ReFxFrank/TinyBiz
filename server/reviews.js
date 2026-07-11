@@ -11,6 +11,7 @@ import { requireAuth } from './auth.js'
 import { shopperSession } from './shop-accounts.js'
 import { rateLimit } from './ratelimit.js'
 import { sendReviewAlert } from './email.js'
+import { discordReviewAlert } from './discord.js'
 
 export const REVIEW_STATUSES = ['pending', 'published', 'rejected']
 
@@ -177,6 +178,7 @@ reviewsPublicRouter.post(
     })
     bumpRev()
     void sendReviewAlert({ review, origin: requestOrigin(req) })
+    void discordReviewAlert(review)
     res.json({ ok: true, review: publicReview(review), pending: true })
   },
 )

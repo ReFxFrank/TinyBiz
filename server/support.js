@@ -16,6 +16,7 @@ import {
   sendSupportResolved,
   sendSupportOwnerAlert,
 } from './email.js'
+import { discordSupportAlert } from './discord.js'
 
 export const TICKET_STATUSES = ['open', 'awaiting_customer', 'resolved']
 
@@ -173,6 +174,7 @@ supportPublicRouter.post(
     const origin = requestOrigin(req)
     void sendSupportReceived({ ticket, origin })
     void sendSupportOwnerAlert({ ticket, kind: 'new', origin })
+    void discordSupportAlert(ticket, 'new')
     res.json({ ok: true, ticket: publicTicket(ticket) })
   },
 )
@@ -252,6 +254,7 @@ supportPublicRouter.post(
     bellNotify(`${next.customerName} replied on ${next.number}`, next.subject)
     bumpRev()
     void sendSupportOwnerAlert({ ticket: next, kind: 'reply', origin: requestOrigin(req) })
+    void discordSupportAlert(next, 'reply')
     res.json({ ok: true, ticket: publicTicket(next) })
   },
 )

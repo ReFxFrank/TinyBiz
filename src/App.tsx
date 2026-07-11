@@ -18,19 +18,45 @@ function LegacyStoreRedirect() {
  * a vite:preloadError listener with preventDefault() makes Vite resolve the
  * import as `undefined` and hard-crashes React lazy.
  */
-const RELOAD_STAMP = 'tms-chunk-reload'
+const RELOAD_STAMP = 'tms-chunk-reload' // "<epoch>:<consecutive count>"
+// Storage can be BLOCKED (Chrome site setting, enterprise policy) — the
+// recovery path must never die on its own bookkeeping
+function safeStorage(fn: () => void) {
+  try {
+    fn()
+  } catch {
+    /* storage unavailable — recovery still works, just without the throttle */
+  }
+}
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function lazyReload<T extends ComponentType<any>>(load: () => Promise<{ default: T }>) {
   return lazy(() =>
-    load().catch((err) => {
-      const last = Number(sessionStorage.getItem(RELOAD_STAMP) || 0)
-      if (Date.now() - last > 15_000) {
-        sessionStorage.setItem(RELOAD_STAMP, String(Date.now()))
-        window.location.reload()
-        return new Promise<never>(() => {}) // the reload takes it from here
-      }
-      throw err
-    }),
+    load().then(
+      (mod) => {
+        safeStorage(() => sessionStorage.removeItem(RELOAD_STAMP))
+        return mod
+      },
+      (err) => {
+        let last = 0
+        let count = 0
+        try {
+          const [t, c] = String(sessionStorage.getItem(RELOAD_STAMP) || '0:0').split(':')
+          last = Number(t) || 0
+          count = Number(c) || 0
+        } catch {
+          count = 99 // can't track attempts → never auto-reload (no loop risk)
+        }
+        // At most two automatic reloads, however slowly the failures arrive —
+        // a time-only throttle loops forever when each fetch takes >15s to die
+        if (count < 2 || Date.now() - last > 10 * 60_000) {
+          const next = Date.now() - last > 10 * 60_000 ? 1 : count + 1
+          safeStorage(() => sessionStorage.setItem(RELOAD_STAMP, `${Date.now()}:${next}`))
+          window.location.reload()
+          return new Promise<never>(() => {}) // the reload takes it from here
+        }
+        throw err
+      },
+    ),
   )
 }
 

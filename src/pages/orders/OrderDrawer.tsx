@@ -159,9 +159,12 @@ export default function OrderDrawer({ order, onClose, onOpenOrder }: OrderDrawer
               onChange={(e) => {
                 const next = e.target.value as OrderStatus
                 setOrderStatus(o.id, next)
-                if ((next === 'Cancelled' || next === 'Returned') && o.payment?.provider === 'stripe') {
+                if (
+                  (next === 'Cancelled' || next === 'Returned') &&
+                  (o.payment?.provider === 'stripe' || o.payment?.provider === 'paypal')
+                ) {
                   toast(`${o.number} ${next.toLowerCase()} — don't forget the refund`, {
-                    description: 'Items restock automatically; issue the refund from the Stripe link below.',
+                    description: `Items restock automatically; issue the refund from the ${o.payment.provider === 'paypal' ? 'PayPal' : 'Stripe'} link below.`,
                     tone: 'default',
                   })
                 } else {
@@ -234,6 +237,22 @@ export default function OrderDrawer({ order, onClose, onOpenOrder }: OrderDrawer
                         </a>
                       )}
                     </span>
+                  ) : o.payment.provider === 'paypal' ? (
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      <Badge tone="green">Paid via PayPal</Badge>
+                      {o.payment.captureId && (
+                        <a
+                          href={`https://www.paypal.com/activity/payment/${encodeURIComponent(o.payment.captureId)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-accent-strong hover:underline dark:text-accent"
+                        >
+                          View / refund in PayPal <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </span>
+                  ) : o.payment.provider === 'etsy' ? (
+                    <Badge tone="green">Paid on Etsy</Badge>
                   ) : (
                     <Badge tone="yellow">No payment collected</Badge>
                   )}

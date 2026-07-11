@@ -502,31 +502,37 @@ export function StoreShell() {
   return (
     <MotionConfig reducedMotion={reduceMotion ? 'always' : 'user'}>
       <div className="flex min-h-screen flex-col bg-page">
-        <PreviewBanner />
-        <StoreHeader />
-        {/* Keyed on the display currency: memoized price strings anywhere in
-            the tree re-derive the moment the visitor switches currency */}
-        <main className="flex-1" key={`main-${displayCur}`}>
-          {status === 'error' ? (
-            <div className="mx-auto w-full max-w-lg px-4 py-20">
-              <ErrorState
-                title="The shop is taking a quick break"
-                description="We couldn't reach the store server. Try again in a moment."
-                onRetry={() => void load(true)}
-              />
-            </div>
-          ) : status === 'ready' ? (
-            <StoreErrorBoundary resetKey={pathname}>
-              <Suspense fallback={<StoreFallback />}>
-                <Outlet />
-              </Suspense>
-            </StoreErrorBoundary>
-          ) : (
-            <StoreFallback />
-          )}
-        </main>
-        <StoreFooter />
-        <CartDrawer key={`cart-${displayCur}`} />
+        {/* Outer boundary: a crash in the HEADER or cart drawer (they render
+            on every page) must show a retry card, not unmount the app into a
+            blank page. The inner boundary keeps page errors from taking the
+            chrome down with them. */}
+        <StoreErrorBoundary resetKey={`shell-${pathname}`}>
+          <PreviewBanner />
+          <StoreHeader />
+          {/* Keyed on the display currency: memoized price strings anywhere in
+              the tree re-derive the moment the visitor switches currency */}
+          <main className="flex-1" key={`main-${displayCur}`}>
+            {status === 'error' ? (
+              <div className="mx-auto w-full max-w-lg px-4 py-20">
+                <ErrorState
+                  title="The shop is taking a quick break"
+                  description="We couldn't reach the store server. Try again in a moment."
+                  onRetry={() => void load(true)}
+                />
+              </div>
+            ) : status === 'ready' ? (
+              <StoreErrorBoundary resetKey={pathname}>
+                <Suspense fallback={<StoreFallback />}>
+                  <Outlet />
+                </Suspense>
+              </StoreErrorBoundary>
+            ) : (
+              <StoreFallback />
+            )}
+          </main>
+          <StoreFooter />
+          <CartDrawer key={`cart-${displayCur}`} />
+        </StoreErrorBoundary>
         <Toaster />
       </div>
     </MotionConfig>

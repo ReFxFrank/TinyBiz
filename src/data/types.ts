@@ -125,10 +125,13 @@ export interface OrderItem {
 
 /** How (and whether) money was collected for an order */
 export interface OrderPayment {
-  provider: 'stripe' | 'none'
+  provider: 'stripe' | 'paypal' | 'etsy' | 'none'
   /** Stripe Checkout session + payment intent — the trail back to the charge */
   sessionId?: string
   paymentIntent?: string
+  /** PayPal order + capture ids — the trail back to that charge */
+  orderId?: string
+  captureId?: string
   paidAt?: string
 }
 
@@ -160,6 +163,8 @@ export interface Order {
   payment?: OrderPayment
   /** Stamped when a cancellation/return put the items back in stock */
   restockedAt?: string
+  /** Set on orders imported by the Etsy sync — the dedupe key */
+  etsyReceiptId?: string
 }
 
 export interface Customer {

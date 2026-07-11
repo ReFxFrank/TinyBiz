@@ -7,6 +7,7 @@ import { db, uid, getCollection, getMeta, upsertItem, bumpRev } from './db.js'
 import { buildLines, computeTotals, promoUsable, nextOrderNumber, shippingConfig, taxRateFor, CA_TAX } from './store-math.js'
 import { currencyRates } from './rates.js'
 import { stripeEnabled, createCheckoutSession, getCheckoutSession, verifyWebhookSignature } from './stripe.js'
+import { paypalEnabled, createPayPalOrder, capturePayPalOrder } from './paypal.js'
 import { sendOrderConfirmation, sendNewOrderAlert, sendWelcomeEmail } from './email.js'
 import { addStockAlert, processStockAlerts } from './stock-alerts.js'
 
@@ -27,6 +28,8 @@ function shopInfo() {
     state: s.address?.state || '',
     currency: s.currency || 'USD',
     currencyRates: currencyRates(s.currency || 'USD'),
+    /** Which real payment providers are configured (checkout adapts its UI) */
+    payments: { stripe: stripeEnabled(), paypal: paypalEnabled() },
     taxRate: Number(s.taxRate) || 0,
     /** Province → combined GST/HST/PST — lets checkout estimate live; null for non-Canadian shops */
     caTaxTable: /canada/i.test(shippingConfig(s).country) ? CA_TAX : null,
@@ -304,7 +307,17 @@ export const finalizeOrder = db.transaction(({ contact, promo, totals, payment }
 storeRouter.post('/checkout', wrap(async (req, res) => {
   const priced = priceCheckout(req.body)
 
-  if (!stripeEnabled()) {
+  // Which real provider handles this checkout: the shopper's pick when both
+  // are configured, whichever exists otherwise, mock when neither does.
+  const wants = String(req.body?.payWith || '')
+  const provider =
+    wants === 'paypal' && paypalEnabled() ? 'paypal'
+    : wants === 'stripe' && stripeEnabled() ? 'stripe'
+    : stripeEnabled() ? 'stripe'
+    : paypalEnabled() ? 'paypal'
+    : 'mock'
+
+  if (provider === 'mock') {
     // Preview mode: no payment collected, order lands immediately
     const order = finalizeOrder({ ...priced, payment: { provider: 'none' } })
     void sendOrderConfirmation(order)
@@ -312,7 +325,7 @@ storeRouter.post('/checkout', wrap(async (req, res) => {
     return res.json({ mode: 'mock', orderId: order.id, number: order.number })
   }
 
-  // Stripe mode: park the priced cart, send the shopper to Stripe Checkout.
+  // Real payment: park the priced cart, send the shopper off to approve.
   // Abandoned rows are pruned after 30 days (finished ones keep the order id).
   db.prepare("DELETE FROM pending_checkouts WHERE order_id IS NULL AND created_at < ?").run(
     new Date(Date.now() - 30 * 86_400_000).toISOString(),
@@ -326,6 +339,13 @@ storeRouter.post('/checkout', wrap(async (req, res) => {
     new Date().toISOString(),
     origin,
   )
+
+  if (provider === 'paypal') {
+    const order = await createPayPalOrder({ priced, ref, origin })
+    db.prepare('UPDATE pending_checkouts SET session_id = ? WHERE id = ?').run(order.id, ref)
+    return res.json({ mode: 'paypal', checkoutUrl: order.approveUrl })
+  }
+
   const session = await createCheckoutSession({ priced, ref, origin })
   db.prepare('UPDATE pending_checkouts SET session_id = ? WHERE id = ?').run(session.id, ref)
   res.json({ mode: 'stripe', checkoutUrl: session.url })
@@ -376,22 +396,27 @@ storeRouter.get('/order/:id', (req, res) => {
 })
 
 /** Finalize a paid pending checkout exactly once; returns the order id.
- *  `session` (when the caller has it) puts the Stripe trail on the order. */
-function finalizePending(pendingId, session) {
+ *  `payment` records the provider trail (Stripe session / PayPal capture). */
+function finalizePaid(pendingId, payment) {
   const row = db.prepare('SELECT * FROM pending_checkouts WHERE id = ?').get(pendingId)
   if (!row) return null
   if (row.order_id) return row.order_id
-  const payment = {
-    provider: 'stripe',
-    sessionId: session?.id || row.session_id || undefined,
-    paymentIntent: typeof session?.payment_intent === 'string' ? session.payment_intent : session?.payment_intent?.id,
-    paidAt: new Date().toISOString(),
-  }
   const order = finalizeOrder({ ...JSON.parse(row.payload), payment })
   db.prepare('UPDATE pending_checkouts SET order_id = ? WHERE id = ?').run(order.id, pendingId)
   void sendOrderConfirmation(order)
   void sendNewOrderAlert(order)
   return order.id
+}
+
+/** Stripe flavor — `session` (when the caller has it) fills the trail */
+function finalizePending(pendingId, session) {
+  const row = db.prepare('SELECT session_id FROM pending_checkouts WHERE id = ?').get(pendingId)
+  return finalizePaid(pendingId, {
+    provider: 'stripe',
+    sessionId: session?.id || row?.session_id || undefined,
+    paymentIntent: typeof session?.payment_intent === 'string' ? session.payment_intent : session?.payment_intent?.id,
+    paidAt: new Date().toISOString(),
+  })
 }
 
 // The Stripe success page lands here. Webhooks are optional: if the webhook
@@ -404,6 +429,30 @@ storeRouter.get('/order/by-session/:sid', wrap(async (req, res) => {
     const session = await getCheckoutSession(req.params.sid)
     if (session.payment_status === 'paid') finalizePending(row.id, session)
     else return res.json({ pending: true })
+  }
+  const fresh = db.prepare('SELECT order_id FROM pending_checkouts WHERE id = ?').get(row.id)
+  if (!fresh?.order_id) return res.json({ pending: true })
+  const order = getCollection('orders').find((o) => o.id === fresh.order_id)
+  res.json({ order: publicOrder(order) })
+}))
+
+// PayPal's return URL lands here. No webhook needed: we capture the approved
+// order on the spot (idempotent — repeat visits find the finished order).
+storeRouter.get('/order/by-paypal/:ref', wrap(async (req, res) => {
+  const row = db.prepare('SELECT * FROM pending_checkouts WHERE id = ?').get(req.params.ref)
+  if (!row || !row.session_id) return res.status(404).json({ error: 'not_found' })
+  if (!row.order_id && paypalEnabled()) {
+    const result = await capturePayPalOrder(row.session_id)
+    if (result.completed) {
+      finalizePaid(row.id, {
+        provider: 'paypal',
+        orderId: row.session_id,
+        captureId: result.captureId,
+        paidAt: new Date().toISOString(),
+      })
+    } else {
+      return res.json({ pending: true })
+    }
   }
   const fresh = db.prepare('SELECT order_id FROM pending_checkouts WHERE id = ?').get(row.id)
   if (!fresh?.order_id) return res.json({ pending: true })

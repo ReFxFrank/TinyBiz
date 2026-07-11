@@ -30,6 +30,7 @@ export default function StoreCheckout() {
   // wording between Canadian (province/postal code) and US (state/ZIP) forms
   const country = useCatalog((s) => s.shop?.shippingCountry) || 'Canada'
   const shopCurrency = useCatalog((s) => s.shop?.currency)
+  const payments = useCatalog((s) => s.shop?.payments)
   const isCanada = /canada/i.test(country)
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -46,6 +47,12 @@ export default function StoreCheckout() {
   const [form, setForm] = useState({ name: '', email: '', line1: '', city: '', state: '', zip: '', notes: '' })
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({})
   const [submitting, setSubmitting] = useState(false)
+
+  // Payment method — defaults to the first configured provider
+  const hasRealPayments = Boolean(payments?.stripe || payments?.paypal)
+  const [chosenPay, setChosenPay] = useState<'stripe' | 'paypal' | null>(null)
+  const payWith: 'stripe' | 'paypal' | null =
+    chosenPay && payments?.[chosenPay] ? chosenPay : payments?.stripe ? 'stripe' : payments?.paypal ? 'paypal' : null
 
   // Totals follow the typed province — Canadian tax is destination-based
   const { lines, count, subtotal, promo, discount, shipping, taxRate, tax, total } = useCartDetails(form.state)
@@ -108,8 +115,9 @@ export default function StoreCheckout() {
         contact: { name: form.name.trim(), email: form.email.trim() },
         address: { line1: form.line1.trim(), city: form.city.trim(), state: form.state.trim(), zip: form.zip.trim() },
         notes: form.notes.trim() || undefined,
+        payWith: payWith ?? undefined,
       })
-      if (res.mode === 'stripe') {
+      if (res.mode === 'stripe' || res.mode === 'paypal') {
         // Keep the cart until payment succeeds — cancel returns the shopper here
         window.location.assign(res.checkoutUrl)
         return
@@ -165,7 +173,11 @@ export default function StoreCheckout() {
     )
   }
 
-  const placeLabel = submitting ? 'Placing order…' : `Place order · ${money(total)}`
+  const placeLabel = submitting
+    ? 'One moment…'
+    : hasRealPayments
+      ? `Continue to ${payWith === 'paypal' ? 'PayPal' : 'payment'} · ${money(total)}`
+      : `Place order · ${money(total)}`
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
@@ -271,27 +283,77 @@ export default function StoreCheckout() {
                   <CreditCard className="h-4 w-4 text-ink-3" /> Payment
                 </span>
               }
-              subtitle="Coming soon"
+              subtitle={hasRealPayments ? 'You’ll approve the payment on a secure page' : 'Coming soon'}
             />
-            <div className="rounded-xl border border-dashed border-edge bg-sunken p-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-ink-2">
-                <Lock className="h-4 w-4 shrink-0" /> This preview doesn&rsquo;t charge anything.
+            {hasRealPayments ? (
+              <div className="space-y-2" role="radiogroup" aria-label="Payment method">
+                {payments?.stripe && (
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={payWith === 'stripe'}
+                    onClick={() => setChosenPay('stripe')}
+                    className={
+                      payWith === 'stripe'
+                        ? 'flex w-full items-center gap-3 rounded-xl border border-accent bg-accent-wash px-3.5 py-3 text-left ring-1 ring-accent'
+                        : 'flex w-full items-center gap-3 rounded-xl border border-edge bg-surface px-3.5 py-3 text-left transition-colors hover:border-ink-3'
+                    }
+                  >
+                    <CreditCard className="h-5 w-5 shrink-0 text-ink-2" aria-hidden />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-ink">Card</span>
+                      <span className="block text-xs text-ink-3">Visa, Mastercard, Amex — via Stripe</span>
+                    </span>
+                  </button>
+                )}
+                {payments?.paypal && (
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={payWith === 'paypal'}
+                    onClick={() => setChosenPay('paypal')}
+                    className={
+                      payWith === 'paypal'
+                        ? 'flex w-full items-center gap-3 rounded-xl border border-accent bg-accent-wash px-3.5 py-3 text-left ring-1 ring-accent'
+                        : 'flex w-full items-center gap-3 rounded-xl border border-edge bg-surface px-3.5 py-3 text-left transition-colors hover:border-ink-3'
+                    }
+                  >
+                    {/* PayPal mark (simple-icons path) — lucide has no PayPal */}
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className="h-5 w-5 shrink-0 text-[#00457C] dark:text-[#7cb7e8]">
+                      <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.968.382-1.05.9l-1.12 7.106zm14.146-14.42a3.35 3.35 0 0 0-.607-.541c-.013.076-.026.175-.041.254-.93 4.778-4.005 7.201-9.138 7.201h-2.19a.563.563 0 0 0-.556.479l-1.187 7.527h-.506l-.24 1.516a.56.56 0 0 0 .554.647h3.882c.46 0 .85-.334.922-.788.06-.26.76-4.852.816-5.09a.932.932 0 0 1 .923-.788h.58c3.76 0 6.705-1.528 7.565-5.946.36-1.847.174-3.388-.777-4.471z" />
+                    </svg>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-ink">PayPal</span>
+                      <span className="block text-xs text-ink-3">Pay with your PayPal balance or linked card</span>
+                    </span>
+                  </button>
+                )}
+                <p className="flex items-center gap-1.5 pt-1 text-[13px] text-ink-3">
+                  <Lock className="h-3.5 w-3.5 shrink-0" /> Handled entirely by {payWith === 'paypal' ? 'PayPal' : 'Stripe'} —
+                  we never see your card details.
+                </p>
               </div>
-              <p className="mt-1 text-[13px] leading-relaxed text-ink-3">
-                Secure card payment (Stripe) plugs in here when the storefront goes live.
-              </p>
-              <div className="pointer-events-none mt-3 flex gap-2 opacity-50" aria-hidden>
-                <div className="flex h-9 flex-1 items-center rounded-xl border border-edge bg-surface px-3 text-sm text-ink-3">
-                  •••• •••• •••• 4242
+            ) : (
+              <div className="rounded-xl border border-dashed border-edge bg-sunken p-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-ink-2">
+                  <Lock className="h-4 w-4 shrink-0" /> This preview doesn&rsquo;t charge anything.
                 </div>
-                <div className="flex h-9 w-[88px] items-center rounded-xl border border-edge bg-surface px-3 text-sm text-ink-3">
-                  MM / YY
-                </div>
-                <div className="hidden h-9 w-[72px] items-center rounded-xl border border-edge bg-surface px-3 text-sm text-ink-3 sm:flex">
-                  CVC
+                <p className="mt-1 text-[13px] leading-relaxed text-ink-3">
+                  Secure payment (Stripe or PayPal) plugs in here when the storefront goes live.
+                </p>
+                <div className="pointer-events-none mt-3 flex gap-2 opacity-50" aria-hidden>
+                  <div className="flex h-9 flex-1 items-center rounded-xl border border-edge bg-surface px-3 text-sm text-ink-3">
+                    •••• •••• •••• 4242
+                  </div>
+                  <div className="flex h-9 w-[88px] items-center rounded-xl border border-edge bg-surface px-3 text-sm text-ink-3">
+                    MM / YY
+                  </div>
+                  <div className="hidden h-9 w-[72px] items-center rounded-xl border border-edge bg-surface px-3 text-sm text-ink-3 sm:flex">
+                    CVC
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </Card>
 
           <Button type="submit" size="lg" className="w-full" disabled={submitting}>
@@ -385,7 +447,8 @@ export default function StoreCheckout() {
             {placeLabel}
           </Button>
           <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-ink-3">
-            <Lock className="h-3 w-3" /> Prototype checkout — no payment is collected.
+            <Lock className="h-3 w-3" />{' '}
+            {hasRealPayments ? 'Secure checkout — payment handled by our provider.' : 'Prototype checkout — no payment is collected.'}
           </p>
         </aside>
       </form>

@@ -82,7 +82,7 @@
             '<div style="font-size:40px;">✨</div>' +
             '<h1 style="font-size:20px;margin:14px 0 8px;">The shop is having trouble loading</h1>' +
             '<p style="font-size:14px;line-height:1.6;opacity:.75;margin:0 0 20px;">We may have just published an update. It usually sorts itself out within a minute or two.</p>' +
-            '<button onclick="sessionStorage.removeItem(\'tms-boot-retry\');location.reload()" style="background:#b3c375;color:#26290f;border:0;border-radius:12px;padding:11px 22px;font-size:15px;font-weight:700;cursor:pointer;">Try again</button>' +
+            '<button onclick="try{sessionStorage.removeItem(\'tms-boot-retry\')}catch(e){};location.reload()" style="background:#b3c375;color:#26290f;border:0;border-radius:12px;padding:11px 22px;font-size:15px;font-weight:700;cursor:pointer;">Try again</button>' +
             (lastErr
               ? '<div style="font:11px/1.5 ui-monospace,Menlo,Consolas,monospace;opacity:.5;margin-top:18px;word-break:break-word;">' + esc(lastErr).slice(0, 400) + '</div>'
               : '') +
@@ -91,11 +91,18 @@
         function showCardOrRetry() {
           var root = document.getElementById('root');
           if (!root) return;
-          var last = Number(sessionStorage.getItem('tms-boot-retry') || 0);
+          // Storage can be blocked entirely (site settings / policy) — the
+          // guard must still show the card rather than crash on its own state
+          var last = Infinity;
+          try {
+            last = Number(sessionStorage.getItem('tms-boot-retry') || 0);
+          } catch (err) {}
           if (window.__tmsEntryFailed && Date.now() - last > 60000) {
-            sessionStorage.setItem('tms-boot-retry', String(Date.now()));
-            location.reload();
-            return;
+            try {
+              sessionStorage.setItem('tms-boot-retry', String(Date.now()));
+              location.reload();
+              return;
+            } catch (err) {}
           }
           card(root);
         }

@@ -13,6 +13,8 @@ import { stateRouter } from './state.js'
 import { storeRouter, webhookRouter } from './store-api.js'
 import { shopAccountRouter } from './shop-accounts.js'
 import { stripeEnabled } from './stripe.js'
+import { paypalEnabled } from './paypal.js'
+import { etsyRouter, startEtsySync } from './etsy.js'
 import { rateLimit } from './ratelimit.js'
 import { uploadsRouter, uploadsStatic } from './uploads.js'
 import { createBackup } from './backup.js'
@@ -75,6 +77,9 @@ app.get('/sitemap.xml', (req, res) => {
     .send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`)
 })
 app.get('/api/stripe/status', requireAuth, (_req, res) => res.json({ enabled: stripeEnabled() }))
+app.get('/api/payments/status', requireAuth, (_req, res) =>
+  res.json({ stripe: stripeEnabled(), paypal: paypalEnabled() }),
+)
 
 // Link previews: nginx proxies /product/ here so each product page carries its
 // own og: tags + schema.org data. Browsers get the same SPA shell as ever.
@@ -82,6 +87,7 @@ app.get('/product/:id', productPage)
 
 app.use('/api/auth', authRouter)
 app.use('/api/team', teamRouter)
+app.use('/api/etsy', etsyRouter)
 app.use('/api/store/account', shopAccountRouter)
 app.use('/api/store', storeRouter)
 app.use('/api/uploads', uploadsRouter)
@@ -106,6 +112,8 @@ app.use((err, _req, res, _next) => {
 
 // One nudge per abandoned Stripe checkout, ~2h after it stalls
 startAbandonedCartSweep()
+// Etsy receipts → Orders queue, every 10 minutes once connected
+startEtsySync()
 
 const port = Number(process.env.PORT) || 4000
 app.listen(port, '127.0.0.1', () => {

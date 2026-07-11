@@ -23,8 +23,11 @@ export default function StoreConfirmation() {
   const { orderId } = useParams()
   const [searchParams] = useSearchParams()
   const sessionId = searchParams.get('session_id')
-  // /store/confirmation/stripe?session_id=… is where Stripe sends the shopper back
+  const paypalRef = searchParams.get('ref')
+  // /confirmation/stripe?session_id=… and /confirmation/paypal?ref=… are the
+  // providers' return URLs — both poll until the payment lands
   const stripeMode = orderId === 'stripe' && Boolean(sessionId)
+  const paypalMode = orderId === 'paypal' && Boolean(paypalRef)
   const clear = useCart((s) => s.clear)
   const products = useCatalog((s) => s.products)
   const shop = useCatalog((s) => s.shop)
@@ -37,11 +40,11 @@ export default function StoreConfirmation() {
   useEffect(() => {
     let cancelled = false
     const run = async () => {
-      if (stripeMode && sessionId) {
+      if ((stripeMode && sessionId) || (paypalMode && paypalRef)) {
         // Poll: the payment may take a beat to register (webhook or direct check)
         for (let attempt = 0; attempt < 12 && !cancelled; attempt++) {
           try {
-            const res = await api.orderBySession(sessionId)
+            const res = paypalMode ? await api.orderByPaypal(paypalRef!) : await api.orderBySession(sessionId!)
             if (res.order) {
               if (!cancelled) {
                 setOrder(res.order)
@@ -76,7 +79,7 @@ export default function StoreConfirmation() {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderId, sessionId])
+  }, [orderId, sessionId, paypalRef])
 
   if (status === 'loading' || status === 'pending') {
     return (

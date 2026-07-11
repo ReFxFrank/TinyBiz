@@ -88,6 +88,8 @@ export interface ShopInfo {
   currency: CurrencyCode
   /** Conversion rates from the shop currency to the display currencies */
   currencyRates: { rates: Record<string, number>; source: 'live' | 'approx'; asOf: string | null } | null
+  /** Which real payment providers are configured — checkout adapts its UI */
+  payments: { stripe: boolean; paypal: boolean }
   taxRate: number
   /** Province → combined GST/HST/PST when the shop ships within Canada */
   caTaxTable: Record<string, number> | null
@@ -127,11 +129,14 @@ export interface CheckoutPayload {
   contact: { name: string; email: string }
   address: { line1: string; city: string; state: string; zip: string }
   notes?: string
+  /** Shopper's payment method when more than one provider is configured */
+  payWith?: 'stripe' | 'paypal'
 }
 
 export type CheckoutResponse =
   | { mode: 'mock'; orderId: string; number: string }
   | { mode: 'stripe'; checkoutUrl: string }
+  | { mode: 'paypal'; checkoutUrl: string }
 
 // ── Endpoints ─────────────────────────────────────────────────────────────────
 
@@ -209,6 +214,19 @@ export const api = {
   ops: (ops: SyncOp[]) => request<{ rev: number }>('/api/ops', { method: 'POST', body: JSON.stringify({ ops }) }),
   import: (state: unknown) => request<{ rev: number }>('/api/import', { method: 'POST', body: JSON.stringify({ state }) }),
   stripeStatus: () => request<{ enabled: boolean }>('/api/stripe/status'),
+  paymentsStatus: () => request<{ stripe: boolean; paypal: boolean }>('/api/payments/status'),
+
+  // Etsy shop sync (owner)
+  etsy: {
+    status: () =>
+      request<{ configured: boolean; connected: boolean; shopName: string | null; lastSyncAt: string | null }>(
+        '/api/etsy/status',
+      ),
+    saveKeystring: (keystring: string) =>
+      request<{ ok: true }>('/api/etsy/keystring', { method: 'POST', body: JSON.stringify({ keystring }) }),
+    sync: () => request<{ imported: number }>('/api/etsy/sync', { method: 'POST' }),
+    disconnect: () => request<{ ok: true }>('/api/etsy/disconnect', { method: 'POST' }),
+  },
 
   // public storefront
   catalog: () => request<{ products: Product[]; shop: ShopInfo; bestSellerIds: string[] }>('/api/store/catalog'),
@@ -224,6 +242,8 @@ export const api = {
     request<{ order: PublicOrder }>('/api/store/track', { method: 'POST', body: JSON.stringify({ number, email }) }),
   orderBySession: (sid: string) =>
     request<{ order?: PublicOrder; pending?: true }>(`/api/store/order/by-session/${encodeURIComponent(sid)}`),
+  orderByPaypal: (ref: string) =>
+    request<{ order?: PublicOrder; pending?: true }>(`/api/store/order/by-paypal/${encodeURIComponent(ref)}`),
   subscribe: (email: string) =>
     request<{ ok: true; already?: boolean }>('/api/store/subscribe', { method: 'POST', body: JSON.stringify({ email }) }),
   notifyStock: (productId: string, email: string) =>

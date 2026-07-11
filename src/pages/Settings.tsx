@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Check, Pipette, RotateCcw, Save } from 'lucide-react'
+import { Check, Pipette, RefreshCw, RotateCcw, Save } from 'lucide-react'
+import { api } from '@/lib/api'
 import { DEFAULT_SHIPPING, type CurrencyCode, type Settings as SettingsType } from '@/data/types'
 import { useStore } from '@/store/useStore'
 import { useUI, toast, ACCENTS, ACCENT_META, type Accent, type Radius, type Theme, type UIScale } from '@/store/useUI'
@@ -669,50 +670,211 @@ function PrinterSyncCard() {
 
 // ── Integrations ─────────────────────────────────────────────────────────────
 
-const INTEGRATIONS: Array<{ emoji: string; name: string; blurb: string }> = [
-  { emoji: '🧡', name: 'Etsy', blurb: 'Sync orders & listings automatically' },
-  { emoji: '🛍️', name: 'Shopify', blurb: 'Pull storefront sales into the workspace' },
-  { emoji: '📦', name: 'Amazon', blurb: 'Track marketplace orders & fees' },
-  { emoji: '🏷️', name: 'eBay', blurb: 'Import auction and fixed-price sales' },
-  { emoji: '◼️', name: 'Square', blurb: 'Sync in-person and market-day sales' },
-  { emoji: '💙', name: 'PayPal', blurb: 'Match payouts to orders automatically' },
-  { emoji: '💳', name: 'Stripe', blurb: 'Reconcile online payments & fees' },
-  { emoji: '📗', name: 'QuickBooks', blurb: 'Push your books to your accountant' },
-  { emoji: '🎮', name: 'Discord', blurb: 'Order alerts in your community server' },
-  { emoji: '✉️', name: 'Gmail', blurb: 'Send invoices & updates from your inbox' },
-]
+function IntegrationTile({
+  emoji,
+  name,
+  badge,
+  children,
+}: {
+  emoji: string
+  name: string
+  badge: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-edge bg-surface p-4">
+      <div className="flex items-start justify-between gap-2">
+        <span
+          aria-hidden
+          className="inline-flex h-10 w-10 shrink-0 select-none items-center justify-center rounded-xl bg-sunken text-xl"
+        >
+          {emoji}
+        </span>
+        {badge}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold text-ink">{name}</div>
+        {children}
+      </div>
+    </div>
+  )
+}
 
 function IntegrationsCard() {
+  const [etsy, setEtsy] = useState<{ configured: boolean; connected: boolean; shopName: string | null; lastSyncAt: string | null } | null>(null)
+  const [payments, setPayments] = useState<{ stripe: boolean; paypal: boolean } | null>(null)
+  const [keystring, setKeystring] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const refresh = () => {
+    api.etsy.status().then(setEtsy).catch(() => setEtsy(null))
+    api.paymentsStatus().then(setPayments).catch(() => setPayments(null))
+  }
+  useEffect(() => {
+    refresh()
+    // Etsy's OAuth flow bounces back to /admin/settings?etsy=connected|failed
+    const flag = new URLSearchParams(window.location.search).get('etsy')
+    if (flag) {
+      window.history.replaceState(null, '', window.location.pathname)
+      if (flag === 'connected') toast('Etsy connected! 🧡', { description: 'New Etsy orders now land in your Orders queue automatically.', tone: 'success' })
+      else toast('Etsy connection failed', { description: 'Check the keystring and try Connect again.', tone: 'error' })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const saveKey = async () => {
+    if (!keystring.trim() || busy) return
+    setBusy(true)
+    try {
+      await api.etsy.saveKeystring(keystring.trim())
+      setKeystring('')
+      toast('Etsy keystring saved', { description: 'Now click Connect Etsy to authorize.', tone: 'success' })
+      refresh()
+    } catch {
+      toast('Couldn’t save the keystring', { tone: 'error' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const syncNow = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const r = await api.etsy.sync()
+      toast(r.imported > 0 ? `Imported ${r.imported} Etsy order${r.imported === 1 ? '' : 's'}` : 'Already up to date', { tone: 'success' })
+      refresh()
+    } catch {
+      toast('Etsy sync failed — try again in a moment', { tone: 'error' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const keyEnvHint = (
+    <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
+      Add the API keys to <span className="font-mono text-xs">/etc/tinymagic.env</span> on the server, then{' '}
+      <span className="font-mono text-xs">sudo systemctl restart tinymagic-api</span>.
+    </p>
+  )
+
   return (
     <Card>
-      <CardHeader title="Integrations" subtitle="Connect your storefronts and tools — coming soon" />
+      <CardHeader title="Integrations" subtitle="Payments and marketplaces, connected to the workspace." />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {INTEGRATIONS.map((it) => (
-          <div key={it.name} className="flex flex-col gap-3 rounded-2xl border border-edge bg-surface p-4">
-            <div className="flex items-start justify-between gap-2">
-              <span
-                aria-hidden
-                className="inline-flex h-10 w-10 shrink-0 select-none items-center justify-center rounded-xl bg-sunken text-xl"
-              >
-                {it.emoji}
-              </span>
-              <Badge tone="neutral">Coming soon</Badge>
-            </div>
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-ink">{it.name}</div>
-              <p className="mt-0.5 text-[13px] leading-snug text-ink-3">{it.blurb}</p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-auto self-start opacity-60"
-              onClick={() => toast(`${it.name} integration is on the roadmap 🚧`)}
-            >
-              Connect
-            </Button>
-          </div>
-        ))}
+        <IntegrationTile
+          emoji="🧡"
+          name="Etsy"
+          badge={
+            etsy?.connected ? (
+              <Badge tone="green">Connected</Badge>
+            ) : etsy?.configured ? (
+              <Badge tone="yellow">Ready to connect</Badge>
+            ) : (
+              <Badge tone="neutral">Not set up</Badge>
+            )
+          }
+        >
+          {etsy?.connected ? (
+            <>
+              <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
+                {etsy.shopName ? <>Synced with <span className="font-medium text-ink-2">{etsy.shopName}</span>. </> : null}
+                New Etsy orders land in your Orders queue every 10 minutes
+                {etsy.lastSyncAt ? ` — last sync ${new Date(etsy.lastSyncAt).toLocaleTimeString()}` : ''}.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" icon={<RefreshCw />} disabled={busy} onClick={() => void syncNow()}>
+                  Sync now
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => void api.etsy.disconnect().then(refresh)}
+                >
+                  Disconnect
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
+                Pulls your Etsy orders in automatically (stock included, matched by SKU). Create a free app at{' '}
+                <a href="https://www.etsy.com/developers/your-apps" target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+                  etsy.com/developers
+                </a>{' '}
+                and paste its keystring here. Etsy approves new apps within a few days.
+              </p>
+              <div className="mt-3 flex gap-2">
+                <Input
+                  value={keystring}
+                  onChange={(e) => setKeystring(e.target.value)}
+                  placeholder={etsy?.configured ? 'Keystring saved — replace?' : 'Etsy app keystring'}
+                  className="flex-1 font-mono text-xs"
+                />
+                <Button variant="outline" size="sm" disabled={!keystring.trim() || busy} onClick={() => void saveKey()}>
+                  Save
+                </Button>
+              </div>
+              {etsy?.configured && (
+                <Button size="sm" className="mt-2" onClick={() => window.location.assign('/api/etsy/connect')}>
+                  Connect Etsy
+                </Button>
+              )}
+            </>
+          )}
+        </IntegrationTile>
+
+        <IntegrationTile
+          emoji="💙"
+          name="PayPal"
+          badge={payments?.paypal ? <Badge tone="green">Connected</Badge> : <Badge tone="neutral">Needs API keys</Badge>}
+        >
+          {payments?.paypal ? (
+            <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
+              Shoppers can pay with PayPal at checkout. Refund from each order&rsquo;s PayPal link.
+            </p>
+          ) : (
+            <>
+              <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
+                Lets shoppers pay with PayPal at checkout. Get free keys at{' '}
+                <a href="https://developer.paypal.com/dashboard/applications/live" target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+                  developer.paypal.com
+                </a>{' '}
+                (<span className="font-mono text-xs">PAYPAL_CLIENT_ID</span>, <span className="font-mono text-xs">PAYPAL_CLIENT_SECRET</span>,{' '}
+                <span className="font-mono text-xs">PAYPAL_ENV=live</span>).
+              </p>
+              {keyEnvHint}
+            </>
+          )}
+        </IntegrationTile>
+
+        <IntegrationTile
+          emoji="💳"
+          name="Stripe"
+          badge={payments?.stripe ? <Badge tone="green">Connected</Badge> : <Badge tone="neutral">Needs API keys</Badge>}
+        >
+          {payments?.stripe ? (
+            <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
+              Card payments are live at checkout. Refund from each order&rsquo;s Stripe link.
+            </p>
+          ) : (
+            <>
+              <p className="mt-0.5 text-[13px] leading-snug text-ink-3">
+                Secure card checkout (Visa, Mastercard, Amex). Get keys at{' '}
+                <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+                  dashboard.stripe.com
+                </a>{' '}
+                (<span className="font-mono text-xs">STRIPE_SECRET_KEY</span>).
+              </p>
+              {keyEnvHint}
+            </>
+          )}
+        </IntegrationTile>
       </div>
+      <p className="mt-4 text-xs text-ink-3">
+        Square, QuickBooks and Discord alerts are on the roadmap — say the word when you want one.
+      </p>
     </Card>
   )
 }

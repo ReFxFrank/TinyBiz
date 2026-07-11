@@ -43,6 +43,34 @@ interface CartState {
 // Carry shoppers' carts over from the pre-rename key
 migrateKey('tinybiz-cart', 'tms-cart')
 
+// Persisted carts arrive from EVERY version this app has ever shipped (the
+// legacy key is copied verbatim), so trust nothing: one null entry or a
+// non-array items value used to crash the header on boot — and since the bad
+// value re-persists, that browser stayed black forever until cleared by hand.
+function sanitizeItems(raw: unknown): CartItem[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter(
+      (i): i is CartItem =>
+        Boolean(i) &&
+        typeof i === 'object' &&
+        typeof (i as CartItem).productId === 'string' &&
+        Number.isFinite((i as CartItem).qty) &&
+        (i as CartItem).qty > 0,
+    )
+    .map((i) => ({
+      productId: i.productId,
+      ...(typeof i.variantId === 'string' && i.variantId ? { variantId: i.variantId } : {}),
+      qty: Math.floor(i.qty),
+    }))
+}
+
+function sanitizePromo(raw: unknown): AppliedPromo | null {
+  if (!raw || typeof raw !== 'object') return null
+  const p = raw as AppliedPromo
+  return typeof p.code === 'string' && Number.isFinite(p.discountPct) ? { code: p.code, discountPct: p.discountPct } : null
+}
+
 export const useCart = create<CartState>()(
   persist(
     (set) => ({
@@ -80,7 +108,13 @@ export const useCart = create<CartState>()(
       version: 2, // v2: promoCode string → server-validated promo object
       migrate: (persisted) => {
         const p = persisted as Partial<CartState> & { promoCode?: unknown }
-        return { items: p.items ?? [], promo: null }
+        return { items: sanitizeItems(p?.items), promo: null }
+      },
+      // merge runs on EVERY rehydrate (migrate only on version skew) — this is
+      // the gate that keeps hostile persisted shapes out of render code
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<CartState>
+        return { ...current, items: sanitizeItems(p.items), promo: sanitizePromo(p.promo) }
       },
       partialize: (s) => ({ items: s.items, promo: s.promo }),
     },
@@ -137,7 +171,10 @@ export function useCartDetails(province?: string): CartDetails {
   return useMemo(() => {
     const pct = promo?.discountPct ?? 0
     const lines: CartLine[] = []
-    for (const item of items) {
+    // Belt over braces: the persist merge sanitizes, but this runs in the
+    // HEADER on every page — it must survive anything
+    const safeItems = Array.isArray(items) ? items.filter((i) => i && typeof i.productId === 'string') : []
+    for (const item of safeItems) {
       const product = products.find((p) => p.id === item.productId)
       if (!product || !product.active) continue // deleted or retired — no longer for sale
       const variant = item.variantId ? product.variants.find((v) => v.id === item.variantId) : undefined

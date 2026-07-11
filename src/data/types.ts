@@ -555,6 +555,51 @@ export interface NewsletterSettings {
   }
 }
 
+// ── Support ──────────────────────────────────────────────────────────────────
+
+export type TicketStatus = 'open' | 'awaiting_customer' | 'resolved'
+export type TicketAuthor = 'customer' | 'staff'
+
+export interface TicketMessage {
+  id: ID
+  from: TicketAuthor
+  authorName: string
+  body: string
+  at: string
+}
+
+/**
+ * A customer support request. Read through the sync engine like any other
+ * collection, but written ONLY via /api/support endpoints — status flips,
+ * timestamps and emails are applied server-side on every reply.
+ */
+export interface SupportTicket {
+  id: ID
+  /** SUP-1001 — its own sequence, independent of order numbers */
+  number: string
+  subject: string
+  status: TicketStatus
+  /** Staff-assigned labels for triage (never shown to the customer) */
+  tags: string[]
+  customerName: string
+  email: string
+  /** Shopper account that opened it, when they were signed in */
+  accountId?: string
+  /** Linked order, verified against the requester's email at creation */
+  orderId?: ID
+  orderNumber?: string
+  messages: TicketMessage[]
+  createdAt: string
+  updatedAt: string
+  lastReplyBy: TicketAuthor
+  lastCustomerAt?: string
+  lastStaffAt?: string
+  /** Stamped by the first staff reply — response-time at a glance */
+  firstResponseAt?: string
+  /** Present only while status is 'resolved'; a customer reply clears it */
+  resolvedAt?: string
+}
+
 // ── System ───────────────────────────────────────────────────────────────────
 
 export type NotificationType = 'low-stock' | 'order' | 'shipping' | 'expense' | 'report' | 'message' | 'task'
@@ -642,6 +687,8 @@ export interface Settings {
   notifyNewOrders: boolean
   /** One reminder email to shoppers who abandon a Stripe checkout (default on) */
   abandonedCartEmails?: boolean
+  /** Email the business address on new support requests & replies (default on) */
+  notifySupport?: boolean
   notifyExpensesDue: boolean
   weeklyReports: boolean
   /** Base URL of the printer bridge, e.g. http://192.168.1.50:7070 */

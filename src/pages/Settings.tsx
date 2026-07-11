@@ -539,7 +539,7 @@ function AppearanceCard() {
 
 // Only toggles that are actually wired up — anything else would be lying
 const NOTIFICATION_PREFS: Array<{
-  key: 'notifyLowStock' | 'notifyNewOrders' | 'abandonedCartEmails'
+  key: 'notifyLowStock' | 'notifyNewOrders' | 'abandonedCartEmails' | 'notifySupport'
   label: string
   description: string
 }> = [
@@ -558,6 +558,11 @@ const NOTIFICATION_PREFS: Array<{
     label: 'Abandoned cart reminders',
     description:
       'One nudge to shoppers who start paying but never finish, about two hours later. Kicks in once Stripe payments are on.',
+  },
+  {
+    key: 'notifySupport',
+    label: 'Support requests',
+    description: 'An email to your business address when a customer opens a support request or replies.',
   },
 ]
 

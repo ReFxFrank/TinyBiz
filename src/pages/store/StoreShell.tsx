@@ -327,6 +327,7 @@ function StoreFooter() {
                 <Link to="/" className="block text-ink-2 hover:text-ink">Home</Link>
                 <Link to="/shop" className="block text-ink-2 hover:text-ink">All products</Link>
                 <Link to="/track" className="block text-ink-2 hover:text-ink">Track your order</Link>
+                <Link to="/support" className="block text-ink-2 hover:text-ink">Get help</Link>
                 <Link to="/policies" className="block text-ink-2 hover:text-ink">Policies</Link>
               </div>
             </div>
@@ -486,6 +487,7 @@ export function StoreShell() {
         import('@/pages/store/StoreTrack'),
         import('@/pages/store/StorePolicies'),
         import('@/pages/store/StoreAccount'),
+        import('@/pages/store/StoreSupport'),
       ])
     const w = window as Window & { requestIdleCallback?: (fn: () => void) => number }
     if (w.requestIdleCallback) w.requestIdleCallback(warm)

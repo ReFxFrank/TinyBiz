@@ -546,6 +546,127 @@ export async function sendCartReminder({ payload, origin }) {
   })
 }
 
+// ── Support tickets ──────────────────────────────────────────────────────────
+
+/** The one link every support email carries — the thread, no sign-in needed */
+const ticketUrl = (origin, ticket) => `${origin}/support?t=${encodeURIComponent(ticket.id)}`
+
+const ticketMetaLine = (ticket) =>
+  `Request <strong style="color:#111;">${esc(ticket.number)}</strong>${
+    ticket.orderNumber ? ` · about order <strong style="color:#111;">${esc(ticket.orderNumber)}</strong>` : ''
+  }`
+
+/** "We got your request" — confirmation with the thread link */
+export async function sendSupportReceived({ ticket, origin }) {
+  const settings = getMeta('settings')
+  const html = shellHtml(settings, {
+    title: `We got your request ${ticket.number}`,
+    badge: '💬 Request received',
+    bodyRows: `
+        <tr><td style="padding:16px 32px 6px;">
+          <h1 style="margin:0 0 6px;color:#111;font-size:22px;">Thanks, ${esc(ticket.customerName.split(' ')[0])} — we're on it.</h1>
+          <p style="margin:0 0 10px;color:#555;font-size:15px;line-height:1.6;">
+            ${ticketMetaLine(ticket)} · “${esc(ticket.subject)}”
+          </p>
+          <p style="margin:0;color:#555;font-size:15px;line-height:1.6;">
+            A real person reads every message — you'll hear back at this address, usually within a business day.
+            You can check on it or add details any time:
+          </p>
+        </td></tr>
+        <tr><td style="padding:18px 32px 26px;">${ctaButton('View your request', ticketUrl(origin, ticket))}</td></tr>`,
+    footer: `Keep the request number ${esc(ticket.number)} handy — it's how we find your conversation.`,
+  })
+  await sendViaBridge('support-received', {
+    to: ticket.email,
+    toName: ticket.customerName,
+    subject: `We got your request ${ticket.number} — ${settings?.businessName || 'thanks!'}`,
+    html,
+    text: `Thanks — we got your request ${ticket.number} (“${ticket.subject}”) and a real person will reply within a business day.\n\nView it or add details: ${ticketUrl(origin, ticket)}`,
+    ref: ticket.number,
+  })
+}
+
+/** A staff reply, delivered to the customer with the thread link */
+export async function sendSupportStaffReply({ ticket, message, origin }) {
+  const settings = getMeta('settings')
+  const html = shellHtml(settings, {
+    title: `New reply on ${ticket.number}`,
+    badge: '💬 New reply',
+    bodyRows: `
+        <tr><td style="padding:16px 32px 6px;">
+          <h1 style="margin:0 0 6px;color:#111;font-size:22px;">Hi ${esc(ticket.customerName.split(' ')[0])},</h1>
+          <p style="margin:0;color:#555;font-size:15px;line-height:1.6;">
+            ${ticketMetaLine(ticket)} · “${esc(ticket.subject)}” has a new reply:
+          </p>
+        </td></tr>
+        <tr><td style="padding:14px 32px 0;">
+          <div style="background:#fafaf9;border:1px solid #eee;border-left:3px solid #5f6f2d;border-radius:12px;padding:14px 16px;color:#333;font-size:14px;line-height:1.7;white-space:pre-wrap;">${esc(message)}</div>
+        </td></tr>
+        <tr><td style="padding:18px 32px 26px;">${ctaButton('View & reply', ticketUrl(origin, ticket))}</td></tr>`,
+    footer: `Replying on the site keeps the whole conversation in one place.`,
+  })
+  await sendViaBridge('support-reply', {
+    to: ticket.email,
+    toName: ticket.customerName,
+    subject: `Re: ${ticket.subject} (${ticket.number}) — ${settings?.businessName || ''}`.trim().replace(/ —$/, ''),
+    html,
+    text: `New reply on your request ${ticket.number} (“${ticket.subject}”):\n\n${message}\n\nView & reply: ${ticketUrl(origin, ticket)}`,
+    ref: ticket.number,
+  })
+}
+
+/** Courteous closure — one reply reopens the request */
+export async function sendSupportResolved({ ticket, origin }) {
+  const settings = getMeta('settings')
+  const html = shellHtml(settings, {
+    title: `Request ${ticket.number} resolved`,
+    badge: '✓ Resolved',
+    badgeColors: { bg: '#e7f6e7', fg: '#1c7a1c' },
+    bodyRows: `
+        <tr><td style="padding:16px 32px 6px;">
+          <h1 style="margin:0 0 6px;color:#111;font-size:22px;">All sorted, ${esc(ticket.customerName.split(' ')[0])}!</h1>
+          <p style="margin:0;color:#555;font-size:15px;line-height:1.6;">
+            We've marked ${ticketMetaLine(ticket).toLowerCase()} · “${esc(ticket.subject)}” as resolved.
+            If anything still isn't right, just reply on the thread — that reopens it instantly.
+          </p>
+        </td></tr>
+        <tr><td style="padding:18px 32px 26px;">${ctaButton('View the conversation', ticketUrl(origin, ticket))}</td></tr>`,
+    footer: `Thanks for giving us the chance to make it right.`,
+  })
+  await sendViaBridge('support-resolved', {
+    to: ticket.email,
+    toName: ticket.customerName,
+    subject: `Resolved: ${ticket.subject} (${ticket.number}) — ${settings?.businessName || ''}`.trim().replace(/ —$/, ''),
+    html,
+    text: `Your request ${ticket.number} (“${ticket.subject}”) is resolved. Not quite right? Reply on the thread to reopen it:\n${ticketUrl(origin, ticket)}`,
+    ref: ticket.number,
+  })
+}
+
+/** Heads-up to the studio inbox on new requests and customer replies */
+export async function sendSupportOwnerAlert({ ticket, kind, origin }) {
+  const settings = getMeta('settings')
+  if (settings?.notifySupport === false) return
+  const to = String(settings?.email || '').trim()
+  if (!to || to.toLowerCase() === String(ticket.email || '').toLowerCase()) return
+  const latest = ticket.messages[ticket.messages.length - 1]
+  const isNew = kind === 'new'
+  await sendViaBridge('support alert', {
+    to,
+    toName: settings?.ownerName || '',
+    subject: isNew
+      ? `💬 New support request ${ticket.number} — ${ticket.subject} (${ticket.customerName})`
+      : `💬 ${ticket.customerName} replied on ${ticket.number} — ${ticket.subject}`,
+    html: `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;color:#111;line-height:1.7;">
+      <p><strong>${esc(ticket.customerName)}</strong> (${esc(ticket.email)}) ${isNew ? 'opened a support request' : 'replied'}${ticket.orderNumber ? ` about order <strong>${esc(ticket.orderNumber)}</strong>` : ''}:</p>
+      <div style="background:#fafaf9;border:1px solid #eee;border-radius:10px;padding:12px 14px;white-space:pre-wrap;">${esc(latest?.body || '')}</div>
+      <p style="margin-top:14px;"><a href="${esc(`${origin}/admin/support`)}" style="color:#5f6f2d;font-weight:700;">Answer it in Support →</a></p>
+    </div>`,
+    text: `${ticket.customerName} (${ticket.email}) ${isNew ? 'opened' : 'replied on'} ${ticket.number} — ${ticket.subject}${ticket.orderNumber ? ` (order ${ticket.orderNumber})` : ''}:\n\n${latest?.body || ''}\n\nAnswer it: ${origin}/admin/support`,
+    ref: ticket.number,
+  })
+}
+
 /** Heads-up to the owner when a website order lands (Settings toggle) */
 export async function sendNewOrderAlert(order) {
   const settings = getMeta('settings')

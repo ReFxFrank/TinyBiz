@@ -5,7 +5,7 @@
 // ops outside the writable union. Owners bypass everything.
 
 export const PERM_KEYS = [
-  'dashboard', 'orders', 'inventory', 'products', 'customers', 'suppliers',
+  'dashboard', 'orders', 'support', 'inventory', 'products', 'customers', 'suppliers',
   'expenses', 'income', 'accounting', 'shipping', 'manufacturing', 'analytics',
   'marketing', 'newsletter', 'social', 'calendar', 'tasks', 'documents',
   'employees', 'settings',
@@ -24,6 +24,10 @@ const PAGE_ACCESS = {
     read: ['orders', 'customers', 'products', 'promoCodes', 'shipments', 'adjustments'],
     write: ['orders', 'customers', 'products', 'adjustments', 'shipments'],
   },
+  // Tickets are read through the sync engine but only ever WRITTEN through
+  // /api/support endpoints — replies and status changes carry auto-update
+  // logic (timestamps, reopens, emails) that raw ops would bypass.
+  support: { read: ['tickets', 'orders', 'customers'], write: [] },
   inventory: {
     read: ['products', 'materials', 'adjustments', 'suppliers'],
     write: ['products', 'materials', 'adjustments'],

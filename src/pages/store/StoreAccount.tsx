@@ -4,7 +4,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowRight, CircleUserRound, KeyRound, LogOut, MailCheck, PackageOpen, ExternalLink, Sparkles } from 'lucide-react'
+import { ArrowRight, CircleUserRound, KeyRound, LifeBuoy, LogOut, MailCheck, PackageOpen, ExternalLink, Sparkles } from 'lucide-react'
 import { Badge, Button, Card, EmptyState, Field, Input, type BadgeTone } from '@/components/ui'
 import { api, ApiError, type PublicOrder } from '@/lib/api'
 import { useShopAccount } from '@/store/useShopAccount'
@@ -513,6 +513,30 @@ function OrdersCard() {
   )
 }
 
+/** Pointer to the support hub — the requests themselves live at /support */
+function SupportCard() {
+  return (
+    <Card padding="lg">
+      <div className="flex items-start gap-3">
+        <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-wash text-accent-strong dark:text-accent">
+          <LifeBuoy className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[15px] font-semibold text-ink">Need a hand?</h2>
+          <p className="mt-1 text-[13px] leading-relaxed text-ink-3">
+            Open a support request about any order — you'll see our replies here and by email.
+          </p>
+        </div>
+        <Link to="/support" className="shrink-0">
+          <Button variant="secondary" size="sm">
+            Support <ArrowRight className="h-3.5 w-3.5" />
+          </Button>
+        </Link>
+      </div>
+    </Card>
+  )
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function StoreAccount() {
@@ -600,7 +624,10 @@ export default function StoreAccount() {
                 <DetailsCard />
                 <PasswordCard />
               </div>
-              <OrdersCard />
+              <div className="space-y-5">
+                <OrdersCard />
+                <SupportCard />
+              </div>
             </div>
           )}
         </div>

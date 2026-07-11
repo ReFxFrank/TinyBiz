@@ -15,7 +15,7 @@ export const COLLECTIONS = [
   'incomes', 'recipes', 'batches', 'machines', 'shipments', 'tasks', 'events',
   'daysOff', 'documents', 'employees', 'campaigns', 'promoCodes',
   'socialAccounts', 'socialPosts', 'subscribers', 'newsletters',
-  'adjustments', 'notifications',
+  'adjustments', 'notifications', 'tickets',
 ]
 
 const DB_ENV = process.env.TINYMAGIC_DB || process.env.TINYBIZ_DB // legacy name still honored

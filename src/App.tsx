@@ -65,6 +65,7 @@ const AdminApp = lazyReload(() => import('@/AdminApp'))
 
 const Dashboard = lazyReload(() => import('@/pages/Dashboard'))
 const Orders = lazyReload(() => import('@/pages/Orders'))
+const Support = lazyReload(() => import('@/pages/Support'))
 const Inventory = lazyReload(() => import('@/pages/Inventory'))
 const Products = lazyReload(() => import('@/pages/Products'))
 const Customers = lazyReload(() => import('@/pages/Customers'))
@@ -93,6 +94,7 @@ const StoreConfirmation = lazyReload(() => import('@/pages/store/StoreConfirmati
 const StoreTrack = lazyReload(() => import('@/pages/store/StoreTrack'))
 const StorePolicies = lazyReload(() => import('@/pages/store/StorePolicies'))
 const StoreAccount = lazyReload(() => import('@/pages/store/StoreAccount'))
+const StoreSupport = lazyReload(() => import('@/pages/store/StoreSupport'))
 
 export default function App() {
   return (
@@ -107,6 +109,7 @@ export default function App() {
         <Route path="track" element={<StoreTrack />} />
         <Route path="policies" element={<StorePolicies />} />
         <Route path="account" element={<StoreAccount />} />
+        <Route path="support" element={<StoreSupport />} />
       </Route>
 
       {/* Old /store/* links keep working */}
@@ -124,6 +127,7 @@ export default function App() {
       >
         <Route index element={<Dashboard />} />
         <Route path="orders" element={<Orders />} />
+        <Route path="support" element={<Support />} />
         <Route path="inventory" element={<Inventory />} />
         <Route path="products" element={<Products />} />
         <Route path="customers" element={<Customers />} />

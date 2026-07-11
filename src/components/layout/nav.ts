@@ -10,6 +10,7 @@ import {
   FileText,
   Handshake,
   LayoutDashboard,
+  LifeBuoy,
   Mail,
   Megaphone,
   Receipt,
@@ -44,6 +45,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Sell',
     items: [
       { label: 'Orders', path: '/admin/orders', icon: ShoppingCart, shortcut: 'o' },
+      { label: 'Support', path: '/admin/support', icon: LifeBuoy, shortcut: 'h' },
       { label: 'Shipping', path: '/admin/shipping', icon: Truck },
       { label: 'Customers', path: '/admin/customers', icon: Users, shortcut: 'c' },
     ],

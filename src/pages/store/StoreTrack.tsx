@@ -186,8 +186,11 @@ export default function StoreTrack() {
 
           {canceled ? (
             <div className="mt-4 rounded-xl bg-critical-wash px-4 py-3 text-sm text-critical">
-              This order was {order.status.toLowerCase()}. If that's unexpected, reply to your confirmation email and
-              we'll sort it out.
+              This order was {order.status.toLowerCase()}. If that's unexpected,{' '}
+              <Link to={`/support?order=${encodeURIComponent(order.number)}`} className="font-medium underline underline-offset-2">
+                open a support request
+              </Link>{' '}
+              and we'll sort it out.
             </div>
           ) : (
             <div className="mt-6">
@@ -209,6 +212,15 @@ export default function StoreTrack() {
             <p className="mt-3 text-xs text-ink-3">
               Shipping to {order.shippingAddress.line1}, {order.shippingAddress.city}, {order.shippingAddress.state}{' '}
               {order.shippingAddress.zip}
+            </p>
+            <p className="mt-2 text-xs text-ink-3">
+              Something not right?{' '}
+              <Link
+                to={`/support?order=${encodeURIComponent(order.number)}`}
+                className="font-medium text-accent-strong hover:underline dark:text-accent"
+              >
+                Get help with this order →
+              </Link>
             </p>
           </div>
         </Card>

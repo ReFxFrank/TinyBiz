@@ -1,7 +1,17 @@
 // Typed fetch layer for the studio's API server. Same-origin (/api is proxied
 // by Vite in dev and nginx in production), cookie-authenticated.
 
-import type { CurrencyCode, Order, PolicyContent, Product, PromoBanner, SocialLinks, StorefrontContent } from '@/data/types'
+import type {
+  CurrencyCode,
+  Order,
+  PolicyContent,
+  Product,
+  PromoBanner,
+  SocialLinks,
+  StorefrontContent,
+  SupportTicket,
+  TicketStatus,
+} from '@/data/types'
 
 export class ApiError extends Error {
   status: number
@@ -35,7 +45,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 /** Admin sections an account can be granted (mirrors the sidebar) */
 export type PermKey =
-  | 'dashboard' | 'orders' | 'inventory' | 'products' | 'customers' | 'suppliers'
+  | 'dashboard' | 'orders' | 'support' | 'inventory' | 'products' | 'customers' | 'suppliers'
   | 'expenses' | 'income' | 'accounting' | 'shipping' | 'manufacturing' | 'analytics'
   | 'marketing' | 'newsletter' | 'social' | 'calendar' | 'tasks' | 'documents'
   | 'employees' | 'settings'
@@ -122,6 +132,12 @@ export type PublicOrder = Pick<
   | 'id' | 'number' | 'customerName' | 'email' | 'status' | 'items' | 'shippingCharged' | 'taxCollected'
   | 'discountTotal' | 'shippingAddress' | 'notes' | 'placedAt' | 'shipBy' | 'trackingNumber' | 'carrier'
   | 'shippedAt' | 'deliveredAt'
+>
+
+/** The sanitized ticket the public support endpoints return (no staff tags) */
+export type PublicTicket = Pick<
+  SupportTicket,
+  'id' | 'number' | 'subject' | 'status' | 'orderNumber' | 'messages' | 'createdAt' | 'updatedAt' | 'lastReplyBy' | 'resolvedAt'
 >
 
 export interface CheckoutPayload {
@@ -221,6 +237,47 @@ export const api = {
   import: (state: unknown) => request<{ rev: number }>('/api/import', { method: 'POST', body: JSON.stringify({ state }) }),
   stripeStatus: () => request<{ enabled: boolean }>('/api/stripe/status'),
   paymentsStatus: () => request<{ stripe: boolean; paypal: boolean }>('/api/payments/status'),
+
+  // Support tickets — staff side. Every mutation goes through these endpoints
+  // (never sync ops) so the server can apply status flips + emails.
+  supportAdmin: {
+    reply: (id: string, message: string) =>
+      request<{ ok: true; ticket: SupportTicket }>(`/api/support/${encodeURIComponent(id)}/reply`, {
+        method: 'POST',
+        body: JSON.stringify({ message }),
+      }),
+    setStatus: (id: string, status: TicketStatus) =>
+      request<{ ok: true; ticket: SupportTicket }>(`/api/support/${encodeURIComponent(id)}/status`, {
+        method: 'POST',
+        body: JSON.stringify({ status }),
+      }),
+    setTags: (id: string, tags: string[]) =>
+      request<{ ok: true; ticket: SupportTicket }>(`/api/support/${encodeURIComponent(id)}/tags`, {
+        method: 'POST',
+        body: JSON.stringify({ tags }),
+      }),
+  },
+
+  // Support tickets — customer side (storefront)
+  support: {
+    create: (input: { subject: string; message: string; orderNumber?: string; name?: string; email?: string }) =>
+      request<{ ok: true; ticket: PublicTicket }>('/api/store/support/tickets', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    mine: () => request<{ tickets: PublicTicket[] }>('/api/store/support/tickets'),
+    get: (id: string) => request<{ ticket: PublicTicket }>(`/api/store/support/tickets/${encodeURIComponent(id)}`),
+    lookup: (number: string, email: string) =>
+      request<{ ticket: PublicTicket }>('/api/store/support/lookup', {
+        method: 'POST',
+        body: JSON.stringify({ number, email }),
+      }),
+    reply: (id: string, message: string, email?: string) =>
+      request<{ ok: true; ticket: PublicTicket }>(`/api/store/support/tickets/${encodeURIComponent(id)}/reply`, {
+        method: 'POST',
+        body: JSON.stringify({ message, ...(email ? { email } : {}) }),
+      }),
+  },
 
   // Etsy shop sync (owner)
   etsy: {

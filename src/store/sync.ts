@@ -20,8 +20,15 @@ const SYNC_COLLECTIONS = [
   'incomes', 'recipes', 'batches', 'machines', 'shipments', 'tasks', 'events',
   'daysOff', 'documents', 'employees', 'campaigns', 'promoCodes',
   'socialAccounts', 'socialPosts', 'subscribers', 'newsletters',
-  'adjustments', 'notifications',
+  'adjustments', 'notifications', 'tickets',
 ] as const
+
+/**
+ * Hydrated and polled like everything else, but NEVER diffed into ops: these
+ * are only written through dedicated endpoints (support replies carry status
+ * flips + emails), so a local setState echo must not race a server write.
+ */
+const SERVER_OWNED: ReadonlySet<string> = new Set(['tickets'])
 
 type CollectionName = (typeof SYNC_COLLECTIONS)[number]
 type Snapshot = Record<CollectionName, Array<{ id: string }>> & {
@@ -99,6 +106,7 @@ function diffAndQueue() {
   if (!snapshot) return
   const next = takeSnapshot()
   for (const name of SYNC_COLLECTIONS) {
+    if (SERVER_OWNED.has(name)) continue
     const before = snapshot[name]
     const after = next[name]
     if (before === after) continue

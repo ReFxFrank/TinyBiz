@@ -15,6 +15,7 @@ import { shopAccountRouter } from './shop-accounts.js'
 import { stripeEnabled } from './stripe.js'
 import { paypalEnabled } from './paypal.js'
 import { etsyRouter, startEtsySync } from './etsy.js'
+import { supportPublicRouter, supportAdminRouter } from './support.js'
 import { rateLimit } from './ratelimit.js'
 import { uploadsRouter, uploadsStatic } from './uploads.js'
 import { createBackup } from './backup.js'
@@ -91,6 +92,10 @@ app.use('/api/auth', authRouter)
 app.use('/api/team', teamRouter)
 app.use('/api/etsy', etsyRouter)
 app.use('/api/store/account', shopAccountRouter)
+// Support tickets: public thread endpoints (rate limits live on the routes),
+// then the staff-side reply/status/tags endpoints
+app.use('/api/store/support', supportPublicRouter)
+app.use('/api/support', supportAdminRouter)
 app.use('/api/store', storeRouter)
 app.use('/api/uploads', uploadsRouter)
 

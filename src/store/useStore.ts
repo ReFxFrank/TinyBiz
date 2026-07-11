@@ -29,6 +29,7 @@ import type {
   SocialAccount,
   SocialPost,
   StockAdjustment,
+  SupportTicket,
   Newsletter,
   NewsletterSettings,
   Subscriber,
@@ -96,6 +97,8 @@ export interface Collections {
   newsletters: Newsletter[]
   adjustments: StockAdjustment[]
   notifications: AppNotification[]
+  /** Server-owned: hydrated/polled but never written through sync ops */
+  tickets: SupportTicket[]
 }
 
 export type CollectionKey = keyof Collections
@@ -177,6 +180,7 @@ export function seedCollections(): Collections & { settings: Settings; newslette
     newsletters: seedNewsletters,
     adjustments: seedAdjustments,
     notifications: buildSeedNotifications(),
+    tickets: [], // real tickets only ever come from the server
     settings: seedSettings,
     newsletterSettings: seedNewsletterSettings,
   }

@@ -78,8 +78,9 @@ const staffAccount = (user) => ({
   role: user.role || 'owner',
 })
 
-/** Attach req.shopper when a valid shopper cookie is present (sliding expiry) */
-function shopperSession(req) {
+/** Attach req.shopper when a valid shopper cookie is present (sliding expiry).
+ *  Also used by the support router to recognize signed-in shoppers. */
+export function shopperSession(req) {
   const token = parseCookies(req)[COOKIE]
   if (!token) return null
   const row = stmtSession.get(token)

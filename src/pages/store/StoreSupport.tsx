@@ -146,18 +146,22 @@ function ThreadView({
 
 function NewRequestCard({
   signedIn,
+  prefillName = '',
+  prefillEmail = '',
   prefillOrder,
   onCreated,
   onCancel,
 }: {
   signedIn: boolean
+  prefillName?: string
+  prefillEmail?: string
   prefillOrder: string
   onCreated: (t: PublicTicket, email: string | null) => void
   onCancel?: () => void
 }) {
   const account = useShopAccount((s) => s.account)
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
+  const [name, setName] = useState(prefillName)
+  const [email, setEmail] = useState(prefillEmail)
   const [orderNumber, setOrderNumber] = useState(prefillOrder)
   const [subject, setSubject] = useState('')
   const [message, setMessage] = useState('')
@@ -393,25 +397,26 @@ export default function StoreSupport() {
             onUpdate={setTicket}
             onBack={closeThread}
           />
-        ) : account?.staff ? (
-          <Card padding="lg">
-            <div className="flex items-start gap-3">
-              <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-wash text-accent-strong dark:text-accent">
-                <Sparkles className="h-5 w-5" />
-              </span>
-              <div>
-                <h2 className="text-[15px] font-semibold text-ink">You're on the studio side of the desk</h2>
-                <p className="mt-1 text-[13px] leading-relaxed text-ink-3">
-                  Customer requests are answered from the admin's Support inbox — replies, tags and statuses all live there.
-                </p>
-              </div>
-            </div>
-            <Link to="/admin/support" className="mt-4 block">
-              <Button className="w-full">Open the Support inbox</Button>
-            </Link>
-          </Card>
         ) : (
           <>
+            {account?.staff && (
+              <Card padding="lg">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-wash text-accent-strong dark:text-accent">
+                    <Sparkles className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-[15px] font-semibold text-ink">You're signed in as studio {account.role === 'owner' ? 'owner' : 'staff'}</h2>
+                    <p className="mt-0.5 text-[13px] leading-relaxed text-ink-3">
+                      Customer requests are answered in the admin — but you can open one below to see what customers see.
+                    </p>
+                  </div>
+                  <Link to="/admin/support" className="shrink-0">
+                    <Button variant="secondary" size="sm">Open the Support inbox</Button>
+                  </Link>
+                </div>
+              </Card>
+            )}
             {signedIn && !composing && (
               <Card padding="lg">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -467,6 +472,8 @@ export default function StoreSupport() {
             {(!signedIn || composing) && (
               <NewRequestCard
                 signedIn={signedIn}
+                prefillName={account?.staff ? account.name : ''}
+                prefillEmail={account?.staff ? account.email : ''}
                 prefillOrder={searchParams.get('order') ?? ''}
                 onCreated={openThread}
                 onCancel={signedIn ? () => setComposing(false) : undefined}
@@ -475,7 +482,7 @@ export default function StoreSupport() {
 
             {!signedIn && <LookupCard onFound={openThread} />}
 
-            {!signedIn && (
+            {!signedIn && !account?.staff && (
               <p className="text-center text-sm text-ink-3">
                 Have an account?{' '}
                 <Link to="/account" className="font-medium text-ink-2 underline underline-offset-2 hover:text-ink">

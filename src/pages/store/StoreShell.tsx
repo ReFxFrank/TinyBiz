@@ -373,6 +373,10 @@ class StoreErrorBoundary extends Component<{ children: ReactNode; resetKey: stri
             description="Something went wrong loading this page — usually a refresh sorts it right out."
             onRetry={() => window.location.reload()}
           />
+          {/* The raw error, small — a screenshot of this card IS the bug report */}
+          <p className="mt-4 break-words text-center font-mono text-[11px] leading-relaxed text-ink-3 opacity-70">
+            {String(this.state.error.message || this.state.error).slice(0, 300)}
+          </p>
         </div>
       )
     }

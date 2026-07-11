@@ -9,6 +9,7 @@ import { useCart } from '@/store/useCart'
 import { toast } from '@/store/useUI'
 import { money } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { CardRating } from './StoreReviews'
 import type { Product } from '@/data/types'
 
 /** Sellable stock — the base product (the "Standard" option) plus every variant */
@@ -80,6 +81,7 @@ export function StoreProductCard({ product, badge }: { product: Product; badge?:
       <div className="min-w-0 px-1 pb-1">
         <div className="truncate text-sm font-semibold text-ink">{product.name}</div>
         <div className="mt-0.5 text-xs text-ink-3">{product.category}</div>
+        <CardRating productId={product.id} />
         <div className="mt-1.5 flex items-center justify-between gap-2">
           <span className="text-base font-extrabold tracking-tight text-ink">
             {hasVariants && <span className="mr-1 text-xs font-medium tracking-normal text-ink-3">from</span>}

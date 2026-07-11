@@ -20,7 +20,7 @@ const SYNC_COLLECTIONS = [
   'incomes', 'recipes', 'batches', 'machines', 'shipments', 'tasks', 'events',
   'daysOff', 'documents', 'employees', 'campaigns', 'promoCodes',
   'socialAccounts', 'socialPosts', 'subscribers', 'newsletters',
-  'adjustments', 'notifications', 'tickets',
+  'adjustments', 'notifications', 'tickets', 'reviews',
 ] as const
 
 /**
@@ -28,7 +28,7 @@ const SYNC_COLLECTIONS = [
  * are only written through dedicated endpoints (support replies carry status
  * flips + emails), so a local setState echo must not race a server write.
  */
-const SERVER_OWNED: ReadonlySet<string> = new Set(['tickets'])
+const SERVER_OWNED: ReadonlySet<string> = new Set(['tickets', 'reviews'])
 
 type CollectionName = (typeof SYNC_COLLECTIONS)[number]
 type Snapshot = Record<CollectionName, Array<{ id: string }>> & {

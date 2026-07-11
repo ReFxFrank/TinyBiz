@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { getItem, getMeta } from './db.js'
+import { ratingSummaries } from './reviews.js'
 
 const DIST_INDEX = resolve(dirname(fileURLToPath(import.meta.url)), '../dist/index.html')
 
@@ -61,7 +62,9 @@ export function productPage(req, res) {
   html = setMeta(html, 'property', 'og:image', image)
   if (photo) html = setMeta(html, 'name', 'twitter:card', 'summary_large_image')
 
-  // Rich results for Google: schema.org Product with a live offer
+  // Rich results for Google: schema.org Product with a live offer, plus star
+  // ratings once the product has published reviews
+  const rating = ratingSummaries()[product.id]
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -76,6 +79,9 @@ export function productPage(req, res) {
       availability: sellable > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
       url,
     },
+    ...(rating
+      ? { aggregateRating: { '@type': 'AggregateRating', ratingValue: rating.avg, reviewCount: rating.count } }
+      : {}),
   }
   // </script> inside JSON would end the tag early — escape it defensively
   const ld = JSON.stringify(jsonLd).replace(/</g, '\\u003c')

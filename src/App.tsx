@@ -77,6 +77,7 @@ const Shipping = lazyReload(() => import('@/pages/Shipping'))
 const Manufacturing = lazyReload(() => import('@/pages/Manufacturing'))
 const Analytics = lazyReload(() => import('@/pages/Analytics'))
 const Marketing = lazyReload(() => import('@/pages/Marketing'))
+const Reviews = lazyReload(() => import('@/pages/Reviews'))
 const Newsletter = lazyReload(() => import('@/pages/Newsletter'))
 const SocialMedia = lazyReload(() => import('@/pages/SocialMedia'))
 const CalendarPage = lazyReload(() => import('@/pages/CalendarPage'))
@@ -139,6 +140,7 @@ export default function App() {
         <Route path="manufacturing" element={<Manufacturing />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="marketing" element={<Marketing />} />
+        <Route path="reviews" element={<Reviews />} />
         <Route path="newsletter" element={<Newsletter />} />
         <Route path="social" element={<SocialMedia />} />
         <Route path="calendar" element={<CalendarPage />} />

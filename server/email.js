@@ -643,6 +643,89 @@ export async function sendSupportResolved({ ticket, origin }) {
   })
 }
 
+// ── Product reviews ──────────────────────────────────────────────────────────
+
+/** "How did it go?" — sent once when an order is marked Delivered. Each item
+ *  links straight to its review form (order number + email prefilled). */
+export async function sendReviewRequest({ order, origin }) {
+  if (!order?.email || !Array.isArray(order.items)) return
+  const settings = getMeta('settings')
+  const products = getCollection('products')
+  // One row per distinct product that's still on the shelf
+  const seen = new Set()
+  const rows = []
+  for (const it of order.items) {
+    if (!it.productId || seen.has(it.productId)) continue
+    seen.add(it.productId)
+    const product = products.find((p) => p.id === it.productId && p.active)
+    if (!product) continue
+    const reviewUrl = `${origin}/product/${product.id}?review=1&number=${encodeURIComponent(order.number)}&email=${encodeURIComponent(order.email)}`
+    rows.push({ name: product.name, url: reviewUrl })
+  }
+  if (!rows.length) return
+
+  const itemRows = rows
+    .map(
+      (r) => `
+        <tr>
+          <td style="padding:10px 0;border-bottom:1px solid #eee;color:#111;font-size:14px;">${esc(r.name)}</td>
+          <td style="padding:10px 0;border-bottom:1px solid #eee;text-align:right;"><a href="${esc(r.url)}" style="color:#5f6f2d;font-weight:700;font-size:13px;text-decoration:none;">Leave a review →</a></td>
+        </tr>`,
+    )
+    .join('')
+  const html = shellHtml(settings, {
+    title: 'How did it go?',
+    badge: '⭐ How did it go?',
+    bodyRows: `
+        <tr><td style="padding:16px 32px 6px;">
+          <h1 style="margin:0 0 6px;color:#111;font-size:22px;">Hi ${esc(order.customerName.split(' ')[0])},</h1>
+          <p style="margin:0;color:#555;font-size:15px;line-height:1.6;">
+            Your order <strong style="color:#111;">${esc(order.number)}</strong> has arrived — we hope it made you smile!
+            A quick review helps other people find the good stuff, and it means the world to a tiny studio.
+          </p>
+        </td></tr>
+        <tr><td style="padding:14px 32px 8px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${itemRows}</table>
+        </td></tr>
+        <tr><td style="padding:14px 32px 26px;">${ctaButton('Write a review', rows[0].url)}</td></tr>`,
+    footer: `This is the only review nudge we'll send for this order. Something not right instead? Just reply — a real human reads this inbox.`,
+  })
+  await sendViaBridge('review-request', {
+    to: order.email,
+    toName: order.customerName,
+    subject: `How's your order, ${order.customerName.split(' ')[0]}? — ${settings?.businessName || ''}`.trim().replace(/ —$/, ''),
+    html,
+    text: [
+      `Your order ${order.number} has arrived — we hope you love it!`,
+      'A quick review helps other people find the good stuff:',
+      '',
+      ...rows.map((r) => `${r.name}: ${r.url}`),
+    ].join('\n'),
+    ref: order.number,
+  })
+}
+
+/** Heads-up to the studio inbox when a review lands in the moderation queue */
+export async function sendReviewAlert({ review, origin }) {
+  const settings = getMeta('settings')
+  if (settings?.notifyReviews === false) return
+  const to = String(settings?.email || '').trim()
+  if (!to || to.toLowerCase() === String(review.email || '').toLowerCase()) return
+  const stars = '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating)
+  await sendViaBridge('review alert', {
+    to,
+    toName: settings?.ownerName || '',
+    subject: `⭐ New review: ${stars} on ${review.productName} (${review.authorName})`,
+    html: `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;color:#111;line-height:1.7;">
+      <p><strong>${esc(review.authorName)}</strong> left <strong>${stars}</strong> on <strong>${esc(review.productName)}</strong> (order ${esc(review.orderNumber || '?')}):</p>
+      <div style="background:#fafaf9;border:1px solid #eee;border-radius:10px;padding:12px 14px;white-space:pre-wrap;">${review.title ? `<strong>${esc(review.title)}</strong><br>` : ''}${esc(review.body)}</div>
+      <p style="margin-top:14px;">It's waiting in the moderation queue — <a href="${esc(`${origin}/admin/reviews`)}" style="color:#5f6f2d;font-weight:700;">publish or reject it →</a></p>
+    </div>`,
+    text: `${review.authorName} left ${review.rating}/5 on ${review.productName}:\n\n${review.title ? review.title + '\n' : ''}${review.body}\n\nModerate it: ${origin}/admin/reviews`,
+    ref: review.productName,
+  })
+}
+
 /** Heads-up to the studio inbox on new requests and customer replies */
 export async function sendSupportOwnerAlert({ ticket, kind, origin }) {
   const settings = getMeta('settings')

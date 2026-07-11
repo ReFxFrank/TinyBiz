@@ -539,7 +539,7 @@ function AppearanceCard() {
 
 // Only toggles that are actually wired up — anything else would be lying
 const NOTIFICATION_PREFS: Array<{
-  key: 'notifyLowStock' | 'notifyNewOrders' | 'abandonedCartEmails' | 'notifySupport'
+  key: 'notifyLowStock' | 'notifyNewOrders' | 'abandonedCartEmails' | 'notifySupport' | 'notifyReviews'
   label: string
   description: string
 }> = [
@@ -563,6 +563,11 @@ const NOTIFICATION_PREFS: Array<{
     key: 'notifySupport',
     label: 'Support requests',
     description: 'An email to your business address when a customer opens a support request or replies.',
+  },
+  {
+    key: 'notifyReviews',
+    label: 'Product reviews',
+    description: 'An email to your business address when a review lands in the moderation queue.',
   },
 ]
 

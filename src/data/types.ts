@@ -172,6 +172,8 @@ export interface Order {
   etsyReceiptId?: string
   /** Shopper account that claimed this guest order into their history */
   claimedByAccountId?: string
+  /** Stamped when the one review-request email went out (on Delivered) */
+  reviewRequestedAt?: string
 }
 
 export interface Customer {
@@ -600,6 +602,39 @@ export interface SupportTicket {
   resolvedAt?: string
 }
 
+// ── Reviews ──────────────────────────────────────────────────────────────────
+
+export type ReviewStatus = 'pending' | 'published' | 'rejected'
+
+/**
+ * A verified-purchase product review. Read through the sync engine, but
+ * written ONLY via /api/reviews endpoints — moderation stamps and the
+ * verified-purchase check live server-side.
+ */
+export interface Review {
+  id: ID
+  productId: ID
+  /** Denormalized so the moderation queue reads without a lookup */
+  productName: string
+  orderId?: ID
+  orderNumber?: string
+  verified: boolean
+  accountId?: string
+  authorName: string
+  /** Never exposed on the storefront */
+  email: string
+  rating: 1 | 2 | 3 | 4 | 5
+  title?: string
+  body: string
+  status: ReviewStatus
+  createdAt: string
+  updatedAt: string
+  /** Present only while status is 'published' */
+  publishedAt?: string
+  /** The shop's public answer, shown under the review */
+  reply?: { body: string; at: string; authorName?: string }
+}
+
 // ── System ───────────────────────────────────────────────────────────────────
 
 export type NotificationType = 'low-stock' | 'order' | 'shipping' | 'expense' | 'report' | 'message' | 'task'
@@ -689,6 +724,8 @@ export interface Settings {
   abandonedCartEmails?: boolean
   /** Email the business address on new support requests & replies (default on) */
   notifySupport?: boolean
+  /** Email the business address when a review lands in moderation (default on) */
+  notifyReviews?: boolean
   notifyExpensesDue: boolean
   weeklyReports: boolean
   /** Base URL of the printer bridge, e.g. http://192.168.1.50:7070 */

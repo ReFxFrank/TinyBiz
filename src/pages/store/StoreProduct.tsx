@@ -15,6 +15,7 @@ import { api, ApiError } from '@/lib/api'
 import { money } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { StoreProductCard } from './StoreProductCard'
+import { ReviewsSection, StarRow } from './StoreReviews'
 import type { Product, ProductVariant } from '@/data/types'
 
 /** "45 min" under an hour and a half, otherwise "3.5 hours" */
@@ -135,6 +136,7 @@ export default function StoreProduct() {
 
 function ProductView({ product }: { product: Product }) {
   const products = useCatalog((s) => s.products)
+  const rating = useCatalog((s) => s.ratings[product.id])
   const freeShippingOver = useCatalog((s) => s.shop?.freeShippingOver ?? FREE_SHIPPING_OVER)
   const add = useCart((s) => s.add)
   const setDrawerOpen = useCart((s) => s.setDrawerOpen)
@@ -298,6 +300,15 @@ function ProductView({ product }: { product: Product }) {
             </button>
           </div>
 
+          {rating && rating.count > 0 && (
+            <a href="#reviews" className="mt-2 inline-flex w-fit items-center gap-1.5 hover:opacity-80">
+              <StarRow rating={rating.avg} size={15} />
+              <span className="text-[13px] text-ink-3">
+                {rating.avg} · {rating.count} review{rating.count === 1 ? '' : 's'}
+              </span>
+            </a>
+          )}
+
           <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="text-3xl font-bold tracking-tight text-ink">{money(price)}</span>
             {soldOut ? (
@@ -448,6 +459,9 @@ function ProductView({ product }: { product: Product }) {
           )}
         </dl>
       </Card>
+
+      {/* Reviews */}
+      <ReviewsSection productId={product.id} productName={product.name} />
 
       {/* Related */}
       {related.length > 0 && (

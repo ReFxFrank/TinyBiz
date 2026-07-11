@@ -24,6 +24,7 @@ import type {
   ProductionBatch,
   PromoCode,
   Recipe,
+  Review,
   Settings,
   Shipment,
   SocialAccount,
@@ -99,6 +100,8 @@ export interface Collections {
   notifications: AppNotification[]
   /** Server-owned: hydrated/polled but never written through sync ops */
   tickets: SupportTicket[]
+  /** Server-owned, like tickets — moderation happens via /api/reviews */
+  reviews: Review[]
 }
 
 export type CollectionKey = keyof Collections
@@ -181,6 +184,7 @@ export function seedCollections(): Collections & { settings: Settings; newslette
     adjustments: seedAdjustments,
     notifications: buildSeedNotifications(),
     tickets: [], // real tickets only ever come from the server
+    reviews: [], // ditto
     settings: seedSettings,
     newsletterSettings: seedNewsletterSettings,
   }

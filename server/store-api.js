@@ -10,6 +10,7 @@ import { stripeEnabled, createCheckoutSession, getCheckoutSession, verifyWebhook
 import { paypalEnabled, createPayPalOrder, capturePayPalOrder } from './paypal.js'
 import { sendOrderConfirmation, sendNewOrderAlert, sendWelcomeEmail } from './email.js'
 import { addStockAlert, processStockAlerts } from './stock-alerts.js'
+import { ratingSummaries } from './reviews.js'
 
 export const storeRouter = Router()
 
@@ -64,7 +65,8 @@ storeRouter.get('/catalog', (_req, res) => {
     .map(([id]) => id)
     .filter((id) => products.some((p) => p.id === id))
     .slice(0, 8)
-  res.json({ products, shop: shopInfo(), bestSellerIds })
+  // productId → { avg, count } from published reviews — stars on every card
+  res.json({ products, shop: shopInfo(), bestSellerIds, ratings: ratingSummaries() })
 })
 
 storeRouter.post('/promo', (req, res) => {

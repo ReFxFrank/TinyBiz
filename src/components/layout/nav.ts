@@ -17,6 +17,7 @@ import {
   Settings,
   Share2,
   ShoppingCart,
+  Star,
   Truck,
   Users,
   Wallet,
@@ -72,6 +73,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Analytics', path: '/admin/analytics', icon: BarChart3, shortcut: 'a' },
       { label: 'Marketing', path: '/admin/marketing', icon: Megaphone },
+      { label: 'Reviews', path: '/admin/reviews', icon: Star, shortcut: 'r' },
       { label: 'Newsletter', path: '/admin/newsletter', icon: Mail, shortcut: 'n' },
       { label: 'Social Media', path: '/admin/social', icon: Share2 },
     ],

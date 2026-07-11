@@ -97,9 +97,12 @@ function SidebarContent({ collapsed, onNavigate }: { collapsed: boolean; onNavig
   const settings = useStore((s) => s.settings)
   const toggleSidebar = useUI((s) => s.toggleSidebar)
   const user = useAuth((s) => s.user)
-  // Support requests waiting on the studio — an inbox count, live via sync
+  // Live inbox counts via sync: support requests waiting on the studio, and
+  // reviews sitting in the moderation queue
   const needsReply = useStore((s) => s.tickets.reduce((n, t) => n + (t.status === 'open' ? 1 : 0), 0))
-  const badgeFor = (path: string) => (path === '/admin/support' ? needsReply : 0)
+  const pendingReviews = useStore((s) => s.reviews.reduce((n, r) => n + (r.status === 'pending' ? 1 : 0), 0))
+  const badgeFor = (path: string) =>
+    path === '/admin/support' ? needsReply : path === '/admin/reviews' ? pendingReviews : 0
   const groups = NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => canOpen(user, pathPerm(i.path))) })).filter(
     (g) => g.items.length > 0,
   )

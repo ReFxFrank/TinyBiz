@@ -7,7 +7,7 @@
 export const PERM_KEYS = [
   'dashboard', 'orders', 'support', 'inventory', 'products', 'customers', 'suppliers',
   'expenses', 'income', 'accounting', 'shipping', 'manufacturing', 'analytics',
-  'marketing', 'newsletter', 'social', 'calendar', 'tasks', 'documents',
+  'marketing', 'reviews', 'newsletter', 'social', 'calendar', 'tasks', 'documents',
   'employees', 'settings',
 ]
 
@@ -51,6 +51,9 @@ const PAGE_ACCESS = {
   },
   analytics: { read: ['orders', 'products', 'customers', 'expenses', 'incomes'], write: [] },
   marketing: { read: ['campaigns', 'promoCodes', 'orders'], write: ['campaigns', 'promoCodes'] },
+  // Like tickets: read through sync, written ONLY via /api/reviews endpoints
+  // (moderation stamps + customer emails live server-side)
+  reviews: { read: ['reviews', 'products', 'orders'], write: [] },
   newsletter: {
     read: ['newsletters', 'subscribers', 'products', 'orders', 'promoCodes'],
     write: ['newsletters', 'subscribers'],

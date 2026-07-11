@@ -16,6 +16,7 @@ import { stripeEnabled } from './stripe.js'
 import { paypalEnabled } from './paypal.js'
 import { etsyRouter, startEtsySync } from './etsy.js'
 import { supportPublicRouter, supportAdminRouter } from './support.js'
+import { reviewsPublicRouter, reviewsAdminRouter } from './reviews.js'
 import { rateLimit } from './ratelimit.js'
 import { uploadsRouter, uploadsStatic } from './uploads.js'
 import { createBackup } from './backup.js'
@@ -96,6 +97,10 @@ app.use('/api/store/account', shopAccountRouter)
 // then the staff-side reply/status/tags endpoints
 app.use('/api/store/support', supportPublicRouter)
 app.use('/api/support', supportAdminRouter)
+// Reviews: public read/create (creation rate-limited on the route), then the
+// owner-side moderation endpoints
+app.use('/api/store/reviews', reviewsPublicRouter)
+app.use('/api/reviews', reviewsAdminRouter)
 app.use('/api/store', storeRouter)
 app.use('/api/uploads', uploadsRouter)
 

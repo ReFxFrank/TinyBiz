@@ -10,7 +10,7 @@ import { Router } from 'express'
 import { COLLECTIONS, db, getCollection, getItem, getMeta, currentRev, bumpRev, upsertItem, deleteItem, setMeta, importState, uid } from './db.js'
 import { requireAuth, requireOwner } from './auth.js'
 import { computeAccess } from './perms.js'
-import { sendOrderShipped, sendOrderCancelled } from './email.js'
+import { sendOrderShipped, sendOrderCancelled, sendReviewRequest } from './email.js'
 import { processStockAlerts } from './stock-alerts.js'
 
 export const stateRouter = Router()
@@ -54,6 +54,22 @@ const isDeadStatus = (s) => s === 'Cancelled' || s === 'Returned'
 /** Did this upsert cancel/return the order for the first time? */
 function cancelTransition(oldOrder, newOrder) {
   return isDeadStatus(newOrder.status) && oldOrder && !isDeadStatus(oldOrder.status) && !oldOrder.restockedAt
+}
+
+/**
+ * First arrival at Delivered → one "how did it go?" review nudge. Etsy buyers
+ * are excluded (their relay addresses belong to Etsy's own review flow), and
+ * the reviewRequestedAt stamp keeps status flip-flops from re-sending.
+ */
+function deliveredTransition(oldOrder, newOrder) {
+  return (
+    newOrder.status === 'Delivered' &&
+    oldOrder?.status !== 'Delivered' &&
+    !oldOrder?.reviewRequestedAt &&
+    !newOrder.reviewRequestedAt &&
+    newOrder.channel !== 'Etsy' &&
+    Boolean(newOrder.email)
+  )
 }
 
 /**
@@ -133,6 +149,7 @@ const applyOps = db.transaction((ops, access) => {
   let skipped = 0
   const shipped = [] // orders that just shipped — emailed after the tx commits
   const cancelled = [] // orders that just cancelled/returned — ditto
+  const delivered = [] // orders that just arrived — review nudge after commit
   const allowed = (collection, meta) => {
     if (access.all) return true
     if (meta === 'settings') return access.canWriteSettings
@@ -155,6 +172,10 @@ const applyOps = db.transaction((ops, access) => {
           item = restockOrder(item)
           cancelled.push(item)
         }
+        if (deliveredTransition(old, item)) {
+          item = { ...item, reviewRequestedAt: new Date().toISOString() }
+          delivered.push(item)
+        }
       }
       upsertItem(op.collection, item)
     } else if (op.op === 'delete' && COLLECTIONS.includes(op.collection) && op.id != null) {
@@ -170,7 +191,7 @@ const applyOps = db.transaction((ops, access) => {
       throw Object.assign(new Error('bad op'), { status: 400, error: 'bad_op' })
     }
   }
-  return { rev: bumpRev(), skipped, shipped, cancelled }
+  return { rev: bumpRev(), skipped, shipped, cancelled, delivered }
 })
 
 stateRouter.post('/ops', (req, res) => {
@@ -178,10 +199,12 @@ stateRouter.post('/ops', (req, res) => {
   if (!Array.isArray(ops) || ops.length === 0 || ops.length > 2000) {
     return res.status(400).json({ error: 'bad_ops' })
   }
-  const { rev, skipped, shipped, cancelled } = applyOps(ops, computeAccess(req.user))
+  const { rev, skipped, shipped, cancelled, delivered } = applyOps(ops, computeAccess(req.user))
   // Fire-and-forget after the tx commits — email must never block the sync
   for (const order of shipped) void sendOrderShipped(order)
   for (const order of cancelled) void sendOrderCancelled(order)
+  const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`
+  for (const order of delivered) void sendReviewRequest({ order, origin })
   // Any of these ops (restocks, returns, adjustments) can bring a sold-out
   // product back — resolve waiting back-in-stock signups
   if (ops.some((op) => op.collection === 'products' || op.collection === 'orders')) processStockAlerts()

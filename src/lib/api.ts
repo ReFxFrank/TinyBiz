@@ -7,6 +7,8 @@ import type {
   PolicyContent,
   Product,
   PromoBanner,
+  Review,
+  ReviewStatus,
   SocialLinks,
   StorefrontContent,
   SupportTicket,
@@ -47,7 +49,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export type PermKey =
   | 'dashboard' | 'orders' | 'support' | 'inventory' | 'products' | 'customers' | 'suppliers'
   | 'expenses' | 'income' | 'accounting' | 'shipping' | 'manufacturing' | 'analytics'
-  | 'marketing' | 'newsletter' | 'social' | 'calendar' | 'tasks' | 'documents'
+  | 'marketing' | 'reviews' | 'newsletter' | 'social' | 'calendar' | 'tasks' | 'documents'
   | 'employees' | 'settings'
 
 export interface AccountAccess {
@@ -139,6 +141,15 @@ export type PublicTicket = Pick<
   SupportTicket,
   'id' | 'number' | 'subject' | 'status' | 'orderNumber' | 'messages' | 'createdAt' | 'updatedAt' | 'lastReplyBy' | 'resolvedAt'
 >
+
+/** The sanitized review the storefront sees (no email, no order trail) */
+export type PublicReview = Pick<
+  Review,
+  'id' | 'productId' | 'authorName' | 'rating' | 'title' | 'body' | 'verified' | 'createdAt'
+> & { reply?: { body: string; at: string } }
+
+/** productId → average stars + count, over published reviews */
+export type RatingSummaries = Record<string, { avg: number; count: number }>
 
 export interface CheckoutPayload {
   items: Array<{ productId: string; variantId?: string; qty: number }>
@@ -291,8 +302,47 @@ export const api = {
     disconnect: () => request<{ ok: true }>('/api/etsy/disconnect', { method: 'POST' }),
   },
 
+  // Product reviews — admin moderation side
+  reviewsAdmin: {
+    setStatus: (id: string, status: ReviewStatus) =>
+      request<{ ok: true; review: Review }>(`/api/reviews/${encodeURIComponent(id)}/status`, {
+        method: 'POST',
+        body: JSON.stringify({ status }),
+      }),
+    reply: (id: string, body: string) =>
+      request<{ ok: true; review: Review }>(`/api/reviews/${encodeURIComponent(id)}/reply`, {
+        method: 'POST',
+        body: JSON.stringify({ body }),
+      }),
+    remove: (id: string) => request<{ ok: true }>(`/api/reviews/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  },
+
+  // Product reviews — customer side (storefront)
+  reviews: {
+    list: (productId: string) =>
+      request<{ reviews: PublicReview[]; summary: { avg: number; count: number } }>(
+        `/api/store/reviews/${encodeURIComponent(productId)}`,
+      ),
+    create: (input: {
+      productId: string
+      rating: number
+      title?: string
+      body: string
+      name?: string
+      email?: string
+      orderNumber?: string
+    }) =>
+      request<{ ok: true; review: PublicReview; pending: true }>('/api/store/reviews', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+  },
+
   // public storefront
-  catalog: () => request<{ products: Product[]; shop: ShopInfo; bestSellerIds: string[] }>('/api/store/catalog'),
+  catalog: () =>
+    request<{ products: Product[]; shop: ShopInfo; bestSellerIds: string[]; ratings: RatingSummaries }>(
+      '/api/store/catalog',
+    ),
   promo: (code: string) =>
     request<{ valid: boolean; code?: string; type?: 'percent' | 'fixed' | 'freeship'; discountPct?: number; amountOff?: number }>(
       '/api/store/promo',

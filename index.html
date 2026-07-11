@@ -84,7 +84,7 @@
             '<p style="font-size:14px;line-height:1.6;opacity:.75;margin:0 0 20px;">We may have just published an update. It usually sorts itself out within a minute or two.</p>' +
             '<button onclick="try{sessionStorage.removeItem(\'tms-boot-retry\')}catch(e){};location.reload()" style="background:#b3c375;color:#26290f;border:0;border-radius:12px;padding:11px 22px;font-size:15px;font-weight:700;cursor:pointer;">Try again</button>' +
             (lastErr
-              ? '<div style="font:11px/1.5 ui-monospace,Menlo,Consolas,monospace;opacity:.5;margin-top:18px;word-break:break-word;">' + esc(lastErr).slice(0, 400) + '</div>'
+              ? '<div style="font:11px/1.5 ui-monospace,Menlo,Consolas,monospace;opacity:.5;margin-top:18px;word-break:break-word;white-space:pre-wrap;text-align:left;">' + esc(lastErr).slice(0, 700) + '</div>'
               : '') +
             '</div></div>';
         }
@@ -120,7 +120,14 @@
               return;
             }
             if (e && e.message) {
-              lastErr = e.message + (e.filename ? ' — ' + String(e.filename).split('/').pop() + ':' + e.lineno : '');
+              lastErr = e.message + (e.filename ? ' — ' + String(e.filename).split('/').pop() + ':' + e.lineno + ':' + (e.colno || 0) : '');
+              // The stack names the actual component/module — the line number
+              // alone usually just points inside React
+              try {
+                if (e.error && e.error.stack) {
+                  lastErr += '\n' + String(e.error.stack).split('\n').slice(0, 5).join('\n').slice(0, 600);
+                }
+              } catch (err) {}
               // A crash can unmount the ALREADY-BOOTED app back to an empty
               // root — catch that death too, right as it happens.
               setTimeout(function () {

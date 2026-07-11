@@ -113,6 +113,29 @@ export const useUI = create<UIState>()(
           reduceMotion: s.reduceMotion,
           sidebarCollapsed: s.sidebarCollapsed,
         }) as UIState,
+      // Persisted UI prefs arrive from every version this app ever shipped —
+      // validate every field or a stray toasts:null / bad accent from an old
+      // build crashes the first render (runtime-only fields never merge in)
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<UIState>
+        const oneOf = <T extends string>(v: unknown, list: readonly T[], fallback: T): T =>
+          list.includes(v as T) ? (v as T) : fallback
+        const custom =
+          p.customAccent && typeof p.customAccent === 'object' && p.customAccent.light && p.customAccent.dark
+            ? p.customAccent
+            : null
+        const accent = oneOf<Accent>(p.accent, [...ACCENTS, 'custom'], current.accent)
+        return {
+          ...current,
+          theme: oneOf(p.theme, ['light', 'dark', 'system'] as const, current.theme),
+          accent: accent === 'custom' && !custom ? 'tinymagic' : accent,
+          customAccent: custom,
+          radius: oneOf(p.radius, ['sharp', 'soft', 'round'] as const, current.radius),
+          scale: oneOf(p.scale, ['compact', 'cozy', 'large'] as const, current.scale),
+          reduceMotion: p.reduceMotion === true,
+          sidebarCollapsed: p.sidebarCollapsed === true,
+        }
+      },
     },
   ),
 )

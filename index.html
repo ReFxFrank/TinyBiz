@@ -71,6 +71,7 @@
       (function () {
         var start = Date.now();
         var lastErr = '';
+        var firstErr = ''; // the FIRST error is often the real cause — later ones are casualties
         function esc(s) {
           return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
@@ -152,6 +153,8 @@
                   lastErr += '\n' + String(e.error.stack).split('\n').slice(0, 5).join('\n').slice(0, 600);
                 }
               } catch (err) {}
+              if (!firstErr) firstErr = lastErr;
+              else if (firstErr !== lastErr) lastErr = 'FIRST: ' + firstErr + '\n\nTHEN: ' + lastErr;
               // A crash can unmount the ALREADY-BOOTED app back to an empty
               // root — catch that death too, right as it happens.
               setTimeout(function () {

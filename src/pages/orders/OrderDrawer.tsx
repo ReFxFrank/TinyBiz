@@ -48,7 +48,9 @@ export default function OrderDrawer({ order, onClose, onOpenOrder }: OrderDrawer
   const o = order ?? lastRef.current
 
   const [notes, setNotes] = useState(o?.notes ?? '')
-  useEffect(() => setNotes(order?.notes ?? ''), [order?.id, order?.notes])
+  useEffect(() => {
+    setNotes(order?.notes ?? '')
+  }, [order?.id, order?.notes])
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const [trackingDraft, setTrackingDraft] = useState(o?.trackingNumber ?? '')

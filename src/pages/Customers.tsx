@@ -229,7 +229,9 @@ function CustomerDrawer({
   const navigate = useNavigate()
 
   const [notes, setNotes] = useState(customer.notes ?? '')
-  useEffect(() => setNotes(customer.notes ?? ''), [customer.id, customer.notes])
+  useEffect(() => {
+    setNotes(customer.notes ?? '')
+  }, [customer.id, customer.notes])
 
   const theirOrders = useMemo(
     () =>

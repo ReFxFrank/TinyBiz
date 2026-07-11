@@ -98,6 +98,15 @@
             var s = document.querySelector('script[type="module"][src]');
             var out = document.getElementById('tms-errdetail');
             if (!s || !out || !window.crypto || !crypto.subtle) return;
+            // Injected system software (scroll utilities, "web protection")
+            // patches browser built-ins — name the non-native ones
+            try {
+              var patched = ['scrollTo', 'setTimeout', 'Promise', 'fetch', 'requestAnimationFrame', 'queueMicrotask', 'MutationObserver']
+                .filter(function (n) {
+                  try { return window[n] && String(window[n]).indexOf('[native code]') < 0; } catch (e) { return false; }
+                });
+              if (patched.length) out.textContent += '\npatched built-ins: ' + patched.join(', ');
+            } catch (err) {}
             fetch(s.src, { cache: 'no-store' })
               .then(function (r) { return r.arrayBuffer(); })
               .then(function (buf) {

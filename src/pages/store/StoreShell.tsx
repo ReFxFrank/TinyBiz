@@ -458,7 +458,12 @@ export function StoreShell() {
   const displayCur = useDisplayCurrency()
   const reduceMotion = useUI((s) => s.reduceMotion)
   const { pathname } = useLocation()
-  useEffect(() => window.scrollTo(0, 0), [pathname])
+  // Braces matter: system software (scroll utilities, "web protection") can
+  // patch window.scrollTo to RETURN a value — a concise arrow would hand that
+  // to React as an effect cleanup, crashing every navigation on that machine.
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pathname])
 
   // The signed-in shopper (if any) — header state + checkout prefill
   const loadAccount = useShopAccount((s) => s.load)

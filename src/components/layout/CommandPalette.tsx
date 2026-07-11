@@ -182,7 +182,9 @@ export function CommandPalette() {
     return out
   }, [query, products, orders, customers, expenses, materials, tasks, documents, navItems, quickActions])
 
-  useEffect(() => setActive(0), [query])
+  useEffect(() => {
+    setActive(0)
+  }, [query])
 
   useEffect(() => {
     const el = listRef.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)

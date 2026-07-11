@@ -84,9 +84,33 @@
             '<p style="font-size:14px;line-height:1.6;opacity:.75;margin:0 0 20px;">We may have just published an update. It usually sorts itself out within a minute or two.</p>' +
             '<button onclick="try{sessionStorage.removeItem(\'tms-boot-retry\')}catch(e){};location.reload()" style="background:#b3c375;color:#26290f;border:0;border-radius:12px;padding:11px 22px;font-size:15px;font-weight:700;cursor:pointer;">Try again</button>' +
             (lastErr
-              ? '<div style="font:11px/1.5 ui-monospace,Menlo,Consolas,monospace;opacity:.5;margin-top:18px;word-break:break-word;white-space:pre-wrap;text-align:left;">' + esc(lastErr).slice(0, 700) + '</div>'
+              ? '<div id="tms-errdetail" style="font:11px/1.5 ui-monospace,Menlo,Consolas,monospace;opacity:.5;margin-top:18px;word-break:break-word;white-space:pre-wrap;text-align:left;">' + esc(lastErr).slice(0, 700) + '</div>'
               : '') +
             '</div></div>';
+          fingerprint();
+        }
+        // Hash the entry script AS THIS MACHINE RECEIVED IT and pin it to the
+        // card. A mismatch against the build's real hash proves something on
+        // the network path (antivirus web-shield, proxy) modified the code.
+        function fingerprint() {
+          try {
+            var s = document.querySelector('script[type="module"][src]');
+            var out = document.getElementById('tms-errdetail');
+            if (!s || !out || !window.crypto || !crypto.subtle) return;
+            fetch(s.src, { cache: 'no-store' })
+              .then(function (r) { return r.arrayBuffer(); })
+              .then(function (buf) {
+                return crypto.subtle.digest('SHA-256', buf).then(function (h) {
+                  var hex = Array.prototype.map
+                    .call(new Uint8Array(h), function (b) { return b.toString(16).padStart(2, '0'); })
+                    .join('');
+                  out.textContent += '\n' + s.src.split('/').pop() + ' · ' + buf.byteLength + ' bytes · sha256:' + hex.slice(0, 16);
+                });
+              })
+              .catch(function (e) {
+                out.textContent += '\nbundle re-fetch failed: ' + e.message;
+              });
+          } catch (err) {}
         }
         function showCardOrRetry() {
           var root = document.getElementById('root');

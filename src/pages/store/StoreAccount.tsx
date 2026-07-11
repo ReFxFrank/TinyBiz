@@ -660,7 +660,10 @@ export default function StoreAccount() {
                   </Button>
                 </Link>
               </Card>
-              <OrdersCard />
+              <div className="space-y-5">
+                <OrdersCard />
+                <SupportCard />
+              </div>
             </div>
           ) : (
             <div className="grid gap-5 lg:grid-cols-[1fr_1.2fr]">

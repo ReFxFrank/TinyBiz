@@ -51,19 +51,27 @@ function ThreadView({
   const [email, setEmail] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const needsEmail = !knownEmail
+  // Session email didn't match this ticket (e.g. staff opening a customer's
+  // link) — fall back to asking for the email on the request
+  const [forceEmail, setForceEmail] = useState(false)
+  const needsEmail = !knownEmail || forceEmail
 
   const send = async () => {
     if (sending || !reply.trim() || (needsEmail && !email.trim())) return
     setSending(true)
     setError(null)
     try {
-      const r = await api.support.reply(ticket.id, reply.trim(), knownEmail ?? email.trim())
+      const r = await api.support.reply(ticket.id, reply.trim(), needsEmail ? email.trim() : (knownEmail as string))
       onUpdate(r.ticket)
       setReply('')
       toast('Reply sent', { description: 'We’ll get back to you by email too.', tone: 'success' })
     } catch (err) {
-      setError(describe(err, 'Could not send that right now — try again in a moment.'))
+      if (err instanceof ApiError && err.status === 403 && !needsEmail) {
+        setForceEmail(true)
+        setError('This request was opened with a different email — confirm it below to reply.')
+      } else {
+        setError(describe(err, 'Could not send that right now — try again in a moment.'))
+      }
     } finally {
       setSending(false)
     }
@@ -335,6 +343,9 @@ export default function StoreSupport() {
   }, [load])
 
   const signedIn = Boolean(account && !account.staff)
+  // Staff get their own requests listed too — the server matches by their
+  // studio email, so anything they filed through the form shows up here.
+  const hasAccount = Boolean(account)
 
   // Deep link from any support email: /support?t=<id>
   const deepLinkId = searchParams.get('t')
@@ -346,15 +357,15 @@ export default function StoreSupport() {
       .catch(() => toast('That request link doesn’t work anymore', { tone: 'error' }))
   }, [deepLinkId])
 
-  // Signed-in shoppers see all their requests
+  // Anyone signed in (shopper or staff) sees all their requests
   const loadMine = () => {
-    if (!signedIn) return
+    if (!hasAccount) return
     api.support
       .mine()
       .then((r) => setMine(r.tickets))
       .catch(() => setMine((prev) => prev ?? []))
   }
-  useEffect(loadMine, [signedIn]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(loadMine, [hasAccount]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openThread = (t: PublicTicket, email: string | null) => {
     setTicket(t)
@@ -368,7 +379,8 @@ export default function StoreSupport() {
     loadMine()
   }
 
-  const sessionEmail = signedIn ? (account?.email?.toLowerCase() ?? null) : null
+  // Reply proof for tickets that belong to this session's email (staff too)
+  const sessionEmail = account ? (account.email?.toLowerCase() ?? null) : null
 
   return (
     <motion.div
@@ -417,7 +429,7 @@ export default function StoreSupport() {
                 </div>
               </Card>
             )}
-            {signedIn && !composing && (
+            {hasAccount && !composing && (
               <Card padding="lg">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -469,20 +481,20 @@ export default function StoreSupport() {
               </Card>
             )}
 
-            {(!signedIn || composing) && (
+            {(!hasAccount || composing) && (
               <NewRequestCard
                 signedIn={signedIn}
                 prefillName={account?.staff ? account.name : ''}
                 prefillEmail={account?.staff ? account.email : ''}
                 prefillOrder={searchParams.get('order') ?? ''}
                 onCreated={openThread}
-                onCancel={signedIn ? () => setComposing(false) : undefined}
+                onCancel={hasAccount ? () => setComposing(false) : undefined}
               />
             )}
 
-            {!signedIn && <LookupCard onFound={openThread} />}
+            {!hasAccount && <LookupCard onFound={openThread} />}
 
-            {!signedIn && !account?.staff && (
+            {!hasAccount && (
               <p className="text-center text-sm text-ink-3">
                 Have an account?{' '}
                 <Link to="/account" className="font-medium text-ink-2 underline underline-offset-2 hover:text-ink">

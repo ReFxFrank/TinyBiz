@@ -49,7 +49,16 @@ const serveFiles = express.static(UPLOADS_DIR, {
 })
 export const uploadsStatic = Router()
 uploadsStatic.use((req, res, next) => {
-  if (/^\/doc_/.test(req.path) && !req.user) return res.status(401).json({ error: 'unauthorized' })
+  // Business documents (tax/supplier files) require the 'documents' section,
+  // not merely any logged-in session — otherwise a leaked/guessed doc URL is
+  // served to any staff account regardless of their permissions (F-INJ-2).
+  if (/^\/doc_/.test(req.path)) {
+    if (!req.user) return res.status(401).json({ error: 'unauthorized' })
+    const access = computeAccess(req.user)
+    if (!access.all && !access.readable.has('documents')) {
+      return res.status(403).json({ error: 'forbidden' })
+    }
+  }
   next()
 })
 uploadsStatic.use(serveFiles)

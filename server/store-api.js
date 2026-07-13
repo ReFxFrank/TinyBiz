@@ -259,9 +259,15 @@ export const finalizeOrder = db.transaction(({ contact, promo, totals, payment }
   }
   upsertItem('orders', order)
 
+  // Mock/preview orders (no real payment collected) must NOT touch real
+  // inventory or consume promo uses — otherwise an unauthenticated public
+  // checkout can silently drain stock while payments are off (F-PAY-4). The
+  // owner still sees the order in the queue, flagged as no-payment.
+  const committed = Boolean(payment && payment.provider && payment.provider !== 'none')
+
   // Stock: base products get a logged adjustment; variant stock lives inside
   // the product document. Re-read per line so multi-line orders stack.
-  for (const l of totals.lines) {
+  if (committed) for (const l of totals.lines) {
     const product = getCollection('products').find((p) => p.id === l.product.id)
     if (!product) continue
     if (l.variant) {
@@ -287,7 +293,7 @@ export const finalizeOrder = db.transaction(({ contact, promo, totals, payment }
     }
   }
 
-  if (promo) {
+  if (committed && promo) {
     const fresh = getCollection('promoCodes').find((p) => p.id === promo.id)
     if (fresh) upsertItem('promoCodes', { ...fresh, uses: (fresh.uses || 0) + 1 })
   }

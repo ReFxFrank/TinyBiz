@@ -110,6 +110,33 @@ Counts (open, post-verification): **High 2 · Medium 11 · Low 10 · Info 6.** Z
 
 ---
 
+---
+
+# Phase 1 — Remediation status (code-side blockers)
+
+Applied on branch `security/hardening-pass`, then **pushed to `main`** with the owner's explicit go-ahead (main auto-deploys). Each fix carries a rollback note in its commit message. Before the push: production build (`tsc -b && vite build`) exit 0, `node --check` on every changed server file, a live boot smoke test, an adversarial per-fix deploy-safety review (6 skeptics + a go/no-go critic), and — for the two fixes the review caught as incomplete — a second adversarial bypass pass.
+
+| Finding | Status | Commit | Verified |
+|---|---|---|---|
+| **F-AUTH-0** reset poisoning | **fixed** | `915443e` | `origin.js` pins link base to `PUBLIC_URL`/host; 13 header-derived sites replaced. Ignores spoofed `Origin`/`Referer`. |
+| **F-INJ-3** mail-bridge repoint (PII/token exfil) | **fixed** | `0ee077a` | Non-owner ops writes force-preserve stored `mailBridgeUrl`/`mailBridgeToken`; `MAIL_BRIDGE_URL` env pin. |
+| **F-INJ-1** Discord SSRF | **fixed** (2nd pass) | `0ee077a`→`f56b41a` | First pass was a denylist the review **bypassed** (mapped-IPv6 `[::ffff:127.0.0.1]`, DNS→internal, redirects). Replaced with an **allowlist** (https + `discord.com`/`discordapp.com` only) + `redirect:'error'`; denylist hardened for mapped-IPv6 hex form. Unit-tested: userinfo/suffix/subdomain/mapped-IPv6 all handled. |
+| **F-INJ-2** doc-download authz | **fixed** (2nd pass) | `7f20e31`→`62a3bdf` | First pass gated on raw `req.path`; the review **empirically bypassed** it unauthenticated via `%64oc_`/`%2e/doc_` (serve-static decodes, `req.path` doesn't). Now gates on `decodeURIComponent`→`normalize`→`basename`. Live-probed: every encoding variant → 401 no-leak; public `img_` still 200. |
+| **F-BIZ-1** duplicate-line oversell | **fixed** | `58716b2` | `buildLines` aggregates qty per unit before the stock check. Review: safe-to-ship, no regression. |
+| **F-PAY-4** mock checkout commits stock | **fixed** | `07a7c99` | Stock/promo commit gated on a real collected payment. Review: safe-to-ship. |
+| **F-INF-3** security headers | **fixed** — **[live-box] verify** | `642a63a` | nginx snippet (CSP **Report-Only**) re-included in the three `add_header` locations; injected into both the fresh- and existing-config deploy paths. Cannot be validated in CI — `curl -I` through Cloudflare after deploy. |
+| **F-INF-1** rate-limit keys on CF edge IP | **fixed** — **[live-box] verify** | `642a63a` | `set_real_ip_from` (CF ranges) + `real_ip_header CF-Connecting-IP` + `real_ip_recursive`. Confirm with `nginx -T` on the box. |
+
+**New finding surfaced during remediation:**
+
+### F-INJ-6 — A business document uploaded as an image is served publicly (no auth)
+**Low–Medium** · flagged by the F-INJ-2 reviewer, not yet fixed. The upload endpoint prefixes by MIME: any `image/*` becomes `img_*` and is served with **no auth**, regardless of which admin section uploaded it. So a tax/invoice document saved as a PNG/JPG in **Documents** lands at a public, cacheable `/uploads/img_*` URL. F-INJ-2's `doc_*` gate doesn't cover it because the file was never named `doc_*`.
+**Fix (follow-up):** have the Documents uploader tag its context so image-typed business docs get the `doc_*` prefix (and the private/no-store headers), or store documents in a separate authenticated route rather than the public static tree. Out of scope for this push; scheduled for the next pass.
+
+**Still OPEN (deferred, unchanged):** F-INF-2 (root deploy/services — needs systemd hardening + deploy gating, owner action), F-INF-5/6, F-PAY-1/2/3, F-CHK-1, F-PRIV-1, and the LOW/INFO items. CSP is Report-Only until the two inline `index.html` scripts get a nonce and violations are reviewed.
+
+---
+
 ## What I explicitly did NOT test (honesty)
 - No live/dynamic testing against production (read-only source audit + first-hand code tracing only). No requests were fired at the live site, DNS, Stripe, PayPal, Etsy, or Cloudflare.
 - No `gitleaks`/`osv-scanner`/SBOM yet (Phase 1 — scanners not installed in this env).

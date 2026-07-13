@@ -407,9 +407,76 @@ configure_nginx() {
 ' "$site"
       nginx -t
     fi
+    # Security headers + Cloudflare real client IP (F-INF-3 / F-INF-1). Configs
+    # written before the hardening pass carry neither, and this branch returns
+    # before the fresh-config block below ever runs — so inject them here too.
+    # The snippet is a standalone file, safe to (re)write every run; the include
+    # + real_ip lines inject exactly once (guarded on the filename being present).
+    mkdir -p /etc/nginx/snippets
+    cat > /etc/nginx/snippets/tinymagic-security.conf <<'SNIP'
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-Frame-Options "DENY" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), usb=(), payment=(self)" always;
+add_header Cross-Origin-Opener-Policy "same-origin" always;
+add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
+SNIP
+    if ! grep -q "tinymagic-security.conf" "$site"; then
+      echo "──> Adding security headers + Cloudflare real-IP to the existing nginx config…"
+      # Server-level: recover the real visitor IP from Cloudflare (per-IP rate
+      # limits) and include the headers once, right after `index index.html;`.
+      sed -i '/index index.html;/a\
+\
+    set_real_ip_from 173.245.48.0/20;\
+    set_real_ip_from 103.21.244.0/22;\
+    set_real_ip_from 103.22.200.0/22;\
+    set_real_ip_from 103.31.4.0/22;\
+    set_real_ip_from 141.101.64.0/18;\
+    set_real_ip_from 108.162.192.0/18;\
+    set_real_ip_from 190.93.240.0/20;\
+    set_real_ip_from 188.114.96.0/20;\
+    set_real_ip_from 197.234.240.0/22;\
+    set_real_ip_from 198.41.128.0/17;\
+    set_real_ip_from 162.158.0.0/15;\
+    set_real_ip_from 104.16.0.0/13;\
+    set_real_ip_from 104.24.0.0/14;\
+    set_real_ip_from 172.64.0.0/13;\
+    set_real_ip_from 131.0.72.0/22;\
+    set_real_ip_from 2400:cb00::/32;\
+    set_real_ip_from 2606:4700::/32;\
+    set_real_ip_from 2803:f800::/32;\
+    set_real_ip_from 2405:b500::/32;\
+    set_real_ip_from 2405:8100::/32;\
+    set_real_ip_from 2a06:98c0::/29;\
+    set_real_ip_from 2c0f:f248::/32;\
+    real_ip_header CF-Connecting-IP;\
+    real_ip_recursive on;\
+\
+    include snippets/tinymagic-security.conf;' "$site"
+      # Re-include inside every location that sets its own add_header — nginx
+      # drops the server-level headers there (the SPA / HTML response matters
+      # most for clickjacking). All three such lines start "add_header Cache-Control".
+      sed -i '/add_header Cache-Control/a\        include snippets/tinymagic-security.conf;' "$site"
+      nginx -t
+    fi
     return
   fi
   echo "──> Configuring nginx…"
+
+  # Security headers, in a snippet so every location can include them (nginx
+  # add_header does NOT inherit into a location that sets its own add_header).
+  # CSP ships Report-Only: index.html has an inline boot-guard <script>, so
+  # enforcing needs a nonce first — collect violations, then flip to enforce.
+  mkdir -p /etc/nginx/snippets
+  cat > /etc/nginx/snippets/tinymagic-security.conf <<'SNIP'
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-Frame-Options "DENY" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), usb=(), payment=(self)" always;
+add_header Cross-Origin-Opener-Policy "same-origin" always;
+add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
+SNIP
+
   cat > "$site" <<NGINX
 server {
     listen 80;
@@ -418,6 +485,39 @@ server {
 
     root ${APP_DIR}/dist;
     index index.html;
+
+    # Recover the real client IP from Cloudflare so per-IP rate limits key on
+    # the visitor, not the CF edge. set_real_ip_from gates this to CF upstreams,
+    # so a direct-to-origin attacker cannot spoof CF-Connecting-IP. Refresh the
+    # ranges from https://www.cloudflare.com/ips/ if they change.
+    set_real_ip_from 173.245.48.0/20;
+    set_real_ip_from 103.21.244.0/22;
+    set_real_ip_from 103.22.200.0/22;
+    set_real_ip_from 103.31.4.0/22;
+    set_real_ip_from 141.101.64.0/18;
+    set_real_ip_from 108.162.192.0/18;
+    set_real_ip_from 190.93.240.0/20;
+    set_real_ip_from 188.114.96.0/20;
+    set_real_ip_from 197.234.240.0/22;
+    set_real_ip_from 198.41.128.0/17;
+    set_real_ip_from 162.158.0.0/15;
+    set_real_ip_from 104.16.0.0/13;
+    set_real_ip_from 104.24.0.0/14;
+    set_real_ip_from 172.64.0.0/13;
+    set_real_ip_from 131.0.72.0/22;
+    set_real_ip_from 2400:cb00::/32;
+    set_real_ip_from 2606:4700::/32;
+    set_real_ip_from 2803:f800::/32;
+    set_real_ip_from 2405:b500::/32;
+    set_real_ip_from 2405:8100::/32;
+    set_real_ip_from 2a06:98c0::/29;
+    set_real_ip_from 2c0f:f248::/32;
+    real_ip_header CF-Connecting-IP;
+    real_ip_recursive on;
+
+    # Security headers on every response (also re-included in the add_header
+    # locations below, which would otherwise drop them).
+    include snippets/tinymagic-security.conf;
 
     gzip on;
     gzip_types text/css application/javascript application/json image/svg+xml;
@@ -475,16 +575,21 @@ server {
     # to keep freshly deployed chunks "missing" long after the deploy.
     location /assets/ {
         add_header Cache-Control "public, max-age=31536000, immutable";
+        include snippets/tinymagic-security.conf;
         try_files \$uri @asset_missing;
     }
     location @asset_missing {
         add_header Cache-Control "no-store" always;
+        include snippets/tinymagic-security.conf;
         return 404;
     }
 
-    # SPA routing: every path falls back to index.html
+    # SPA routing: every path falls back to index.html. This location owns the
+    # HTML response, so its own add_header drops the server-level security
+    # headers unless we re-include them — the most important one for clickjacking.
     location / {
         add_header Cache-Control "no-cache";
+        include snippets/tinymagic-security.conf;
         try_files \$uri /index.html;
     }
 }

@@ -83,7 +83,6 @@ export function printPackingSlip(order: Order, products: Product[], settings: Se
   <div class="foot">
     Packed with care by ${esc(settings.businessName)} · Questions? ${esc(settings.email)}
   </div>
-  <script>window.onload = function () { window.print() }</script>
 </body>
 </html>`
 
@@ -91,4 +90,21 @@ export function printPackingSlip(order: Order, products: Product[], settings: Se
   if (!w) return
   w.document.write(html)
   w.document.close()
+  // Open the print dialog from the opener (this page), not an inline <script>
+  // in the popup: the about:blank child inherits this page's Content-Security-
+  // Policy, which blocks inline scripts once enforced. Fire once, on the child's
+  // load or a fallback timer.
+  let printed = false
+  const printSlip = () => {
+    if (printed) return
+    printed = true
+    try {
+      w.focus()
+      w.print()
+    } catch {
+      /* popup was blocked or closed */
+    }
+  }
+  w.addEventListener('load', printSlip)
+  setTimeout(printSlip, 500)
 }

@@ -325,13 +325,21 @@ UNIT
 # (computed by scripts/csp-hashes.mjs), so no 'unsafe-inline' is needed and an
 # edit to those scripts can't silently drift the policy. Empty hashes on any
 # error → script-src 'self' only, harmless while the CSP is Report-Only.
-# CSP ships Report-Only: review violations, then change the header name to
-# Content-Security-Policy (drop "-Report-Only") to enforce.
+# CSP ships Report-Only. To ENFORCE later: (1) confirm this snippet contains
+# two sha256 tokens (an empty-hash deploy would white-screen if enforced — see
+# the warning below), (2) change the header name to Content-Security-Policy
+# (drop "-Report-Only"). The known enforce-safe surface has been reviewed
+# (blob: is allowed for the legacy image-resize path; the packing slip prints
+# from its opener, not an inline script).
 write_security_snippet() {
   mkdir -p /etc/nginx/snippets
   local csp_hashes=""
   if [ -f "${APP_DIR}/dist/index.html" ] && [ -f "${APP_DIR}/scripts/csp-hashes.mjs" ]; then
     csp_hashes="$(node "${APP_DIR}/scripts/csp-hashes.mjs" "${APP_DIR}/dist/index.html" 2>/dev/null || true)"
+  fi
+  if [ -z "$csp_hashes" ] && [ -f "${APP_DIR}/dist/index.html" ]; then
+    echo "!! CSP inline-script hashes are empty — script-src falls back to 'self'."
+    echo "   Harmless while Report-Only, but do NOT switch the CSP to enforcing until fixed."
   fi
   cat > /etc/nginx/snippets/tinymagic-security.conf <<SNIP
 add_header X-Content-Type-Options "nosniff" always;
@@ -339,7 +347,7 @@ add_header X-Frame-Options "DENY" always;
 add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), usb=(), payment=(self)" always;
 add_header Cross-Origin-Opener-Policy "same-origin" always;
-add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' ${csp_hashes}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
+add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' ${csp_hashes}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
 SNIP
 }
 

@@ -106,8 +106,11 @@ uploadsRouter.post('/', express.raw({ type: () => true, limit: MAX_BYTES }), (re
   // Image MIME types are public (img_) so storefront photos and email images
   // serve without auth. But a business document uploaded as a scan/photo is
   // still confidential — the Documents uploader sends ?kind=document, which
-  // forces a private, auth-gated doc_ name regardless of MIME (F-INJ-6).
-  const forceDoc = req.query.kind === 'document'
+  // forces a private, auth-gated doc_ name regardless of MIME (F-INJ-6). A
+  // duplicated ?kind param arrives as an array; treat it as document too so the
+  // check fails toward private, never public.
+  const kind = req.query.kind
+  const forceDoc = kind === 'document' || (Array.isArray(kind) && kind.includes('document'))
   const prefix = !forceDoc && contentType.startsWith('image/') ? 'img' : 'doc'
   const name = `${prefix}_${Date.now().toString(36)}${crypto.randomBytes(5).toString('hex')}.${ext}`
   writeFileSync(join(UPLOADS_DIR, name), req.body)

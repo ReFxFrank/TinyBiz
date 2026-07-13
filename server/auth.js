@@ -10,6 +10,7 @@ import { db, uid, importState, bumpRev } from './db.js'
 import { computeAccess, sanitizePerms } from './perms.js'
 import { issueReset, redeemReset } from './reset.js'
 import { sendPasswordReset } from './email.js'
+import { siteOrigin } from './origin.js'
 
 const COOKIE = 'tms_session'
 const LEGACY_COOKIE = 'tb_session' // pre-rename sessions keep working
@@ -177,7 +178,8 @@ authRouter.post('/forgot', (req, res) => {
   const user = stmtUserByEmail.get(email)
   if (user && !user.disabled) {
     const token = issueReset('staff', user.id)
-    const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`
+    // Origin pinned server-side — never from request headers (reset-poisoning)
+    const origin = siteOrigin(req)
     void sendPasswordReset({ to: user.email, toName: user.name, resetUrl: `${origin}/admin?reset=${token}` })
   }
   res.json({ ok: true })

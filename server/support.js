@@ -17,6 +17,7 @@ import {
   sendSupportOwnerAlert,
 } from './email.js'
 import { discordSupportAlert } from './discord.js'
+import { siteOrigin } from './origin.js'
 
 export const TICKET_STATUSES = ['open', 'awaiting_customer', 'resolved']
 
@@ -103,7 +104,7 @@ function applyStaffMessage(ticket, body, authorName) {
   return next
 }
 
-const requestOrigin = (req) => req.headers.origin || `${req.protocol}://${req.get('host')}`
+const requestOrigin = (req) => siteOrigin(req)
 
 // ── Public router (storefront, mounted at /api/store/support) ────────────────
 

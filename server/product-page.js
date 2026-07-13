@@ -9,6 +9,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { getItem, getMeta } from './db.js'
 import { ratingSummaries } from './reviews.js'
+import { siteOrigin } from './origin.js'
 
 const DIST_INDEX = resolve(dirname(fileURLToPath(import.meta.url)), '../dist/index.html')
 
@@ -40,7 +41,7 @@ export function productPage(req, res) {
   if (!product || !product.active) return res.send(html) // SPA shows its own not-found state
 
   const settings = getMeta('settings') || {}
-  const origin = `${req.protocol}://${req.get('host')}`
+  const origin = siteOrigin(req)
   const url = `${origin}/product/${product.id}`
   const shopName = settings.businessName || 'The Tiny Magic Studio'
   const title = `${product.name} — ${shopName}`

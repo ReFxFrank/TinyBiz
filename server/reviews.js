@@ -12,6 +12,7 @@ import { shopperSession } from './shop-accounts.js'
 import { rateLimit } from './ratelimit.js'
 import { sendReviewAlert } from './email.js'
 import { discordReviewAlert } from './discord.js'
+import { siteOrigin } from './origin.js'
 
 export const REVIEW_STATUSES = ['pending', 'published', 'rejected']
 
@@ -83,7 +84,7 @@ function findPurchase({ productId, sess, email, orderNumber }) {
   )
 }
 
-const requestOrigin = (req) => req.headers.origin || `${req.protocol}://${req.get('host')}`
+const requestOrigin = (req) => siteOrigin(req)
 
 // ── Public router (mounted at /api/store/reviews) ────────────────────────────
 

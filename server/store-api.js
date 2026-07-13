@@ -11,6 +11,7 @@ import { paypalEnabled, createPayPalOrder, capturePayPalOrder } from './paypal.j
 import { sendOrderConfirmation, sendNewOrderAlert, sendWelcomeEmail } from './email.js'
 import { addStockAlert, processStockAlerts } from './stock-alerts.js'
 import { ratingSummaries } from './reviews.js'
+import { siteOrigin } from './origin.js'
 import { discordOrderAlert } from './discord.js'
 
 export const storeRouter = Router()
@@ -87,7 +88,7 @@ storeRouter.post('/promo', (req, res) => {
 storeRouter.post('/subscribe', (req, res) => {
   const email = String(req.body?.email || '').trim()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'bad_email' })
-  const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`
+  const origin = siteOrigin(req)
   const existing = getCollection('subscribers').find((s) => s.email.toLowerCase() === email.toLowerCase())
   if (existing) {
     if (existing.status === 'subscribed') return res.json({ ok: true, already: true })
@@ -120,7 +121,7 @@ storeRouter.post('/notify-stock', (req, res) => {
   }
   const product = getCollection('products').find((p) => p.id === productId && p.active)
   if (!product) return res.status(404).json({ error: 'not_found' })
-  const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`
+  const origin = siteOrigin(req)
   const result = addStockAlert({ productId, email, origin })
   // Race guard: if it restocked between page load and signup, resolve right away
   processStockAlerts()
@@ -363,7 +364,7 @@ storeRouter.post('/checkout', wrap(async (req, res) => {
     new Date(Date.now() - 30 * 86_400_000).toISOString(),
   )
   const ref = uid('pnd')
-  const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`
+  const origin = siteOrigin(req)
   // origin rides along so the abandoned-cart reminder can link back to checkout
   db.prepare('INSERT INTO pending_checkouts (id, payload, created_at, origin) VALUES (?, ?, ?, ?)').run(
     ref,

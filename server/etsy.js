@@ -8,6 +8,7 @@ import { Router } from 'express'
 import crypto from 'node:crypto'
 import { db, uid, getCollection, getItem, getMeta, setMeta, upsertItem, bumpRev } from './db.js'
 import { requireAuth, requireOwner } from './auth.js'
+import { siteOrigin } from './origin.js'
 
 const API = () => process.env.ETSY_API_BASE || 'https://api.etsy.com'
 const CONNECT_PAGE = 'https://www.etsy.com/oauth/connect'
@@ -238,7 +239,7 @@ etsyRouter.post('/keystring', requireOwner, (req, res) => {
 etsyRouter.get('/connect', requireOwner, (req, res) => {
   const c = cfg()
   if (!c.keystring) return res.status(400).json({ error: 'no_keystring', message: 'Save your Etsy keystring first.' })
-  const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`
+  const origin = siteOrigin(req)
   const verifier = b64url(crypto.randomBytes(32))
   const state = b64url(crypto.randomBytes(16))
   const challenge = b64url(crypto.createHash('sha256').update(verifier).digest())

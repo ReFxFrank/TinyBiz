@@ -10,6 +10,7 @@ import { requireAuth } from './auth.js'
 import { createStripeRefund } from './stripe.js'
 import { refundPayPalCapture } from './paypal.js'
 import { sendRefundIssued } from './email.js'
+import { siteOrigin } from './origin.js'
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next)
 
@@ -92,7 +93,7 @@ refundsRouter.post('/:id/refund', wrap(async (req, res) => {
   upsertItem('orders', next)
   bumpRev()
 
-  const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`
+  const origin = siteOrigin(req)
   void sendRefundIssued({ order: next, amount, origin })
   res.json({ ok: true, order: next, refund: record })
 }))

@@ -10,6 +10,7 @@ import bcrypt from 'bcryptjs'
 import { db, uid, getCollection, upsertItem, bumpRev } from './db.js'
 import { publicOrder } from './store-api.js'
 import { startSession as startAdminSession } from './auth.js'
+import { siteOrigin } from './origin.js'
 import { issueReset, redeemReset } from './reset.js'
 import { sendPasswordReset } from './email.js'
 
@@ -215,7 +216,7 @@ shopAccountRouter.post('/password', (req, res) => {
  *  password lives in the studio account). Always 200 — no account oracle. */
 shopAccountRouter.post('/forgot', (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase()
-  const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`
+  const origin = siteOrigin(req) // pinned server-side (reset-poisoning fix)
   const shopper = stmtByEmail.get(email)
   if (shopper) {
     const token = issueReset('shopper', shopper.id)

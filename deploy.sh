@@ -166,6 +166,10 @@ setup_api() {
     cat > "$ENV_FILE" <<ENV
 TINYMAGIC_DB=${DATA_DIR}/tinymagic.db
 PORT=4000
+# Canonical public URL. Pins every link built in emails (password reset,
+# receipts), OAuth redirects, and SEO output to this host regardless of
+# inbound request headers — closes reset-link poisoning. Set it for a domain.
+PUBLIC_URL=${DOMAIN:+https://${DOMAIN}}
 # Uncomment to enable real Stripe payments on the storefront:
 # STRIPE_SECRET_KEY=sk_live_...
 # STRIPE_WEBHOOK_SECRET=whsec_...

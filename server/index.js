@@ -16,6 +16,7 @@ import { stripeEnabled } from './stripe.js'
 import { paypalEnabled } from './paypal.js'
 import { etsyRouter, startEtsySync } from './etsy.js'
 import { supportPublicRouter, supportAdminRouter } from './support.js'
+import { siteOrigin } from './origin.js'
 import { reviewsPublicRouter, reviewsAdminRouter } from './reviews.js'
 import { refundsRouter } from './refunds.js'
 import { discordRouter } from './discord.js'
@@ -65,15 +66,16 @@ app.use('/uploads', uploadsStatic)
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, rev: currentRev(), stripe: stripeEnabled() }))
 
-// SEO endpoints — nginx proxies these two root paths here. Origin comes from
-// the request (trust proxy is on), so no domain configuration is needed.
+// SEO endpoints — nginx proxies these two root paths here. Origin is pinned via
+// siteOrigin (PUBLIC_URL when set) so a direct-to-origin request can't poison
+// the canonical/sitemap URLs with an attacker Host header.
 const xmlEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 app.get('/robots.txt', (req, res) => {
-  const origin = `${req.protocol}://${req.get('host')}`
+  const origin = siteOrigin(req)
   res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /admin\n\nSitemap: ${origin}/sitemap.xml\n`)
 })
 app.get('/sitemap.xml', (req, res) => {
-  const origin = `${req.protocol}://${req.get('host')}`
+  const origin = siteOrigin(req)
   const urls = ['/', '/shop', '/track', '/policies']
   for (const p of getCollection('products')) {
     if (p.active) urls.push(`/product/${p.id}`)

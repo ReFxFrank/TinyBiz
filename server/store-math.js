@@ -66,18 +66,33 @@ export function buildLines(items, products) {
   if (!Array.isArray(items) || items.length === 0) {
     throw { status: 400, error: 'empty_cart', message: 'Your cart is empty.' }
   }
-  const lines = []
+  // Aggregate requested quantity per (productId, variantId) BEFORE the stock
+  // check. Otherwise a crafted cart with duplicate lines for the same unit
+  // (e.g. two lines of 5 against stock 5) slips each line under the per-line
+  // check and oversells with no shortfall flag (F-BIZ-1). The client already
+  // merges same-unit lines, so this is a no-op for legitimate carts.
+  const byUnit = new Map()
   for (const raw of items) {
     const qty = Math.floor(Number(raw?.qty))
     if (!Number.isFinite(qty) || qty < 1 || qty > 999) {
       throw { status: 400, error: 'bad_qty', message: 'Invalid quantity.' }
     }
-    const product = products.find((p) => p.id === raw.productId && p.active)
+    const key = `${raw?.productId}::${raw?.variantId || ''}`
+    const prev = byUnit.get(key)
+    if (prev) prev.qty += qty
+    else byUnit.set(key, { productId: raw?.productId, variantId: raw?.variantId || undefined, qty })
+  }
+  const lines = []
+  for (const { productId, variantId, qty } of byUnit.values()) {
+    if (qty > 999) {
+      throw { status: 400, error: 'bad_qty', message: 'That quantity is too large.' }
+    }
+    const product = products.find((p) => p.id === productId && p.active)
     if (!product) {
       throw { status: 409, error: 'gone', message: 'An item in your cart is no longer available.' }
     }
-    const variant = raw.variantId ? (product.variants || []).find((v) => v.id === raw.variantId) : undefined
-    if (raw.variantId && !variant) {
+    const variant = variantId ? (product.variants || []).find((v) => v.id === variantId) : undefined
+    if (variantId && !variant) {
       throw { status: 409, error: 'gone', message: `The option you chose for ${product.name} is no longer available.` }
     }
     const available = variant ? variant.stock : product.stock

@@ -318,6 +318,31 @@ UNIT
   systemctl restart "$MAIL_SERVICE"
 }
 
+# Write /etc/nginx/snippets/tinymagic-security.conf — the shared security-header
+# block every location includes (nginx add_header does NOT inherit into a
+# location that sets its own add_header). The CSP script-src is pinned to the
+# hashes of the inline boot/theme scripts in the freshly-built index.html
+# (computed by scripts/csp-hashes.mjs), so no 'unsafe-inline' is needed and an
+# edit to those scripts can't silently drift the policy. Empty hashes on any
+# error → script-src 'self' only, harmless while the CSP is Report-Only.
+# CSP ships Report-Only: review violations, then change the header name to
+# Content-Security-Policy (drop "-Report-Only") to enforce.
+write_security_snippet() {
+  mkdir -p /etc/nginx/snippets
+  local csp_hashes=""
+  if [ -f "${APP_DIR}/dist/index.html" ] && [ -f "${APP_DIR}/scripts/csp-hashes.mjs" ]; then
+    csp_hashes="$(node "${APP_DIR}/scripts/csp-hashes.mjs" "${APP_DIR}/dist/index.html" 2>/dev/null || true)"
+  fi
+  cat > /etc/nginx/snippets/tinymagic-security.conf <<SNIP
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-Frame-Options "DENY" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), usb=(), payment=(self)" always;
+add_header Cross-Origin-Opener-Policy "same-origin" always;
+add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' ${csp_hashes}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
+SNIP
+}
+
 configure_nginx() {
   local server_name="${DOMAIN:-_}"
   local site="/etc/nginx/sites-available/tinymagic"
@@ -410,17 +435,9 @@ configure_nginx() {
     # Security headers + Cloudflare real client IP (F-INF-3 / F-INF-1). Configs
     # written before the hardening pass carry neither, and this branch returns
     # before the fresh-config block below ever runs — so inject them here too.
-    # The snippet is a standalone file, safe to (re)write every run; the include
+    # The snippet is (re)written every run (picks up new CSP hashes); the include
     # + real_ip lines inject exactly once (guarded on the filename being present).
-    mkdir -p /etc/nginx/snippets
-    cat > /etc/nginx/snippets/tinymagic-security.conf <<'SNIP'
-add_header X-Content-Type-Options "nosniff" always;
-add_header X-Frame-Options "DENY" always;
-add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), usb=(), payment=(self)" always;
-add_header Cross-Origin-Opener-Policy "same-origin" always;
-add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
-SNIP
+    write_security_snippet
     if ! grep -q "tinymagic-security.conf" "$site"; then
       echo "──> Adding security headers + Cloudflare real-IP to the existing nginx config…"
       # Server-level: recover the real visitor IP from Cloudflare (per-IP rate
@@ -463,19 +480,9 @@ SNIP
   fi
   echo "──> Configuring nginx…"
 
-  # Security headers, in a snippet so every location can include them (nginx
+  # Security headers live in a snippet so every location can include them (nginx
   # add_header does NOT inherit into a location that sets its own add_header).
-  # CSP ships Report-Only: index.html has an inline boot-guard <script>, so
-  # enforcing needs a nonce first — collect violations, then flip to enforce.
-  mkdir -p /etc/nginx/snippets
-  cat > /etc/nginx/snippets/tinymagic-security.conf <<'SNIP'
-add_header X-Content-Type-Options "nosniff" always;
-add_header X-Frame-Options "DENY" always;
-add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), usb=(), payment=(self)" always;
-add_header Cross-Origin-Opener-Policy "same-origin" always;
-add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
-SNIP
+  write_security_snippet
 
   cat > "$site" <<NGINX
 server {

@@ -83,11 +83,22 @@
             '<div style="font-size:40px;">✨</div>' +
             '<h1 style="font-size:20px;margin:14px 0 8px;">The shop is having trouble loading</h1>' +
             '<p style="font-size:14px;line-height:1.6;opacity:.75;margin:0 0 20px;">We may have just published an update. It usually sorts itself out within a minute or two.</p>' +
-            '<button onclick="try{sessionStorage.removeItem(\'tms-boot-retry\')}catch(e){};location.reload()" style="background:#b3c375;color:#26290f;border:0;border-radius:12px;padding:11px 22px;font-size:15px;font-weight:700;cursor:pointer;">Try again</button>' +
+            '<button id="tms-retry" style="background:#b3c375;color:#26290f;border:0;border-radius:12px;padding:11px 22px;font-size:15px;font-weight:700;cursor:pointer;">Try again</button>' +
             (lastErr
               ? '<div id="tms-errdetail" style="font:11px/1.5 ui-monospace,Menlo,Consolas,monospace;opacity:.5;margin-top:18px;word-break:break-word;white-space:pre-wrap;text-align:left;">' + esc(lastErr).slice(0, 700) + '</div>'
               : '') +
             '</div></div>';
+          // Wire the retry button with a listener, not an inline onclick — an
+          // enforcing Content-Security-Policy blocks inline event handlers, and
+          // this boot guard must keep working under CSP (it's the safety net).
+          var retry = document.getElementById('tms-retry');
+          if (retry)
+            retry.addEventListener('click', function () {
+              try {
+                sessionStorage.removeItem('tms-boot-retry');
+              } catch (e) {}
+              location.reload();
+            });
           fingerprint();
         }
         // Hash the entry script AS THIS MACHINE RECEIVED IT and pin it to the

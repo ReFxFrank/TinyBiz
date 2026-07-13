@@ -7,7 +7,7 @@
 import { Router } from 'express'
 import { getMeta } from './db.js'
 import { requireAuth, requireOwner } from './auth.js'
-import { blockedWebhookReason } from './net-guard.js'
+import { discordWebhookBlockedReason } from './net-guard.js'
 
 export const DISCORD_COLORS = {
   order: 5763719, // green
@@ -17,15 +17,16 @@ export const DISCORD_COLORS = {
 
 export function discordConfigured() {
   const webhook = String(getMeta('settings')?.discordWebhookUrl || '').trim()
-  return webhook !== '' && blockedWebhookReason(webhook) === null
+  return webhook !== '' && discordWebhookBlockedReason(webhook) === null
 }
 
 /** Post one embed to the configured webhook. Never throws.
- *  SSRF guard: refuses loopback/private/link-local/metadata targets so a
- *  settings-perm staffer can't turn shop activity into an internal probe. */
+ *  SSRF guard: only https discord.com/discordapp.com URLs are accepted, and
+ *  redirects are refused, so a settings-perm staffer can't turn shop activity
+ *  into an internal probe (no IP literal, internal DNS name, or 3xx to metadata). */
 export async function postDiscord({ title, description, color, url }) {
   const webhook = String(getMeta('settings')?.discordWebhookUrl || '').trim()
-  const blocked = webhook ? blockedWebhookReason(webhook) : 'empty'
+  const blocked = webhook ? discordWebhookBlockedReason(webhook) : 'empty'
   if (blocked) {
     if (webhook) console.warn(`[tinymagic-api] discord webhook blocked (${blocked})`)
     return
@@ -34,6 +35,7 @@ export async function postDiscord({ title, description, color, url }) {
     await fetch(webhook, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      redirect: 'error',
       signal: AbortSignal.timeout(6000),
       body: JSON.stringify({
         embeds: [

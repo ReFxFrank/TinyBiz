@@ -170,6 +170,10 @@ PORT=4000
 # receipts), OAuth redirects, and SEO output to this host regardless of
 # inbound request headers — closes reset-link poisoning. Set it for a domain.
 PUBLIC_URL=${DOMAIN:+https://${DOMAIN}}
+# Pin the mail-bridge delivery endpoint. When set, it overrides the admin
+# "Email delivery" URL field so no staff account can redirect outbound mail
+# (SSRF / customer-list exfiltration guard). Recommended for multi-staff shops:
+# MAIL_BRIDGE_URL=http://127.0.0.1:7071
 # Uncomment to enable real Stripe payments on the storefront:
 # STRIPE_SECRET_KEY=sk_live_...
 # STRIPE_WEBHOOK_SECRET=whsec_...

@@ -41,8 +41,8 @@ async function sendScheduled(n) {
     return
   }
 
-  const base = String(ns.mailBridgeUrl || '').trim().replace(/\/$/, '')
-  if (base) {
+  const base = String(process.env.MAIL_BRIDGE_URL || ns.mailBridgeUrl || '').trim().replace(/\/$/, '')
+  if (/^https?:\/\//.test(base)) {
     const res = await fetch(`${base}/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

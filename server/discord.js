@@ -7,6 +7,7 @@
 import { Router } from 'express'
 import { getMeta } from './db.js'
 import { requireAuth, requireOwner } from './auth.js'
+import { blockedWebhookReason } from './net-guard.js'
 
 export const DISCORD_COLORS = {
   order: 5763719, // green
@@ -15,13 +16,20 @@ export const DISCORD_COLORS = {
 }
 
 export function discordConfigured() {
-  return /^https?:\/\//.test(String(getMeta('settings')?.discordWebhookUrl || '').trim())
+  const webhook = String(getMeta('settings')?.discordWebhookUrl || '').trim()
+  return webhook !== '' && blockedWebhookReason(webhook) === null
 }
 
-/** Post one embed to the configured webhook. Never throws. */
+/** Post one embed to the configured webhook. Never throws.
+ *  SSRF guard: refuses loopback/private/link-local/metadata targets so a
+ *  settings-perm staffer can't turn shop activity into an internal probe. */
 export async function postDiscord({ title, description, color, url }) {
   const webhook = String(getMeta('settings')?.discordWebhookUrl || '').trim()
-  if (!/^https?:\/\//.test(webhook)) return
+  const blocked = webhook ? blockedWebhookReason(webhook) : 'empty'
+  if (blocked) {
+    if (webhook) console.warn(`[tinymagic-api] discord webhook blocked (${blocked})`)
+    return
+  }
   try {
     await fetch(webhook, {
       method: 'POST',

@@ -203,8 +203,10 @@ export function buildOrderShippedText(order, settings) {
 export async function sendViaBridge(kind, { to, toName, subject, html, text, ref }) {
   const ns = getMeta('newsletterSettings')
   const settings = getMeta('settings')
-  const base = String(ns?.mailBridgeUrl || '').trim().replace(/\/$/, '')
-  if (!base || !to) return // no bridge configured — skip silently
+  // MAIL_BRIDGE_URL env pins the delivery endpoint regardless of the admin-
+  // editable field — set it in prod so no admin write can redirect mail.
+  const base = String(process.env.MAIL_BRIDGE_URL || ns?.mailBridgeUrl || '').trim().replace(/\/$/, '')
+  if (!/^https?:\/\//.test(base) || !to) return // no valid bridge configured — skip silently
 
   const attempt = async () => {
     const res = await fetch(`${base}/send-one`, {

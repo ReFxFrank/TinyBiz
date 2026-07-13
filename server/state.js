@@ -187,7 +187,15 @@ const applyOps = db.transaction((ops, access) => {
       setMeta('settings', op.data)
     } else if (op.op === 'newsletterSettings' && op.data && typeof op.data === 'object') {
       if (!allowed(null, 'newsletterSettings')) { skipped++; continue }
-      setMeta('newsletterSettings', op.data)
+      let data = op.data
+      if (!access.all) {
+        // Non-owner staff may edit newsletter content but NOT the delivery
+        // endpoint/credential — repointing mailBridgeUrl is SSRF + one-request
+        // exfiltration of the whole subscriber list + the bridge token.
+        const cur = getMeta('newsletterSettings') || {}
+        data = { ...data, mailBridgeUrl: cur.mailBridgeUrl, mailBridgeToken: cur.mailBridgeToken }
+      }
+      setMeta('newsletterSettings', data)
     } else {
       throw Object.assign(new Error('bad op'), { status: 400, error: 'bad_op' })
     }

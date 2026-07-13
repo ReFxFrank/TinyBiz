@@ -196,10 +196,14 @@ export const api = {
   // file upload (product photos, documents…) — raw bytes, server returns the
   // hosted URL. contentType overrides blob.type for files the browser can't
   // sniff (e.g. .csv reported with an empty MIME on some systems).
-  upload: async (blob: Blob, contentType?: string) => {
+  upload: async (blob: Blob, contentType?: string, opts?: { private?: boolean }) => {
     let res: Response
     try {
-      res = await fetch('/api/uploads', {
+      // ?kind=document forces a private, auth-gated doc_ name even for image
+      // MIME types — a scanned/photographed tax form is a business document,
+      // not a public storefront photo (F-INJ-6).
+      const path = opts?.private ? '/api/uploads?kind=document' : '/api/uploads'
+      res = await fetch(path, {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': contentType || blob.type || 'image/jpeg' },

@@ -140,7 +140,7 @@ function UploadModal({ open, onClose }: { open: boolean; onClose: () => void }) 
     if (!valid || !file) return
     setBusy(true)
     try {
-      const { url } = await api.upload(file, file.type || DOC_MIME[typeFromFile(file)])
+      const { url } = await api.upload(file, file.type || DOC_MIME[typeFromFile(file)], { private: true })
       const doc: DocumentItem = {
         id: uid('doc'),
         name: name.trim(),

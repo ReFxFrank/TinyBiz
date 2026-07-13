@@ -103,7 +103,12 @@ uploadsRouter.post('/', express.raw({ type: () => true, limit: MAX_BYTES }), (re
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
     return res.status(400).json({ error: 'empty', message: 'The upload was empty.' })
   }
-  const prefix = contentType.startsWith('image/') ? 'img' : 'doc'
+  // Image MIME types are public (img_) so storefront photos and email images
+  // serve without auth. But a business document uploaded as a scan/photo is
+  // still confidential — the Documents uploader sends ?kind=document, which
+  // forces a private, auth-gated doc_ name regardless of MIME (F-INJ-6).
+  const forceDoc = req.query.kind === 'document'
+  const prefix = !forceDoc && contentType.startsWith('image/') ? 'img' : 'doc'
   const name = `${prefix}_${Date.now().toString(36)}${crypto.randomBytes(5).toString('hex')}.${ext}`
   writeFileSync(join(UPLOADS_DIR, name), req.body)
   res.json({ url: `/uploads/${name}` })

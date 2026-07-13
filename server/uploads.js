@@ -8,7 +8,7 @@ import { Router } from 'express'
 import express from 'express'
 import crypto from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, resolve, posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { requireAuth } from './auth.js'
 import { computeAccess } from './perms.js'
@@ -52,7 +52,21 @@ uploadsStatic.use((req, res, next) => {
   // Business documents (tax/supplier files) require the 'documents' section,
   // not merely any logged-in session — otherwise a leaked/guessed doc URL is
   // served to any staff account regardless of their permissions (F-INJ-2).
-  if (/^\/doc_/.test(req.path)) {
+  //
+  // Gate on the file serve-static will ACTUALLY resolve, not the raw req.path.
+  // Express leaves req.path percent-encoded, but serve-static/send decode +
+  // normalize before hitting disk — so testing `/^\/doc_/` against req.path let
+  // `/uploads/%64oc_x` and `/uploads/%2e/doc_x` skip the check and hand a
+  // business document to an unauthenticated caller. Decode + normalize the same
+  // way send does (single decode; malformed → 400, matching send), then gate on
+  // the resolved basename so no encoding can dodge it.
+  let name
+  try {
+    name = posix.basename(posix.normalize(decodeURIComponent(req.path)))
+  } catch {
+    return res.status(400).json({ error: 'bad_request' })
+  }
+  if (name.startsWith('doc_')) {
     if (!req.user) return res.status(401).json({ error: 'unauthorized' })
     const access = computeAccess(req.user)
     if (!access.all && !access.readable.has('documents')) {

@@ -26,6 +26,8 @@ import { createBackup } from './backup.js'
 import { productPage } from './product-page.js'
 import { startAbandonedCartSweep } from './abandoned.js'
 import { startNewsletterScheduler } from './newsletter-scheduler.js'
+import { cspReportParser, cspReportHandler, cspReportView } from './csp-report.js'
+import { migrateImageDocuments } from './migrate-docs.js'
 
 const app = express()
 app.set('trust proxy', 1) // nginx sits in front — respect X-Forwarded-Proto
@@ -55,6 +57,16 @@ app.use('/api/store/account/reset', rateLimit({ windowMs: 10 * 60_000, max: 10, 
 app.use('/api/store/notify-stock', rateLimit({ windowMs: 10 * 60_000, max: 20, name: 'notify-stock' }))
 // Claiming needs number+email proof — rate-limit like /track so it can't be fished
 app.use('/api/store/account/claim', rateLimit({ windowMs: 10 * 60_000, max: 20, name: 'claim' }))
+
+// CSP violation sink (POST, public). Mounted BEFORE the 15mb json parser with
+// its own 16kb parser so an application/json body can't slip past the cap and
+// stall the event loop; POST-only so the owner's GET viewer isn't rate-limited.
+app.post(
+  '/api/csp-report',
+  rateLimit({ windowMs: 60_000, max: 120, name: 'csp-report' }),
+  cspReportParser,
+  cspReportHandler,
+)
 
 app.use(express.json({ limit: '15mb' })) // localStorage imports can be chunky
 app.use(sessionMiddleware)
@@ -111,6 +123,9 @@ app.use('/api/orders', refundsRouter)
 app.use('/api/discord', discordRouter)
 app.use('/api/store', storeRouter)
 app.use('/api/uploads', uploadsRouter)
+// Owner-only CSP report viewer (the public POST sink is mounted above, before
+// the json parser). Lets us see what an enforcing CSP would block.
+app.get('/api/csp-report', requireAuth, requireOwner, cspReportView)
 
 // On-demand snapshot for the owner (nightly cron handles the scheduled ones)
 app.get('/api/backup', requireAuth, requireOwner, (req, res, next) => {
@@ -136,6 +151,8 @@ startAbandonedCartSweep()
 startEtsySync()
 // Scheduled newsletters go out on time even with every admin tab closed
 startNewsletterScheduler()
+// One-time: privatize any document uploaded as an image before F-INJ-6 shipped
+migrateImageDocuments()
 
 const port = Number(process.env.PORT) || 4000
 app.listen(port, '127.0.0.1', () => {
